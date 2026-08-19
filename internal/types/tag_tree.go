@@ -33,6 +33,27 @@ func (TagTree) TableName() string { return "tag_tree" }
 // linked to a native tag.
 func (t *TagTree) IsLeaf() bool { return t != nil && t.TagID != nil && *t.TagID != "" }
 
+// TagTreeCascadeResult reports the side effects of a subtree hard-delete or a
+// leaf demotion; consumed by API responses and WARN-level audit logs.
+type TagTreeCascadeResult struct {
+	DeletedNodes     int64    `json:"deleted_nodes"`
+	DeletedTags      int64    `json:"deleted_tags"`
+	UntaggedChunks   int64    `json:"untagged_chunks"`
+	RemovedRelations int64    `json:"removed_relations"`
+	AffectedTagIDs   []string `json:"affected_tag_ids"`
+}
+
+// TagTreeLeaves is the retrieval pre-filter resolution of a tree node: the
+// leaf tag ids to feed into hybrid-search. Internal nodes collect every
+// descendant leaf; leaf nodes resolve to their own single tag id.
+type TagTreeLeaves struct {
+	NodeID string   `json:"node_id"`
+	Path   string   `json:"path"`
+	IsLeaf bool     `json:"is_leaf"`
+	TagIDs []string `json:"tag_ids"`
+	Count  int      `json:"count"`
+}
+
 // TagTreeNode is the nested representation of a tag tree returned by the API.
 type TagTreeNode struct {
 	ID              string         `json:"id"`
