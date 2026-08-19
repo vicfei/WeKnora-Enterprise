@@ -1120,3 +1120,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_page_revisions_page_version
 
 CREATE INDEX IF NOT EXISTS idx_wiki_page_revisions_kb_slug
     ON wiki_page_revisions (knowledge_base_id, slug);
+
+CREATE TABLE IF NOT EXISTS tag_tree (
+    id                VARCHAR(36) PRIMARY KEY,
+    tenant_id         INTEGER NOT NULL,
+    knowledge_base_id VARCHAR(36) NOT NULL,
+    parent_id         VARCHAR(36),
+    name              VARCHAR(255) NOT NULL,
+    path              VARCHAR(1000) NOT NULL,
+    level             INTEGER NOT NULL DEFAULT 0,
+    tag_id            VARCHAR(36),
+    is_auto_extract   BOOLEAN NOT NULL DEFAULT 0,
+    sort_order        INTEGER NOT NULL DEFAULT 0,
+    created_by        VARCHAR(36),
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at        DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_tenant_kb
+    ON tag_tree (tenant_id, knowledge_base_id);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_parent
+    ON tag_tree (parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_path
+    ON tag_tree (path);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_tag
+    ON tag_tree (tag_id);
