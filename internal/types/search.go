@@ -237,9 +237,16 @@ type SearchParams struct {
 	MatchCount           int       `json:"match_count"`
 	DisableKeywordsMatch bool      `json:"disable_keywords_match"`
 	DisableVectorMatch   bool      `json:"disable_vector_match"`
-	KnowledgeIDs         []string  `json:"knowledge_ids"`
-	TagIDs               []string  `json:"tag_ids"` // Tag IDs for filtering (used for FAQ priority filtering)
-	ScopeTagIDs          []string  `json:"scope_tag_ids,omitempty"`
+	KnowledgeIDs []string `json:"knowledge_ids"`
+	// TagIDs filters retrieval by tags. HybridSearch applies it per KB type:
+	// for document-type KBs (including all-document multi-KB scopes) the
+	// service resolves the tags to a knowledge whitelist via
+	// knowledge_tag_relations before retrieval — an empty resolution yields
+	// an empty result, not a whole-KB search. For FAQ or mixed scopes the
+	// tags pass through as an index-level chunks.tag_id filter. An empty
+	// (or absent) list never filters.
+	TagIDs      []string `json:"tag_ids"`
+	ScopeTagIDs []string `json:"scope_tag_ids,omitempty"`
 	OnlyRecommended      bool      `json:"only_recommended"`
 	// KnowledgeBaseIDs overrides the single KB ID passed to HybridSearch,
 	// allowing a single retrieval call to span multiple KBs that share the

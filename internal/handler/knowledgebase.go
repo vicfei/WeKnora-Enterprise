@@ -271,7 +271,7 @@ func (h *KnowledgeBaseHandler) resolveKBStoreView(
 
 // HybridSearch godoc
 // @Summary      混合搜索
-// @Description  在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。
+// @Description  在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。tag_ids 按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。
 // @Tags         知识库
 // @Accept       json
 // @Produce      json
