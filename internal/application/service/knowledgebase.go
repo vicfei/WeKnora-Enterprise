@@ -405,6 +405,28 @@ func (s *knowledgeBaseService) ListKnowledgeBases(ctx context.Context) ([]*types
 	return kbs, nil
 }
 
+// ListAllKnowledgeBases lists every non-temporary knowledge base system-wide.
+// It backs the system-admin ?scope=portal view only (secondary development,
+// decision 019); regular list paths stay tenant-scoped. Stats enrichment is
+// deliberately skipped — cross-tenant per-KB count queries would make this
+// endpoint O(N×queries); the portal admin view fetches details per KB.
+func (s *knowledgeBaseService) ListAllKnowledgeBases(ctx context.Context) ([]*types.KnowledgeBase, error) {
+	kbs, err := s.repo.ListKnowledgeBases(ctx)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, nil)
+		return nil, err
+	}
+	out := make([]*types.KnowledgeBase, 0, len(kbs))
+	for _, kb := range kbs {
+		if kb == nil || kb.IsTemporary {
+			continue
+		}
+		kb.EnsureDefaults()
+		out = append(out, kb)
+	}
+	return out, nil
+}
+
 // ListKnowledgeBasesByTenantID returns all knowledge bases for the given tenant (e.g. for shared agent context).
 func (s *knowledgeBaseService) ListKnowledgeBasesByTenantID(ctx context.Context, tenantID uint64) ([]*types.KnowledgeBase, error) {
 	kbs, err := s.repo.ListKnowledgeBasesByTenantID(ctx, tenantID)

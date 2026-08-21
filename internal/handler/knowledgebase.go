@@ -572,6 +572,16 @@ func (h *KnowledgeBaseHandler) ListKnowledgeBases(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	agentID := c.Query("agent_id")
+
+	// Portal merged view (secondary development, decision 019): explicit
+	// opt-in via ?scope=portal; mutually exclusive with agent_id (agent
+	// scope wins). The default list behaviour is unchanged when scope is
+	// absent.
+	if agentID == "" && c.Query("scope") == "portal" {
+		h.listKnowledgeBasesPortal(c)
+		return
+	}
+
 	if agentID != "" {
 		userIDVal, ok := c.Get(types.UserIDContextKey.String())
 		if !ok {
@@ -723,6 +733,105 @@ func (h *KnowledgeBaseHandler) ListKnowledgeBases(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    h.buildKBListResponse(ctx, kbs, callerTenantID),
+	})
+}
+
+// listKnowledgeBasesPortal serves the ?scope=portal merged view (secondary
+// development, decision 019). System admins see every non-temporary KB
+// system-wide (each entry carries its tenant_id); everyone else sees the
+// own-department tenant's KBs (stats/share counts like the default list)
+// plus KBs shared into their organizations, deduped by KB id with
+// own-tenant entries winning (补充1).
+func (h *KnowledgeBaseHandler) listKnowledgeBasesPortal(c *gin.Context) {
+	ctx := c.Request.Context()
+	callerTenantID := c.GetUint64(types.TenantIDContextKey.String())
+	if callerTenantID == 0 {
+		c.Error(apperrors.NewUnauthorizedError("workspace ID not found"))
+		return
+	}
+
+	if types.IsSystemAdminFromContext(ctx) {
+		kbs, err := h.service.ListAllKnowledgeBases(ctx)
+		if err != nil {
+			logger.ErrorWithFields(ctx, err, nil)
+			c.Error(apperrors.NewInternalServerError(err.Error()))
+			return
+		}
+		kbs = filterKnowledgeBasesForAPIKeyScope(ctx, kbs)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    h.buildKBListResponse(ctx, kbs, callerTenantID),
+		})
+		return
+	}
+
+	// Own department tenant KBs — same enrichment as the default list.
+	own, err := h.service.ListKnowledgeBases(ctx)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, nil)
+		c.Error(apperrors.NewInternalServerError(err.Error()))
+		return
+	}
+	own = filterKnowledgeBasesForAPIKeyScope(ctx, own)
+	if len(own) > 0 && h.kbShareService != nil {
+		kbIDs := make([]string, len(own))
+		for i, kb := range own {
+			kbIDs[i] = kb.ID
+		}
+		if shareCounts, err := h.kbShareService.CountSharesByKnowledgeBaseIDs(ctx, kbIDs); err == nil {
+			for _, kb := range own {
+				if count, ok := shareCounts[kb.ID]; ok {
+					kb.ShareCount = count
+				}
+			}
+		} else {
+			logger.Warnf(ctx, "Failed to get share counts: %v", err)
+		}
+	}
+	enrichKBCreatorNames(ctx, h.userService, own)
+
+	// KBs shared into the caller's organizations.
+	callerTenantRole := types.TenantRoleFromContext(ctx)
+	shared, err := h.kbShareService.ListSharedKnowledgeBases(ctx, callerTenantID, callerTenantRole)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, nil)
+		c.Error(apperrors.NewInternalServerError(err.Error()))
+		return
+	}
+
+	ownIDs := make(map[string]bool, len(own))
+	for _, kb := range own {
+		ownIDs[kb.ID] = true
+	}
+
+	data := h.buildKBListResponse(ctx, own, callerTenantID)
+	defaultView := h.envDefaultStoreView(ctx)
+	for _, info := range shared {
+		if info == nil || info.KnowledgeBase == nil || ownIDs[info.KnowledgeBase.ID] {
+			continue // dedupe: the own-tenant entry wins over the shared row
+		}
+		view := defaultView
+		if info.KnowledgeBase.HasVectorStore() {
+			if info.KnowledgeBase.TenantID != callerTenantID {
+				view = types.SharedStoreDisplay()
+			} else {
+				view = types.UnavailableStoreDisplay()
+			}
+		}
+		data = append(data, buildKBResponse(info.KnowledgeBase, view, map[string]interface{}{
+			"shared":           true,
+			"share_id":         info.ShareID,
+			"organization_id":  info.OrganizationID,
+			"org_name":         info.OrgName,
+			"permission":       info.Permission,
+			"source_tenant_id": info.SourceTenantID,
+			"shared_at":        info.SharedAt,
+		}))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
 	})
 }
 
