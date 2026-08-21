@@ -162,6 +162,7 @@ const (
 	APIKeyCapabilitySystemRuntimeRead    APIKeyCapability = "system_runtime_read"
 	APIKeyCapabilitySystemRuntimeManage  APIKeyCapability = "system_runtime_manage"
 	APIKeyCapabilitySystemAuditRead      APIKeyCapability = "system_audit_read"
+	APIKeyCapabilitySystemIdentityBridge APIKeyCapability = "system_identity_bridge"
 )
 
 // NormalizeAPIKeyCapability maps an input capability string to a known
@@ -218,6 +219,8 @@ func NormalizeAPIKeyCapability(c APIKeyCapability) APIKeyCapability {
 		return APIKeyCapabilitySystemRuntimeManage
 	case APIKeyCapabilitySystemAuditRead:
 		return APIKeyCapabilitySystemAuditRead
+	case APIKeyCapabilitySystemIdentityBridge:
+		return APIKeyCapabilitySystemIdentityBridge
 	default:
 		return ""
 	}
