@@ -1149,3 +1149,38 @@ CREATE INDEX IF NOT EXISTS idx_tag_tree_path
 
 CREATE INDEX IF NOT EXISTS idx_tag_tree_tag
     ON tag_tree (tag_id);
+
+CREATE TABLE IF NOT EXISTS external_identities (
+    id                VARCHAR(36) PRIMARY KEY,
+    uum_user_id       VARCHAR(128) NOT NULL,
+    user_id           VARCHAR(36) NOT NULL,
+    tenant_id         INTEGER NOT NULL,
+    uum_department_id VARCHAR(128),
+    source            VARCHAR(20) NOT NULL DEFAULT 'uum',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_external_identities_uum_tenant
+    ON external_identities (uum_user_id, tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_external_identities_user
+    ON external_identities (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_external_identities_department
+    ON external_identities (uum_department_id);
+
+CREATE TABLE IF NOT EXISTS uum_departments (
+    id                VARCHAR(36) PRIMARY KEY,
+    uum_department_id VARCHAR(128) NOT NULL,
+    tenant_id         INTEGER NOT NULL,
+    department_name   VARCHAR(255),
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_uum_id
+    ON uum_departments (uum_department_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_tenant
+    ON uum_departments (tenant_id);
