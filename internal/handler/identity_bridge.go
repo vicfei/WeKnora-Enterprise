@@ -44,7 +44,10 @@ type bridgeLoginResponse struct {
 // @Produce      json
 // @Param        request  body   types.IdentityBridgeRequest  true  "桥接请求"
 // @Success      200  {object}  map[string]interface{}  "登录响应（token/refresh_token/user/memberships + is_new_user）"
-// @Failure      400/403/404/409  {object}  errors.AppError
+// @Failure      400  {object}  errors.AppError
+// @Failure      403  {object}  errors.AppError
+// @Failure      404  {object}  errors.AppError
+// @Failure      409  {object}  errors.AppError
 // @Security     ApiKeyAuth
 // @Router       /identity/bridge [post]
 func (h *IdentityBridgeHandler) Bridge(c *gin.Context) {
@@ -84,7 +87,8 @@ func (h *IdentityBridgeHandler) Bridge(c *gin.Context) {
 // @Produce      json
 // @Param        request  body   types.IdentityDisableRequest  true  "禁用请求"
 // @Success      200  {object}  map[string]interface{}  "禁用成功"
-// @Failure      400/404  {object}  errors.AppError
+// @Failure      400  {object}  errors.AppError
+// @Failure      404  {object}  errors.AppError
 // @Security     ApiKeyAuth
 // @Router       /identity/disable [post]
 func (h *IdentityBridgeHandler) Disable(c *gin.Context) {
@@ -117,7 +121,9 @@ func (h *IdentityBridgeHandler) Disable(c *gin.Context) {
 // @Produce      json
 // @Param        request  body   types.IdentityTransferRequest  true  "调岗请求"
 // @Success      200  {object}  map[string]interface{}  "迁移后的映射"
-// @Failure      400/404/409  {object}  errors.AppError
+// @Failure      400  {object}  errors.AppError
+// @Failure      404  {object}  errors.AppError
+// @Failure      409  {object}  errors.AppError
 // @Security     ApiKeyAuth
 // @Router       /identity/transfer [post]
 func (h *IdentityBridgeHandler) Transfer(c *gin.Context) {
@@ -152,7 +158,8 @@ func (h *IdentityBridgeHandler) Transfer(c *gin.Context) {
 // @Param        uum_user_id  path   string  true  "UUM 用户ID"
 // @Param        tenant_id    query  int     true  "部门租户ID"
 // @Success      200  {object}  map[string]interface{}  "映射详情"
-// @Failure      400/404  {object}  errors.AppError
+// @Failure      400  {object}  errors.AppError
+// @Failure      404  {object}  errors.AppError
 // @Security     ApiKeyAuth
 // @Router       /identity/mapping/{uum_user_id} [get]
 func (h *IdentityBridgeHandler) GetMapping(c *gin.Context) {
@@ -207,7 +214,9 @@ func (h *IdentityBridgeHandler) GetMappingsByUser(c *gin.Context) {
 // @Param        department_id  path   string                      true  "UUM 部门ID"
 // @Param        request        body   types.UUMDepartmentRequest  true  "绑定信息"
 // @Success      200  {object}  map[string]interface{}  "映射详情"
-// @Failure      400/404/409  {object}  errors.AppError
+// @Failure      400  {object}  errors.AppError
+// @Failure      404  {object}  errors.AppError
+// @Failure      409  {object}  errors.AppError
 // @Security     ApiKeyAuth
 // @Router       /identity/departments/{department_id} [put]
 func (h *IdentityBridgeHandler) UpsertDepartment(c *gin.Context) {

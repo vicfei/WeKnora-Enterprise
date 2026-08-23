@@ -152,7 +152,9 @@ func (h *TagTreeHandler) GetNode(c *gin.Context) {
 // @Param        id       path   string  true  "知识库ID"
 // @Param        request  body   object{name=string,parent_id=string,sort_order=int}  true  "节点信息"
 // @Success      200      {object}  map[string]interface{}  "创建的节点"
-// @Failure      400/404/409  {object}  errors.AppError  "参数错误/父节点不存在/同级重名"
+// @Failure      400  {object}  errors.AppError  "参数错误"
+// @Failure      404  {object}  errors.AppError  "父节点不存在"
+// @Failure      409  {object}  errors.AppError  "同级重名"
 // @Security     Bearer
 // @Security     ApiKeyAuth
 // @Router       /knowledge-bases/{id}/tag-tree/nodes [post]
@@ -192,7 +194,9 @@ func (h *TagTreeHandler) CreateNode(c *gin.Context) {
 // @Param        node_id   path   string  true  "节点ID"
 // @Param        request   body   object{name=string,sort_order=int}  true  "更新信息"
 // @Success      200  {object}  map[string]interface{}  "更新后的节点"
-// @Failure      400/404/409  {object}  errors.AppError  "参数错误/节点不存在/重名冲突"
+// @Failure      400  {object}  errors.AppError  "参数错误"
+// @Failure      404  {object}  errors.AppError  "节点不存在"
+// @Failure      409  {object}  errors.AppError  "重名冲突"
 // @Security     Bearer
 // @Security     ApiKeyAuth
 // @Router       /knowledge-bases/{id}/tag-tree/nodes/{node_id} [put]
@@ -267,7 +271,9 @@ func (h *TagTreeHandler) DeleteNode(c *gin.Context) {
 // @Param        node_id   path   string  true  "节点ID"
 // @Param        request   body   object{parent_id=string}  true  "目标父节点（空=根级）"
 // @Success      200  {object}  map[string]interface{}  "移动后的节点"
-// @Failure      400/404/409  {object}  errors.AppError  "参数错误/目标不存在/重名冲突"
+// @Failure      400  {object}  errors.AppError  "参数错误"
+// @Failure      404  {object}  errors.AppError  "目标不存在"
+// @Failure      409  {object}  errors.AppError  "重名冲突"
 // @Security     Bearer
 // @Security     ApiKeyAuth
 // @Router       /knowledge-bases/{id}/tag-tree/nodes/{node_id}/move [post]
