@@ -141,7 +141,7 @@ curl -s -X PUT http://{H}:8080/api/v1/identity/departments/DEPT-DEMO \
 curl -s -X POST http://{H}:8080/api/v1/identity/bridge \
   -H "X-API-Key: $PKEY" -H "X-Tenant-ID: 10003" -H "Content-Type: application/json" \
   -d '{"uum_user_id":"DEMO9001","tenant_id":10003,"username":"演示员工","uum_department_id":"DEPT-DEMO"}' \
-  | jq '{is_new_user: .data.is_new_user, 用户: .data.user.username, 部门: .data.active_tenant.name, 角色: .data.memberships[0].role, 已发token: (.data.token|length>100)}'
+  | jq '{is_new_user: .data.is_new_user, "用户": .data.user.username, "部门": .data.active_tenant.name, "角色": .data.memberships[0].role, "已发token": (.data.token|length>100)}'
 
 <span class="c"># ④ 收尾对比：查有此人（期待 200 + user_id）</span>
 curl -s "http://{H}:8080/api/v1/identity/mapping/DEMO9001?tenant_id=10003" \
