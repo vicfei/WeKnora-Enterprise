@@ -6179,5 +6179,11 @@ export default {
     loadFailed: '태그 트리를 불러오지 못했습니다',
     browseSection: '계층별 탐색',
     pickForUpload: '태그 트리에서 선택'
+  },
+
+  // 추가 개발 기능: UUM bridge 로그인 (외부 포털 SSO)
+  bridgeLogin: {
+    portalButton: '포털 통합 로그인',
+    callbackFailed: '포털 로그인에 실패했습니다. 포털에서 다시 진입해 주세요'
   }
 }

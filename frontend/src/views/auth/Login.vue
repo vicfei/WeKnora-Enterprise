@@ -225,13 +225,20 @@
                 </t-button>
               </div>
 
-              <div v-if="oidcEnabled" class="oidc-divider">
+              <div v-if="oidcEnabled || portalBridgeEntryVisible" class="oidc-divider">
                 <span>{{ $t('auth.orContinueWith') }}</span>
               </div>
 
               <t-button v-if="oidcEnabled" theme="default" size="large" block :loading="oidcLoading" :disabled="loading"
                 class="oidc-button" @click="handleOIDCLogin">
                 {{ oidcLoading ? $t('auth.redirectingToOIDC') : oidcLoginText }}
+              </t-button>
+
+              <!-- 二开功能：门户统一登录（跳转外部 Java 门户，回跳经 #bridge_result= 完成登录） -->
+              <t-button v-if="portalBridgeEntryVisible" theme="default" size="large" block class="oidc-button"
+                :disabled="loading" @click="handlePortalLogin">
+                <template #icon><t-icon name="city" /></template>
+                {{ $t('bridgeLogin.portalButton') }}
               </t-button>
             </t-form>
 
@@ -344,6 +351,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useRoleLabel } from '@/composables/useRoleLabel'
 import { notifyLoginSuccess } from '@/utils/loginNotify'
+import { bridgeLoginEnabled, portalLoginUrl } from '@/features/common/flags'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay, EffectFade, Pagination } from 'swiper/modules'
 import 'swiper/css'
@@ -414,6 +422,14 @@ const isRegisterMode = ref(false)
 const showLanguageMenu = ref(false)
 const oidcEnabled = ref(false)
 const oidcProviderName = ref('')
+
+// 二开功能：门户统一登录入口（VITE_ENABLE_BRIDGE_LOGIN + VITE_PORTAL_LOGIN_URL
+// 均配置时才显示；地址为构建期注入，未配置即隐藏）
+const portalBridgeEntryVisible = computed(() => bridgeLoginEnabled() && !!portalLoginUrl())
+const handlePortalLogin = () => {
+  const url = portalLoginUrl()
+  if (url) window.location.href = url
+}
 // registrationEnabled defaults to true so that on first paint the Register
 // link is visible; the actual mode is fetched from /auth/config in onMounted.
 // In invite_only mode the link/card are hidden.

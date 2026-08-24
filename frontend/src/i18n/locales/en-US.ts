@@ -6179,5 +6179,11 @@ export default {
     loadFailed: 'Failed to load the tag tree',
     browseSection: 'Browse by hierarchy',
     pickForUpload: 'Pick from tag tree'
+  },
+
+  // Second-development feature: UUM bridge login (external portal SSO)
+  bridgeLogin: {
+    portalButton: 'Portal single sign-on',
+    callbackFailed: 'Portal login failed, please re-enter from the portal'
   }
 }

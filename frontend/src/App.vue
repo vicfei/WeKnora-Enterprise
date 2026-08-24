@@ -12,6 +12,14 @@ import { consumePendingTenantSwitchToast } from '@/utils/tenantSwitch'
 import { useRoleLabel } from '@/composables/useRoleLabel'
 import { notifyLoginSuccess } from '@/utils/loginNotify'
 import { renderWorkspaceNotifyContent } from '@/utils/workspaceNotifyContent'
+import {
+  BridgeCallbackError,
+  clearBridgeCallbackHash,
+  decodeBridgeResult,
+  hasBridgeErrorInHash,
+  readBridgeResultFromHash,
+} from '@/features/portal-auth/bridgeCallback'
+import { bridgeLoginEnabled } from '@/features/common/flags'
 
 // TDesign locale configs
 import enUSConfig from 'tdesign-vue-next/esm/locale/en_US'
@@ -170,6 +178,41 @@ const handleGlobalOIDCCallback = async () => {
 
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null
 
+// 二开功能：UUM bridge 登录回调（#bridge_result=base64url(JSON{token,refresh_token})，
+// 由外部 Java 门户重定向带入）。成功后立即清 URL hash，token 不打印、不落日志。
+const handleGlobalBridgeCallback = async () => {
+  if (!bridgeLoginEnabled()) return
+  const encoded = readBridgeResultFromHash()
+  if (!encoded && !hasBridgeErrorInHash()) return
+
+  if (!encoded) {
+    clearBridgeCallbackHash('/login')
+    await router.replace('/login')
+    MessagePlugin.error(t('bridgeLogin.callbackFailed'))
+    return
+  }
+
+  try {
+    const payload = decodeBridgeResult(encoded)
+    // token 消费即清：地址栏、历史均不留痕
+    clearBridgeCallbackHash('/')
+    authStore.setToken(payload.token)
+    if (payload.refresh_token) {
+      authStore.setRefreshToken(payload.refresh_token)
+    }
+    await syncOIDCUserContext()
+    await nextTick()
+    router.replace(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
+  } catch (error) {
+    // 只记录类型不记录内容（payload 可能含 token）
+    console.error('Bridge login callback failed:', error instanceof BridgeCallbackError ? error.message : 'unknown')
+    authStore.logout()
+    clearBridgeCallbackHash('/login')
+    await router.replace('/login')
+    MessagePlugin.error(t('bridgeLogin.callbackFailed'))
+  }
+}
+
 // Pending invitations poll: fires once on mount (logged-in case) and
 // then every 2 minutes. Light enough to keep the avatar-row badge
 // near-live without slamming the API, and avoids the cost of a
@@ -237,6 +280,7 @@ const showPendingTenantSwitchToast = () => {
 
 onMounted(() => {
   handleGlobalOIDCCallback()
+  handleGlobalBridgeCallback()
   showPendingTenantSwitchToast()
 
   // Auto check for updates on startup

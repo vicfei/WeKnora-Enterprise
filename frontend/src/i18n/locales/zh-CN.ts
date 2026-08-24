@@ -6179,5 +6179,11 @@ export default {
     loadFailed: '标签树加载失败',
     browseSection: '按层级浏览',
     pickForUpload: '从标签树选择'
+  },
+
+  // 二开功能：UUM bridge 登录（外部 Java 门户统一登录）
+  bridgeLogin: {
+    portalButton: '门户统一登录',
+    callbackFailed: '门户登录失败，请重新从门户进入'
   }
 }

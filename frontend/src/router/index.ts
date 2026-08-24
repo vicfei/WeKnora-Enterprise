@@ -35,7 +35,14 @@ function isSafeLiteRestoreTarget(path: string) {
 function hasPendingOIDCCallback() {
   if (typeof window === 'undefined') return false
   const hash = window.location.hash || ''
-  return hash.includes('oidc_result=') || hash.includes('oidc_error=')
+  // 二开功能：bridge 登录回调同样携带 hash（#bridge_result=/#bridge_error=），
+  // 守卫需放行给 App.vue 消费，否则未登录状态会被先重定向到 /login 丢失 hash。
+  return (
+    hash.includes('oidc_result=') ||
+    hash.includes('oidc_error=') ||
+    hash.includes('bridge_result=') ||
+    hash.includes('bridge_error=')
+  )
 }
 
 const router = createRouter({
