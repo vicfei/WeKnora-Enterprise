@@ -91,8 +91,18 @@ curl -s http://{H}:8080/api/v1/knowledge-bases/a4b23c87-fa92-4376-a1f6-ff68c5c97
 curl -s -X POST http://{H}:8080/api/v1/identity/bridge \
   -H "X-API-Key: $PLATFORM_KEY" -H "X-Tenant-ID: 10000" \
   -d '{"uum_user_id":"DEMO-EMP","tenant_id":10000}' | jq '.data.is_new_user, .data.active_tenant.name'
-<span class="c"># 门户列表对比</span>
-curl -s "http://{H}:8080/api/v1/knowledge-bases?scope=portal" -H "Authorization: Bearer $TOKEN" | jq '.data | length'</pre>
+<span class="c"># 门户列表权限分流对比（两账号登录，密码替换 &lt;密码&gt;）</span>
+TOKEN1=$(curl -s -X POST http://{H}:8080/api/v1/auth/login \
+  -d '{"email":"cnfeichen@163.com","password":"&lt;密码&gt;"}' | jq -r .token)   <span class="c"># 管理员(租户10000)</span>
+TOKEN2=$(curl -s -X POST http://{H}:8080/api/v1/auth/login \
+  -d '{"email":"cnchenfei@126.com","password":"&lt;密码&gt;"}' | jq -r .token)   <span class="c"># 普通用户(空租户)</span>
+<span class="c"># 普通用户：仅见共享进来的 test 库（shared:true, permission:viewer, 来源组织名）</span>
+curl -s "http://{H}:8080/api/v1/knowledge-bases?scope=portal" -H "Authorization: Bearer $TOKEN2" \
+  | jq '[.data[] | {name, shared, permission, org: .org_name}]'
+<span class="c"># 管理员：本租户全量（test + 实验-自动打标）；普通用户不带 scope 参数 = 原生行为（0 库）</span>
+curl -s "http://{H}:8080/api/v1/knowledge-bases?scope=portal" -H "Authorization: Bearer $TOKEN1" \
+  | jq '[.data[] | {name, tenant_id}]'
+curl -s "http://{H}:8080/api/v1/knowledge-bases" -H "Authorization: Bearer $TOKEN2" | jq '.data | length'</pre>
     </div>
 
     <div class="card">
