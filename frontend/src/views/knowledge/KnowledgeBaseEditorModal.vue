@@ -421,6 +421,12 @@
                   <DataSourceSettings :kb-id="activeKbId" @count="dsCount = $event" />
                 </div>
 
+                <!-- 层级标签树（二开功能，仅编辑模式 + 文档型 KB + feature flag） -->
+                <div v-if="editorMode === 'edit' && activeKbId && tagTreeFeatureEnabled && !isFAQ && currentSection === 'tagTree'"
+                  class="section">
+                  <KBTagTreeSettings :kb-id="activeKbId" :active="currentSection === 'tagTree'" />
+                </div>
+
                 <!-- 共享设置（仅编辑模式） -->
                 <div v-if="editorMode === 'edit' && activeKbId && currentSection === 'share'" class="section">
                   <KBShareSettings :kb-id="activeKbId" :can-share="canShareKB" />
@@ -484,6 +490,8 @@ import GraphSettings from './settings/GraphSettings.vue'
 import KBShareSettings from './settings/KBShareSettings.vue'
 import DataSourceSettings from './settings/DataSourceSettings.vue'
 import KnowledgeBaseActivitySettings from './settings/KnowledgeBaseActivitySettings.vue'
+import KBTagTreeSettings from '@/features/tag-tree/KBTagTreeSettings.vue'
+import { tagTreeEnabled } from '@/features/common/flags'
 import { useI18n } from 'vue-i18n'
 
 const uiStore = useUIStore()
@@ -615,6 +623,9 @@ const DEFAULT_CHUNKING_PRESET = {
   enableParentChild: true,
 } as const
 
+// 二开功能开关：层级标签树（构建期注入，运行期不变）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled())
+
 const navItems = computed(() => {
   const items: { key: string; icon: string; label: string; badge?: number }[] = [
     { key: 'basic', icon: 'info-circle', label: t('knowledgeEditor.sidebar.basic') },
@@ -638,6 +649,10 @@ const navItems = computed(() => {
     )
     if (editorMode.value === 'edit' && activeKbId.value) {
       items.push({ key: 'datasource', icon: 'cloud-download', label: t('knowledgeEditor.sidebar.datasource'), badge: dsCount.value || undefined })
+      // 二开功能：层级标签树管理（feature flag 默认关闭）
+      if (tagTreeFeatureEnabled.value) {
+        items.push({ key: 'tagTree', icon: 'tag', label: t('knowledgeEditor.sidebar.tagTree') })
+      }
     }
   }
   if (editorMode.value === 'edit' && activeKbId.value && !authStore.isLiteMode) {
@@ -668,7 +683,7 @@ const navGroups = computed(() => {
     {
       key: 'data',
       label: t('knowledgeEditor.navGroups.data'),
-      items: pickItems(['storage', 'datasource']),
+      items: pickItems(['storage', 'datasource', 'tagTree']),
     },
     {
       key: 'integration',
