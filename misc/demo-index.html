@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>内部演示导航 · WeKnora 二开汇报</title>
+<!--
+  ══════════════════════════════════════════════════════════
+  内部演示导航页（口头汇报现场用）
+  · 单文件 / 零依赖；打开方式：双击本文件（file:// 即可）
+  · 服务器地址可在页内临时替换（默认预填 43.134.172.70）
+  · 每张卡片附「演示要点」与「网络故障时的 curl 备份命令」
+  ══════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 14px/1.65 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #24292f; padding: 24px 16px 60px; }
+  .banner { background: #1f6feb; color: #fff; text-align: center; font-weight: 700; padding: 12px; border-radius: 8px; margin-bottom: 18px; letter-spacing: 2px; }
+  main { max-width: 980px; margin: 0 auto; }
+  .hostbar { display: flex; gap: 10px; align-items: center; background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px; }
+  .hostbar input { flex: 1; padding: 6px 10px; border: 1px solid #d0d7de; border-radius: 6px; font: inherit; }
+  .hostbar code { font-size: 12px; color: #57606a; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 16px; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid #d0d7de; border-radius: 10px; padding: 16px 18px; }
+  .card h2 { font-size: 16px; margin-bottom: 6px; }
+  .card h2 .no { display: inline-block; background: #1f6feb; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 12px; margin-right: 8px; }
+  .links { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .links a { color: #0969da; text-decoration: none; background: #ddf4ff; padding: 3px 10px; border-radius: 6px; font-size: 13px; }
+  .links a:hover { background: #b6e3ff; }
+  ul { padding-left: 18px; margin: 6px 0; color: #24292f; }
+  ul li { margin: 3px 0; }
+  .note { font-size: 12px; color: #57606a; }
+  pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; font: 11.5px ui-monospace, Consolas, monospace; overflow-x: auto; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+  pre .c { color: #8b949e; }
+  .warn { background: #fff8c5; border-left: 3px solid #d4a72c; padding: 8px 12px; border-radius: 4px; font-size: 12.5px; margin-top: 10px; }
+  footer { text-align: center; color: #8b949e; font-size: 12px; margin-top: 26px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="banner">内部演示导航 —— WeKnora 资管知识库门户二开汇报</div>
+
+  <div class="hostbar">
+    <code>服务器</code>
+    <input type="text" id="host" value="43.134.172.70" oninput="relink()">
+    <code>后端 :8080 ｜ 前端 :5173 ｜ 账号 demo01@test.local / demo123456</code>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <h2><span class="no">1</span>原生平台能力（先立底座）</h2>
+      <div class="links"><a data-href="http://{H}:5173/">门户前端（登录 → test 库 → 聊天提问）</a></div>
+      <ul>
+        <li><b>演示要点</b>：登录 → 打开 "test" 库 → 展示 SenseTime.pdf / Financial_Agent 文档、wiki 词条（52 页）、问答带引用</li>
+        <li><b>@标签预过滤</b>：聊天输入框 @ 选「固收」或「AI」标签再提问 —— 底层即二开的 tag 解析（文档型 KB 自动转 knowledge_ids 白名单，决策 017）</li>
+      </ul>
+      <pre><span class="c"># 备份：标签预过滤直接看检索链路（管理机执行）</span>
+TOKEN=$(curl -s -X POST http://{H}:8080/api/v1/auth/login \
+  -d '{"email":"demo01@test.local","password":"demo123456"}' | jq -r .token)
+curl -s -X POST http://{H}:8080/api/v1/knowledge-bases/a4b23c87-fa92-4376-a1f6-ff68c5c97dd6/hybrid-search \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query_text":"固收策略","tag_ids":["&lt;标签UUID&gt;"],"match_count":5}' | jq '.data | length'</pre>
+    </div>
+
+    <div class="card">
+      <h2><span class="no">2</span>二开①：层级标签树（阶段一）</h2>
+      <div class="links"><a data-href="misc/tag-tree-demo.html">标签树演示页（本目录同文件夹打开）</a><a data-href="http://{H}:8080/swagger/index.html">Swagger（搜 tag-tree）</a></div>
+      <ul>
+        <li><b>演示要点</b>：demo 页填 token + 库 ID（test=a4b23c87… / 实验=269d53b0…）→ 树渲染 → 选中节点建子节点（触发<b>叶子降级</b> confirm）→ 删除（<b>物理级联</b>统计）</li>
+        <li>test 库已有树：投研 → 固收 / 权益；实验库：行业研究/资产类别/合规风控 三根九叶</li>
+        <li>接口：8 端点（增/树/平铺/详情/改/删/移动/取叶子 tag_ids）</li>
+      </ul>
+      <pre><span class="c"># 备份：树与叶子解析（检索预过滤的输入）</span>
+curl -s http://{H}:8080/api/v1/knowledge-bases/a4b23c87-fa92-4376-a1f6-ff68c5c97dd6/tag-tree \
+  -H "Authorization: Bearer $TOKEN" | jq '.data[].name'
+curl -s http://{H}:8080/api/v1/knowledge-bases/a4b23c87-fa92-4376-a1f6-ff68c5c97dd6/tag-tree/nodes/&lt;节点ID&gt;/leaves \
+  -H "Authorization: Bearer $TOKEN" | jq '.data.tag_ids'</pre>
+    </div>
+
+    <div class="card">
+      <h2><span class="no">3</span>二开②：UUM 身份桥接 + 门户列表（阶段二）</h2>
+      <div class="links"><a data-href="http://{H}:8080/swagger/index.html">Swagger（搜 identity，Authorize 填 platform key）</a></div>
+      <ul>
+        <li><b>讲解决策</b>：部门=租户（四层角色↔原生 TenantRole）；bridge 声明式建号/幂等重推/禁用两步组合/调岗资源留原部门；安全责任=Java 五条义务（放权语义）</li>
+        <li><b>门户列表</b>：`GET /knowledge-bases?scope=portal`（普通=本部门∪共享；超管=跨租户全量）——演示超管账号对比普通账号返回差异</li>
+        <li>接口：6 端点 + portal 参数；迁移 000085 两表（部门↔租户 1:1 双向唯一）</li>
+      </ul>
+      <pre><span class="c"># 备份：bridge 全链（需 platform key，现场可只讲流程）</span>
+curl -s -X POST http://{H}:8080/api/v1/identity/bridge \
+  -H "X-API-Key: $PLATFORM_KEY" -H "X-Tenant-ID: 10000" \
+  -d '{"uum_user_id":"DEMO-EMP","tenant_id":10000}' | jq '.data.is_new_user, .data.active_tenant.name'
+<span class="c"># 门户列表对比</span>
+curl -s "http://{H}:8080/api/v1/knowledge-bases?scope=portal" -H "Authorization: Bearer $TOKEN" | jq '.data | length'</pre>
+    </div>
+
+    <div class="card">
+      <h2><span class="no">4</span>二开③：原生能力摸底与立项依据（调研结论）</h2>
+      <div class="links"><a data-href="http://{H}:5173/">实验库数据（切到"实验-自动打标"库查看）</a></div>
+      <ul>
+        <li><b>自动打标实验</b>：3 份文档全部命中正确标签（锂电/新能源、反洗钱/内控体系）——<b>近义对"固收+固定收益"同时命中</b>（归一化缺口实锤 → 阶段三立项依据）</li>
+        <li><b>Agent 审计盘点</b>：token 用量零落盘 ❌ / agent 引用仅内联标签 ⚠️ / 配置无快照 ⚠️ → 最小补齐三件套（阶段四立项依据）</li>
+        <li><b>成本数据</b>：打标 ~626 tok/文档；quick-answer 5.6k tok/问；smart-reasoning 26k tok/问（80% 缓存命中，实付 ≈5.2k）</li>
+      </ul>
+      <pre><span class="c"># 备份：实验库打标结果（服务器上执行）</span>
+sudo docker exec WeKnora-postgres-dev psql -U postgres -d WeKnora -c \
+ "SELECT k.title, t.name FROM knowledge_tag_relations r
+  JOIN knowledges k ON r.knowledge_id=k.id JOIN knowledge_tags t ON r.tag_id=t.id
+  WHERE k.knowledge_base_id='269d53b0-090c-4c97-998d-5f23cc5bb908';"</pre>
+    </div>
+  </div>
+
+  <div class="warn">⚠ 网络故障预案：所有卡片附 curl 备份命令（在服务器 SSH 会话内执行最稳）；前端打不开时用 <code>ssh -L 5173:localhost:5173 -L 8080:localhost:8080 ubuntu@服务器</code> 隧道。演示前先跑 progress.md 的「汇报日 check 清单」。</div>
+  <footer>18 个二开提交 ｜ 14 新端点 + 2 改造 ｜ 40 个新测试用例 ｜ 功能代码 ~4,300 行</footer>
+</main>
+
+<script>
+function relink() {
+  var h = document.getElementById('host').value.trim().replace(/\/+$/, '');
+  document.querySelectorAll('a[data-href]').forEach(function (a) {
+    a.href = a.dataset.href.replace(/\{H\}/g, h || '43.134.172.70');
+  });
+  document.querySelectorAll('pre').forEach(function (p) {
+    p.textContent = p.textContent.replace(/http:\/\/[^:]+:8080/g, 'http://' + (h || '43.134.172.70') + ':8080');
+  });
+}
+relink();
+</script>
+</body>
+</html>
