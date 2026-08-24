@@ -1,25 +1,24 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import type { TagTreeNode } from './api.ts'
+// NOTE: .test.mjs (not .ts) so `tsx --test` auto-discovers this file — see
+// grepResultsGroup.test.mjs for the same pattern. TS sources import fine
+// because tsx registers the loader for the whole process.
 import {
   buildTagTreeRows,
   collectLeafTagIds,
+  collectLeafTags,
   expandSelectionToLeafIds,
   findTagTreeNode,
   flattenTagTree,
   nodeHasAnyLeaf,
+  pruneSelectionToTopmost,
   selectionLabel,
   tagTreeStats,
   tagTreeNodeAncestors,
 } from './treeRows.ts'
 
-function node(
-  id: string,
-  name: string,
-  extra: Partial<TagTreeNode> = {},
-  children: TagTreeNode[] = [],
-): TagTreeNode {
+function node(id, name, extra = {}, children = []) {
   return {
     id,
     name,
@@ -43,7 +42,7 @@ function node(
 //       锂电 (leaf, tag-1)
 //     固收 (leaf, tag-2)
 //   空分组 (internal, no leaves)
-const TREE: TagTreeNode[] = [
+const TREE = [
   node('n-industry', '行业研究', { is_leaf: false, level: 0 }, [
     node('n-newenergy', '新能源', { is_leaf: false, level: 1, parent_id: 'n-industry' }, [
       node('n-lithium', '锂电', { tag_id: 'tag-1', level: 2, parent_id: 'n-newenergy' }),
@@ -69,8 +68,10 @@ test('buildTagTreeRows honours the expanded set', () => {
 
   const deep = buildTagTreeRows(TREE, new Set(['n-industry', 'n-newenergy']))
   assert.equal(deep.length, 5)
-  assert.equal(deep[3].node.id, 'n-lithium')
-  assert.equal(deep[3].depth, 2)
+  assert.equal(deep[2].node.id, 'n-lithium')
+  assert.equal(deep[2].depth, 2)
+  assert.equal(deep[3].node.id, 'n-fixedincome')
+  assert.equal(deep[3].depth, 1)
 })
 
 test('flattenTagTree and findTagTreeNode walk the whole tree', () => {
@@ -80,22 +81,22 @@ test('flattenTagTree and findTagTreeNode walk the whole tree', () => {
 })
 
 test('collectLeafTagIds: leaf resolves to itself, parent to all descendant leaves', () => {
-  const lithium = findTagTreeNode(TREE, 'n-lithium')!
+  const lithium = findTagTreeNode(TREE, 'n-lithium')
   assert.deepEqual(collectLeafTagIds(lithium), ['tag-1'])
 
-  const newEnergy = findTagTreeNode(TREE, 'n-newenergy')!
+  const newEnergy = findTagTreeNode(TREE, 'n-newenergy')
   assert.deepEqual(collectLeafTagIds(newEnergy), ['tag-1'])
 
-  const industry = findTagTreeNode(TREE, 'n-industry')!
+  const industry = findTagTreeNode(TREE, 'n-industry')
   assert.deepEqual(collectLeafTagIds(industry), ['tag-1', 'tag-2'])
 
-  const empty = findTagTreeNode(TREE, 'n-empty')!
+  const empty = findTagTreeNode(TREE, 'n-empty')
   assert.deepEqual(collectLeafTagIds(empty), [])
 })
 
 test('nodeHasAnyLeaf guards the pre-filter red line', () => {
-  assert.ok(nodeHasAnyLeaf(findTagTreeNode(TREE, 'n-industry')!))
-  assert.ok(!nodeHasAnyLeaf(findTagTreeNode(TREE, 'n-empty')!))
+  assert.ok(nodeHasAnyLeaf(findTagTreeNode(TREE, 'n-industry')))
+  assert.ok(!nodeHasAnyLeaf(findTagTreeNode(TREE, 'n-empty')))
 })
 
 test('expandSelectionToLeafIds unions and deduplicates, reporting empty selections', () => {
@@ -113,8 +114,8 @@ test('expandSelectionToLeafIds unions and deduplicates, reporting empty selectio
 })
 
 test('selectionLabel annotates internal nodes with their leaf count', () => {
-  assert.equal(selectionLabel(findTagTreeNode(TREE, 'n-lithium')!), '锂电')
-  assert.equal(selectionLabel(findTagTreeNode(TREE, 'n-industry')!), '行业研究 (2)')
+  assert.equal(selectionLabel(findTagTreeNode(TREE, 'n-lithium')), '锂电')
+  assert.equal(selectionLabel(findTagTreeNode(TREE, 'n-industry')), '行业研究 (2)')
 })
 
 test('tagTreeNodeAncestors returns the trail excluding the node itself', () => {
@@ -126,4 +127,24 @@ test('tagTreeNodeAncestors returns the trail excluding the node itself', () => {
 test('tagTreeStats counts nodes and leaves', () => {
   assert.deepEqual(tagTreeStats(TREE), { nodes: 5, leaves: 2 })
   assert.deepEqual(tagTreeStats([]), { nodes: 0, leaves: 0 })
+})
+
+test('collectLeafTags keeps names alongside ids', () => {
+  const industry = findTagTreeNode(TREE, 'n-industry')
+  assert.deepEqual(collectLeafTags(industry), [
+    { id: 'tag-1', name: '锂电' },
+    { id: 'tag-2', name: '固收' },
+  ])
+})
+
+test('pruneSelectionToTopmost keeps only topmost selected nodes', () => {
+  // Parent selected together with a descendant: descendant is implied.
+  assert.deepEqual(pruneSelectionToTopmost(TREE, ['n-industry', 'n-lithium']), ['n-industry'])
+  // Sibling branches stay independent.
+  assert.deepEqual(pruneSelectionToTopmost(TREE, ['n-lithium', 'n-fixedincome']), [
+    'n-lithium',
+    'n-fixedincome',
+  ])
+  // Deep selection without its ancestors is kept as-is.
+  assert.deepEqual(pruneSelectionToTopmost(TREE, ['n-lithium']), ['n-lithium'])
 })

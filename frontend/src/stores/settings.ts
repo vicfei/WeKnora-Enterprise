@@ -15,7 +15,9 @@ interface Settings {
   selectedKnowledgeBases: string[];  // 当前选中的知识库ID列表
   selectedFiles: string[]; // 当前选中的文件ID列表
   selectedFileKbMap: Record<string, string>; // 文件ID -> 知识库ID，用于刷新后带 kb_id 拉取共享知识库文件
-  selectedTags: Array<{ id: string; name: string; kbId: string; kbName?: string }>;
+  // 二开扩展：tagTreeNode 仅在选择器选中"分组节点"时存在，携带该分组的叶子标签，
+  // 发送/追问参数构造时展开为逐叶子 tag id（父节点 id 不发后端）
+  selectedTags: Array<{ id: string; name: string; kbId: string; kbName?: string; tagTreeNode?: { leafTags: Array<{ id: string; name: string }> } }>;
   selectedMCPServices: string[];
   selectedSkills: string[];
   selectedTools?: string[];
@@ -356,7 +358,7 @@ export const useSettingsStore = defineStore("settings", {
       localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
     },
 
-    addTag(tag: { id: string; name: string; kbId: string; kbName?: string }) {
+    addTag(tag: { id: string; name: string; kbId: string; kbName?: string; tagTreeNode?: { leafTags: Array<{ id: string; name: string }> } }) {
       if (!this.settings.selectedTags) this.settings.selectedTags = [];
       if (!this.settings.selectedTags.some(t => t.id === tag.id && t.kbId === tag.kbId)) {
         this.settings.selectedTags.push(tag);
@@ -429,7 +431,9 @@ export const useSettingsStore = defineStore("settings", {
       const tags = this.settings.selectedTags || [];
       const tagScopes = Object.entries(tags.reduce<Record<string, string[]>>((scopes, tag) => {
         if (!tag.id || !tag.kbId) return scopes;
-        (scopes[tag.kbId] ||= []).push(tag.id);
+        // 二开扩展：分组节点 chip 展开为叶子 tag id（树分组 id 对后端无意义）
+        const ids = tag.tagTreeNode ? tag.tagTreeNode.leafTags.map(l => l.id) : [tag.id];
+        (scopes[tag.kbId] ||= []).push(...ids);
         return scopes;
       }, {})).map(([knowledge_base_id, ids]) => ({
         knowledge_base_id,

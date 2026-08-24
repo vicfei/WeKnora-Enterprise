@@ -41,6 +41,8 @@ import {
   type AgentNotReadyReasonKey,
 } from '@/utils/agent-readiness';
 import { formatLocalizedList } from '@/utils/format-list';
+import TagTreePickerMenu from '@/features/tag-tree/TagTreePickerMenu.vue';
+import { tagTreeEnabled } from '@/features/common/flags';
 import type { MentionItem, MentionItemType, MentionRequestItem } from '@/types/mention';
 
 const route = useRoute();
@@ -62,6 +64,11 @@ const { t, locale } = useI18n();
 
 let query = ref("");
 const showKbSelector = ref(false);
+
+// 二开功能：层级标签树筛选（feature flag 默认关闭）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled());
+const showTagTreePicker = ref(false);
+const tagTreeButtonRef = ref<HTMLElement>();
 
 // Image upload state
 const uploadedImages = ref<Array<{ file: File; preview: string }>>([]);
@@ -556,6 +563,30 @@ const selectedKbs = computed(() => {
   return [...own, ...sharedOnly, ...sharedFromAgent];
 });
 
+// 二开功能：标签树筛选可选的文档型知识库（FAQ 型 KB 的标签在 chunk 级，不走树）
+const tagTreeCandidateKbs = computed(() =>
+  knowledgeBases.value
+    .filter((kb: any) => kb.type !== 'faq')
+    .map((kb: any) => ({ id: kb.id, name: kb.name }))
+);
+
+// 标签树选择确认：叶子直接成 chip；分组节点聚合为一个 chip，发送前在 send 构造处展开为叶子 mention
+const onTagTreeSelect = (payload: {
+  kbId: string;
+  kbName: string;
+  items: Array<{ nodeId: string; name: string; isGroup: boolean; leafTags: Array<{ id: string; name: string }> }>;
+}) => {
+  payload.items.forEach((item) => {
+    settingsStore.addTag({
+      id: item.nodeId,
+      name: item.isGroup ? `${item.name} (${item.leafTags.length})` : item.name,
+      kbId: payload.kbId,
+      kbName: payload.kbName,
+      tagTreeNode: item.isGroup ? { leafTags: item.leafTags } : undefined,
+    });
+  });
+};
+
 const selectedFiles = computed(() => {
   // If we have file details in fileList, use them.
   // Otherwise we might show ID or Loading...
@@ -642,6 +673,7 @@ const allSelectedItems = computed(() => {
     kbName: tag.kbName,
     description: tag.kbName || '',
     isAgentConfigured: false,
+    tagTreeNode: tag.tagTreeNode,
   }));
 
   return [...agentConfiguredKbs, ...userSelectedKbs, ...files, ...tags, ...selectedMCPItems.value, ...skillMentionItems.value];
@@ -1940,16 +1972,32 @@ const createSession = async (val: string) => {
     return;
   }
   // 获取@提及的知识库和文件信息
-  const mentionedItems: MentionRequestItem[] = allSelectedItems.value.map(item => ({
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    kb_type: item.type === 'kb' ? (item.kbType || 'document') : undefined,
-    kb_id: item.kbId,
-    kb_name: item.kbName,
-    service_id: item.serviceId,
-    skill_name: item.skillName,
-  }));
+  // 二开功能：标签树的分组节点 chip 在此展开为逐叶子 mention（父节点名绝不进入 query_text，
+  // 叶子列表为空的分组已在选择器侧禁选——空 tag_ids 语义是"无结果"而非"不过滤"）
+  const mentionedItems: MentionRequestItem[] = allSelectedItems.value.flatMap(item => {
+    if (item.type === 'tag' && item.tagTreeNode) {
+      return item.tagTreeNode.leafTags.map(leaf => ({
+        id: leaf.id,
+        name: leaf.name,
+        type: item.type,
+        kb_type: undefined,
+        kb_id: item.kbId,
+        kb_name: item.kbName,
+        service_id: undefined,
+        skill_name: undefined,
+      }));
+    }
+    return [{
+      id: item.id,
+      name: item.name,
+      type: item.type,
+      kb_type: item.type === 'kb' ? (item.kbType || 'document') : undefined,
+      kb_id: item.kbId,
+      kb_name: item.kbName,
+      service_id: item.serviceId,
+      skill_name: item.skillName,
+    }];
+  });
   const imageFiles = uploadedImages.value.map(img => img.file);
   const attachmentFiles = uploadedAttachments.value;
 
@@ -2651,6 +2699,17 @@ defineExpose({
             </div>
           </t-tooltip>
 
+          <!-- 二开功能：层级标签树筛选入口（feature flag 默认关闭） -->
+          <t-tooltip v-if="tagTreeFeatureEnabled" placement="top" theme="light"
+            :popupProps="{ overlayClassName: 'input-field-tooltip' }">
+            <template #content>{{ $t('tagTreePicker.trigger') }}</template>
+            <div ref="tagTreeButtonRef" class="control-btn kb-btn" :class="{ 'active': selectedTags.length > 0 }"
+              @click.stop @mousedown.prevent="showTagTreePicker = !showTagTreePicker">
+              <t-icon name="tag" size="16px" class="control-icon" />
+              <span v-if="selectedTags.length > 0" class="kb-count">{{ selectedTags.length }}</span>
+            </div>
+          </t-tooltip>
+
           <!-- 模型显示 -->
           <t-tooltip :content="isModelLockedByAgent ? $t('input.modelLockedByAgent') : ''"
             :disabled="!isModelLockedByAgent">
@@ -2729,6 +2788,12 @@ defineExpose({
     <!-- 知识库选择下拉（使用 Teleport 传送到 body，避免父容器定位影响） -->
     <Teleport to="body">
       <KnowledgeBaseSelector v-model:visible="showKbSelector" :anchorEl="atButtonRef" @close="showKbSelector = false" />
+    </Teleport>
+
+    <!-- 二开功能：层级标签树筛选下拉 -->
+    <Teleport to="body">
+      <TagTreePickerMenu v-model:visible="showTagTreePicker" :anchorEl="tagTreeButtonRef"
+        :knowledge-bases="tagTreeCandidateKbs" :default-kb-id="selectedKbIds[0]" @select="onTagTreeSelect" />
     </Teleport>
   </div>
 </template>

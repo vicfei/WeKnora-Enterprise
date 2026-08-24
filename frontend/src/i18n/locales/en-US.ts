@@ -6163,5 +6163,17 @@ export default {
     capabilityRequired: 'Select at least one capability',
     loadFailed: 'Failed to load platform API keys',
     createFailed: 'Failed to create platform API key'
+  },
+
+  // Second-development feature: hierarchical tag tree picker
+  tagTreePicker: {
+    trigger: 'Filter by tag tree',
+    title: 'Tag tree filter',
+    selectedCount: '{count} selected',
+    noKnowledgeBases: 'No document knowledge bases available',
+    empty: 'This knowledge base has no hierarchical tags yet',
+    noLeaves: 'no tags',
+    leafCount: '{count} tags',
+    loadFailed: 'Failed to load the tag tree'
   }
 }

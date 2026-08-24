@@ -6163,5 +6163,17 @@ export default {
     myChats: '내 대화',
     apiChats: 'API 세션',
     noSessions: '대화가 없습니다'
+  },
+
+  // 추가 개발 기능: 계층형 태그 트리 선택기
+  tagTreePicker: {
+    trigger: '태그 트리로 필터링',
+    title: '태그 트리 필터',
+    selectedCount: '{count}개 선택됨',
+    noKnowledgeBases: '사용 가능한 문서형 지식 베이스가 없습니다',
+    empty: '이 지식 베이스에는 아직 계층형 태그가 없습니다',
+    noLeaves: '태그 없음',
+    leafCount: '태그 {count}개',
+    loadFailed: '태그 트리를 불러오지 못했습니다'
   }
 }

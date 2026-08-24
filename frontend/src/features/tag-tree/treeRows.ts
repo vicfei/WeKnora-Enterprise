@@ -144,6 +144,43 @@ export function tagTreeNodeAncestors(roots: TagTreeNode[], id: string): string[]
   return walk(roots, []) ?? []
 }
 
+/**
+ * Leaf tag {id, name} pairs of a node's subtree (same walk as
+ * collectLeafTagIds, keeping names for mention expansion).
+ */
+export function collectLeafTags(node: TagTreeNode): Array<{ id: string; name: string }> {
+  const tags: Array<{ id: string; name: string }> = []
+  const seen = new Set<string>()
+  const walk = (n: TagTreeNode) => {
+    if (isLeafNode(n) && n.tag_id && !seen.has(n.tag_id)) {
+      seen.add(n.tag_id)
+      tags.push({ id: n.tag_id, name: n.name })
+      return
+    }
+    n.children?.forEach(walk)
+  }
+  walk(node)
+  return tags
+}
+
+/**
+ * Drop selection entries that are already implied by an ancestor selection
+ * (parent = whole group semantics): only the topmost selected nodes remain.
+ */
+export function pruneSelectionToTopmost(roots: TagTreeNode[], selectedIds: string[]): string[] {
+  const selected = new Set(selectedIds)
+  const kept: string[] = []
+  const walk = (nodes: TagTreeNode[], implied: boolean) => {
+    nodes.forEach((node) => {
+      const isSelected = selected.has(node.id)
+      if (isSelected && !implied) kept.push(node.id)
+      walk(node.children || [], implied || isSelected)
+    })
+  }
+  walk(roots, false)
+  return kept
+}
+
 /** Simple totals for panel headers. */
 export function tagTreeStats(roots: TagTreeNode[]): { nodes: number; leaves: number } {
   const all = flattenTagTree(roots)

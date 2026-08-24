@@ -6163,5 +6163,17 @@ export default {
     myChats: '我的对话',
     apiChats: 'API 会话',
     noSessions: '暂无对话'
+  },
+
+  // 二开功能：层级标签树选择器（聊天输入框/文档筛选）
+  tagTreePicker: {
+    trigger: '按标签树筛选范围',
+    title: '标签树筛选',
+    selectedCount: '已选 {count} 项',
+    noKnowledgeBases: '暂无可用的文档型知识库',
+    empty: '该知识库尚未创建层级标签',
+    noLeaves: '无标签',
+    leafCount: '{count} 个标签',
+    loadFailed: '标签树加载失败'
   }
 }
