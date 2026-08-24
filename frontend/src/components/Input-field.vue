@@ -1976,7 +1976,7 @@ const createSession = async (val: string) => {
   // 叶子列表为空的分组已在选择器侧禁选——空 tag_ids 语义是"无结果"而非"不过滤"）
   const mentionedItems: MentionRequestItem[] = allSelectedItems.value.flatMap(item => {
     if (item.type === 'tag' && item.tagTreeNode) {
-      return item.tagTreeNode.leafTags.map(leaf => ({
+      return item.tagTreeNode.leafTags.map((leaf: { id: string; name: string }) => ({
         id: leaf.id,
         name: leaf.name,
         type: item.type,

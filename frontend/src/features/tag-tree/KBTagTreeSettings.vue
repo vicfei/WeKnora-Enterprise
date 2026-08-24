@@ -376,8 +376,10 @@ function confirmDelete(node: TagTreeNode) {
 
 watch(
   () => [props.kbId, props.active] as const,
-  ([kbId, active], [, wasActive]) => {
-    if (kbId && (active || !wasActive)) loadTree()
+  (val, old) => {
+    const [kbId] = val
+    // 初次挂载、切换 KB 或面板首次变为可见时加载；已是可见状态则不重复拉取
+    if (kbId && (!old || old[0] !== kbId || !old[1])) loadTree()
   },
   { immediate: true },
 )
