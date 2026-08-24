@@ -109,6 +109,41 @@ sudo docker exec WeKnora-postgres-dev psql -U postgres -d WeKnora -c \
   JOIN knowledges k ON r.knowledge_id=k.id JOIN knowledge_tags t ON r.tag_id=t.id
   WHERE k.knowledge_base_id='269d53b0-090c-4c97-998d-5f23cc5bb908';"</pre>
     </div>
+
+    <div class="card">
+      <h2><span class="no">5</span>现场实跑：UUM 身份桥接（汇报压轴）</h2>
+      <ul>
+        <li><b>演示故事（两次调用讲完接入）</b>：先登记部门映射（UUM 部门 ID ↔ <b>预建的</b> WeKnora 部门租户，1:1 绑定），再 bridge 建号换票——虚构员工 DEMO9001 从"查无此人"到"入部+发 token"一气呵成</li>
+        <li><b>Header 两个</b>：<code>X-API-Key: $PKEY</code>（platform key，演示者私下保存）＋ <code>X-Tenant-ID: 10003</code>（platform key 门禁要求；端点逻辑以 body 为准）</li>
+        <li>注意：Swagger UI 的 try-it-out <b>无法附加自定义 header</b>（端点注解只声明了 body 参数）——Swagger 用于讲解契约，实跑走下面的 curl</li>
+      </ul>
+      <pre><span class="c"># ① 开场：查无此人（期待 404 —— 戏剧性对比）</span>
+curl -s -o /dev/null -w "%{http_code}\n" \
+  "http://{H}:8080/api/v1/identity/mapping/DEMO9001?tenant_id=10003" \
+  -H "X-API-Key: $PKEY" -H "X-Tenant-ID: 10003"
+
+<span class="c"># ② 第 0 步：登记部门映射（DEPT-DEMO 绑定到预建的"汇报演示部"租户 10003，1:1）</span>
+curl -s -X PUT http://{H}:8080/api/v1/identity/departments/DEPT-DEMO \
+  -H "X-API-Key: $PKEY" -H "X-Tenant-ID: 10003" -H "Content-Type: application/json" \
+  -d '{"tenant_id":10003,"department_name":"汇报演示部"}' | jq .
+
+<span class="c"># ③ 压轴：bridge 建号换票（期待 is_new_user:true / 部门:"汇报演示部" / role:"viewer"）</span>
+curl -s -X POST http://{H}:8080/api/v1/identity/bridge \
+  -H "X-API-Key: $PKEY" -H "X-Tenant-ID: 10003" -H "Content-Type: application/json" \
+  -d '{"uum_user_id":"DEMO9001","tenant_id":10003,"username":"演示员工","uum_department_id":"DEPT-DEMO"}' \
+  | jq '{is_new_user: .data.is_new_user, 用户: .data.user.username, 部门: .data.active_tenant.name, 角色: .data.memberships[0].role, 已发token: (.data.token|length>100)}'
+
+<span class="c"># ④ 收尾对比：查有此人（期待 200 + user_id）</span>
+curl -s "http://{H}:8080/api/v1/identity/mapping/DEMO9001?tenant_id=10003" \
+  -H "X-API-Key: $PKEY" -H "X-Tenant-ID: 10003" | jq .data
+
+<span class="c"># （可选）数据库实锤：用户已入部门成员表</span>
+sudo docker exec WeKnora-postgres-dev psql -U postgres -d WeKnora -c \
+ "SELECT u.username, t.name AS 部门, tm.role FROM users u
+  JOIN tenant_members tm ON tm.user_id=u.id JOIN tenants t ON t.id=tm.tenant_id
+  WHERE u.username='演示员工';"</pre>
+      <div class="warn">🔐 platform key（$PKEY）由演示者私下保存，勿投屏勿入文件。汇报后执行 progress.md 中「演示后清理」回收 key/员工/部门。</div>
+    </div>
   </div>
 
   <div class="warn">⚠ 网络故障预案：所有卡片附 curl 备份命令（在服务器 SSH 会话内执行最稳）；前端打不开时用 <code>ssh -L 5173:localhost:5173 -L 8080:localhost:8080 ubuntu@服务器</code> 隧道。演示前先跑 progress.md 的「汇报日 check 清单」。</div>
