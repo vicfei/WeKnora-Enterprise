@@ -6174,6 +6174,8 @@ export default {
     empty: '이 지식 베이스에는 아직 계층형 태그가 없습니다',
     noLeaves: '태그 없음',
     leafCount: '태그 {count}개',
-    loadFailed: '태그 트리를 불러오지 못했습니다'
+    loadFailed: '태그 트리를 불러오지 못했습니다',
+    browseSection: '계층별 탐색',
+    pickForUpload: '태그 트리에서 선택'
   }
 }

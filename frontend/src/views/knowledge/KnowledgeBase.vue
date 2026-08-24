@@ -53,6 +53,9 @@ import BatchTagDialog from './components/BatchTagDialog.vue';
 import KbTagManageDrawer from './components/KbTagManageDrawer.vue';
 import type { KnowledgeProcessOverrides } from '@/types/knowledgeProcess';
 import { useUploadConfirmStore, type UploadConfirmResult } from '@/stores/uploadConfirm';
+import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
+import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
+import { tagTreeEnabled } from '@/features/common/flags';
 import WikiBrowser from './wiki/WikiBrowser.vue';
 import { getWikiStats } from '@/api/wiki';
 import {
@@ -962,6 +965,64 @@ const clearTagFilter = () => {
 const openTagManageDrawer = () => {
   tagFilterPanelVisible.value = false;
   tagManageDrawerVisible.value = true;
+};
+
+// 二开功能：层级标签浏览（feature flag 默认关闭，仅在筛选弹层内追加一个浏览区块）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled());
+const tagTree = ref<TagTreeNode[]>([]);
+const tagTreeLoading = ref(false);
+const tagTreeLoaded = ref(false);
+const tagTreeExpanded = ref(new Set<string>());
+const tagTreeRows = computed(() => buildTagTreeRows(tagTree.value, tagTreeExpanded.value));
+
+const loadTagTree = async () => {
+  if (!kbId.value || tagTreeLoading.value || tagTreeLoaded.value) return;
+  tagTreeLoading.value = true;
+  try {
+    const res = await getTagTree(kbId.value);
+    tagTree.value = Array.isArray(res.data) ? res.data : [];
+    tagTreeLoaded.value = true;
+    // 默认展开第一层，避免看起来是空树
+    tagTreeExpanded.value = new Set(tagTree.value.filter(n => n.children?.length).map(n => n.id));
+  } catch {
+    // 静默降级：树浏览不可用时退回平铺 chips
+  } finally {
+    tagTreeLoading.value = false;
+  }
+};
+
+watch(tagFilterPanelVisible, (visible) => {
+  if (visible && tagTreeFeatureEnabled.value) loadTagTree();
+});
+
+const toggleTagTreeExpand = (id: string) => {
+  const next = new Set(tagTreeExpanded.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  tagTreeExpanded.value = next;
+};
+
+const tagTreeNodeLeafIds = (node: TagTreeNode) => collectLeafTagIds(node);
+
+const isTagTreeNodeSelected = (node: TagTreeNode) => {
+  const leaves = collectLeafTagIds(node);
+  return leaves.length > 0 && leaves.every(id => selectedTagIds.value.includes(id));
+};
+
+const handleTagTreeNodeClick = (node: TagTreeNode) => {
+  // 红线：无叶子的分组不可选（空 tag_ids = 无结果，不是不过滤）
+  const leaves = collectLeafTagIds(node);
+  if (leaves.length === 0) return;
+  const next = new Set(selectedTagIds.value);
+  if (isTagTreeNodeSelected(node)) {
+    leaves.forEach(id => next.delete(id));
+  } else {
+    leaves.forEach(id => next.add(id));
+  }
+  if (next.size > 0) {
+    tagFilterCleared.value = false;
+  }
+  handleTagFilterChange([...next]);
 };
 
 const openTagManageFromEditDialog = () => {
@@ -2460,6 +2521,41 @@ async function createNewSession(value: string): Promise<void> {
                             </t-button>
                           </div>
                         </template>
+                        <!-- 二开功能：层级标签浏览（feature flag 默认关闭） -->
+                        <template v-if="tagTreeFeatureEnabled && tagTreeLoading">
+                          <div class="tag-tree-browse tag-tree-browse--loading">
+                            <t-loading size="small" />
+                          </div>
+                        </template>
+                        <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0">
+                          <div class="tag-filter-panel__divider"></div>
+                          <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
+                          <div class="tag-tree-browse">
+                            <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
+                              :class="{
+                                'is-selected': isTagTreeNodeSelected(row.node),
+                                'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
+                              }"
+                              :style="{ '--tag-tree-browse-depth': row.depth }"
+                              :title="tagTreeNodeLeafIds(row.node).length === 0
+                                ? $t('tagTreePicker.noLeaves')
+                                : row.node.path"
+                              @click="handleTagTreeNodeClick(row.node)">
+                              <button type="button" class="tag-tree-browse__caret"
+                                :class="{ invisible: !row.hasChildren }"
+                                :aria-expanded="tagTreeExpanded.has(row.node.id)"
+                                @click.stop="toggleTagTreeExpand(row.node.id)">
+                                <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
+                                  size="13px" />
+                              </button>
+                              <span class="tag-tree-browse__name">{{ row.node.name }}</span>
+                              <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
+                                class="tag-tree-browse__count">
+                                {{ tagTreeNodeLeafIds(row.node).length }}
+                              </span>
+                            </div>
+                          </div>
+                        </template>
                       </div>
                       <div v-if="canEdit" class="tag-filter-panel__footer">
                         <t-button variant="text" size="small" class="tag-manage-link" @click="openTagManageDrawer">
@@ -3030,6 +3126,95 @@ async function createNewSession(value: string): Promise<void> {
     padding: 6px 0;
     color: var(--td-text-color-placeholder);
     font-size: 12px;
+  }
+
+  // 二开功能：层级标签浏览区块
+  .tag-filter-panel__divider {
+    height: 1px;
+    margin: 10px 0 6px;
+    background: var(--td-component-stroke);
+  }
+
+  .tag-filter-panel__subtitle {
+    font-size: 12px;
+    color: var(--td-text-color-secondary);
+    margin-bottom: 4px;
+  }
+
+  .tag-tree-browse {
+    max-height: 180px;
+    overflow: auto;
+    padding: 2px;
+
+    &--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+    }
+
+    .tag-tree-browse__row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border-radius: var(--td-radius-default);
+      margin-left: calc(var(--tag-tree-browse-depth, 0) * 16px);
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        background: var(--td-bg-color-container-hover);
+      }
+
+      &.is-selected {
+        .tag-tree-browse__name {
+          color: var(--td-brand-color);
+          font-weight: 500;
+        }
+      }
+
+      &.is-disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+
+        &:hover {
+          background: transparent;
+        }
+      }
+    }
+
+    .tag-tree-browse__caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      color: var(--td-text-color-secondary);
+      padding: 0;
+      cursor: pointer;
+
+      &.invisible {
+        visibility: hidden;
+      }
+    }
+
+    .tag-tree-browse__name {
+      font-size: 12px;
+      color: var(--td-text-color-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    .tag-tree-browse__count {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--td-text-color-placeholder);
+    }
   }
 }
 

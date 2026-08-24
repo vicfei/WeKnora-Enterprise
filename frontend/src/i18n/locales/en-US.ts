@@ -6174,6 +6174,8 @@ export default {
     empty: 'This knowledge base has no hierarchical tags yet',
     noLeaves: 'no tags',
     leafCount: '{count} tags',
-    loadFailed: 'Failed to load the tag tree'
+    loadFailed: 'Failed to load the tag tree',
+    browseSection: 'Browse by hierarchy',
+    pickForUpload: 'Pick from tag tree'
   }
 }

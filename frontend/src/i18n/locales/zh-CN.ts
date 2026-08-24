@@ -6174,6 +6174,8 @@ export default {
     empty: '该知识库尚未创建层级标签',
     noLeaves: '无标签',
     leafCount: '{count} 个标签',
-    loadFailed: '标签树加载失败'
+    loadFailed: '标签树加载失败',
+    browseSection: '按层级浏览',
+    pickForUpload: '从标签树选择'
   }
 }

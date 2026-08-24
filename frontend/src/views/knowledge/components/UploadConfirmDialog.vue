@@ -179,6 +179,12 @@
                               clearable
                               :placeholder="t('uploadConfirm.tagsPlaceholder')"
                             />
+                            <!-- 二开功能：从标签树选择（feature flag 默认关闭） -->
+                            <t-button v-if="tagTreeFeatureEnabled && tagTreeKbs.length > 0" variant="outline" size="small"
+                              class="tag-tree-pick-btn" @click="showTagTreePicker = true">
+                              <template #icon><t-icon name="tag" /></template>
+                              {{ t('tagTreePicker.pickForUpload') }}
+                            </t-button>
                             <p v-if="tagsLoadFailed" class="field-hint field-hint--error">
                               {{ t('uploadConfirm.tagsLoadFailed') }}
                             </p>
@@ -546,6 +552,11 @@
         </div>
       </div>
     </Transition>
+    <!-- 二开功能：标签树选择弹层（须盖过上传弹窗 z-index 3000） -->
+    <Teleport to="body">
+      <TagTreePickerMenu v-model:visible="showTagTreePicker" :anchorEl="tagTreeButtonRef"
+        :knowledge-bases="tagTreeKbs" :dropdownWidth="340" :zIndex="3100" @select="onTagTreeSelect" />
+    </Teleport>
   </Teleport>
 </template>
 
@@ -564,6 +575,8 @@ import { getUploadFileKey } from '../utils/uploadSources'
 import { listKnowledgeTags } from '@/api/knowledge-base'
 import KbUploadSourceDropdown from './KbUploadSourceDropdown.vue'
 import FolderPickerMenu, { type FolderOption } from './FolderPickerMenu.vue'
+import TagTreePickerMenu from '@/features/tag-tree/TagTreePickerMenu.vue'
+import { tagTreeEnabled } from '@/features/common/flags'
 import { folderOptionFromPath, sortFolderOptions } from '../folderTree'
 import type { KnowledgeProcessOverrides } from '@/types/knowledgeProcess'
 import type {
@@ -659,6 +672,22 @@ const localFiles = ref<File[]>([])
 const localUrls = ref<string[]>([])
 const availableTags = ref<Array<{ id: string; name: string }>>([])
 const selectedTagIds = ref<string[]>([])
+
+// 二开功能：从标签树选择（feature flag 默认关闭）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled())
+const showTagTreePicker = ref(false)
+const tagTreeButtonRef = ref<HTMLElement>()
+const tagTreeKbs = computed(() => {
+  const id = props.kbInfo?.id
+  return id ? [{ id: String(id), name: props.kbInfo?.name || '' }] : []
+})
+const onTagTreeSelect = (payload: {
+  items: Array<{ nodeId: string; name: string; isGroup: boolean; leafTags: Array<{ id: string; name: string }> }>;
+}) => {
+  const next = new Set(selectedTagIds.value)
+  payload.items.forEach(item => item.leafTags.forEach(leaf => next.add(leaf.id)))
+  selectedTagIds.value = [...next]
+}
 const tagsLoading = ref(false)
 const tagsLoadFailed = ref(false)
 const chunkingMoreOpen = ref(false)
@@ -2114,6 +2143,11 @@ const handleConfirm = () => {
   &--error {
     color: var(--td-error-color);
   }
+}
+
+// 二开功能：从标签树选择按钮
+.tag-tree-pick-btn {
+  margin-top: 8px;
 }
 
 .more-options-toggle {

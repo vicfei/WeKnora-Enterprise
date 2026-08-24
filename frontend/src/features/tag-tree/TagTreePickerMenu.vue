@@ -1,5 +1,5 @@
 <template>
-  <div v-if="visible" class="tag-tree-picker-overlay" @click="close" @wheel.stop>
+  <div v-if="visible" class="tag-tree-picker-overlay" :style="{ zIndex: String(zIndex) }" @click="close" @wheel.stop>
     <div class="tag-tree-picker" :style="dropdownStyle" @click.stop>
       <div class="tag-tree-picker-header">
         <span class="tag-tree-picker-title">{{ $t('tagTreePicker.title') }}</span>
@@ -97,6 +97,8 @@ const props = defineProps<{
   defaultKbId?: string
   dropdownWidth?: number
   offsetY?: number
+  /** Stacking context of the overlay; the dropdown sits at zIndex + 100. */
+  zIndex?: number
 }>()
 
 const emit = defineEmits<{
@@ -107,6 +109,7 @@ const emit = defineEmits<{
 
 const dropdownWidth = props.dropdownWidth ?? 320
 const offsetY = props.offsetY ?? 8
+const zIndex = props.zIndex ?? 2500
 
 const currentKbId = ref('')
 const tree = ref<TagTreeNode[]>([])
@@ -230,7 +233,7 @@ function updateDropdownPosition() {
     position: 'fixed',
     left: `${Math.round(left)}px`,
     width: `${width}px`,
-    zIndex: '2600',
+    zIndex: String(zIndex + 100),
   }
   const height = Math.min(420, window.innerHeight * 0.6)
   const spaceBelow = window.innerHeight - rect.bottom

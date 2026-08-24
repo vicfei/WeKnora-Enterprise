@@ -6174,6 +6174,8 @@ export default {
     empty: 'В этой базе знаний ещё нет иерархических тегов',
     noLeaves: 'нет тегов',
     leafCount: 'тегов: {count}',
-    loadFailed: 'Не удалось загрузить дерево тегов'
+    loadFailed: 'Не удалось загрузить дерево тегов',
+    browseSection: 'Обзор по иерархии',
+    pickForUpload: 'Выбрать из дерева тегов'
   }
 }
