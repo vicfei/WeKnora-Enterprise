@@ -1,0 +1,37 @@
+/**
+ * Feature flags for the portal second-development features.
+ *
+ * Every flag defaults to OFF so the stock pages keep their exact behaviour.
+ * A build opts in via the corresponding VITE_ env variable, e.g.
+ * `VITE_ENABLE_TAG_TREE=1 npm run build`. Falsy spellings ("0", "false",
+ * "off", "no") are treated as disabled so CI can explicitly override a
+ * defaulted-on variable later without changing this module.
+ */
+const FALSY_SPELLINGS = new Set(['0', 'false', 'off', 'no'])
+
+function enabled(value: string | undefined): boolean {
+  return !!value && !FALSY_SPELLINGS.has(value.trim().toLowerCase())
+}
+
+/** Hierarchical tag tree UI (KB editor panel, pickers, chat mention browse). */
+export function tagTreeEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_TAG_TREE)
+}
+
+/** Portal knowledge base list via `GET /knowledge-bases?scope=portal`. */
+export function portalListEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_PORTAL_LIST)
+}
+
+/** UUM bridge login entry (#bridge_result= hash callback + login button). */
+export function bridgeLoginEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_BRIDGE_LOGIN)
+}
+
+/**
+ * External portal login URL shown on the login page. Empty means the
+ * "portal unified login" button stays hidden.
+ */
+export function portalLoginUrl(): string {
+  return (import.meta.env.VITE_PORTAL_LOGIN_URL || '').trim()
+}

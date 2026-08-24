@@ -7,3 +7,12 @@ declare module '*.vue' {
 
 declare const __FRONTEND_VERSION__: string;
 declare const __FRONTEND_COMMIT__: string;
+
+// Portal second-development feature flags (see src/features/common/flags.ts).
+// All optional and default to disabled/empty.
+interface ImportMetaEnv {
+    readonly VITE_ENABLE_TAG_TREE?: string;
+    readonly VITE_ENABLE_PORTAL_LIST?: string;
+    readonly VITE_ENABLE_BRIDGE_LOGIN?: string;
+    readonly VITE_PORTAL_LOGIN_URL?: string;
+}
