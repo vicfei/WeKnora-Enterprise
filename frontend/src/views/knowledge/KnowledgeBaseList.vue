@@ -2,7 +2,7 @@
   <div class="kb-list-container">
     <ListSpaceSidebar v-if="!authStore.isLiteMode" v-model="spaceSelection" :count-all="allKnowledgeBases"
       :count-mine="kbs.length" :count-by-org="effectiveSharedCountByOrg" :count-favorites="kbFavoritesCount"
-      :count-recents="kbRecentsCount" />
+      :count-recents="kbRecentsCount" :show-portal="portalListFeatureEnabled" :count-portal="portalItems.length" />
     <div class="kb-list-content">
       <div class="header" style="--wails-draggable: drag">
         <div class="header-title" style="--wails-draggable: drag">
@@ -88,10 +88,10 @@
           </div>
         </div>
 
-        <!-- 卡片网格：全部 / 收藏 / 最近 — 共用同一份卡片模板，
+        <!-- 卡片网格：全部 / 收藏 / 最近 / 门户（二开） — 共用同一份卡片模板，
              仅依赖 filteredKnowledgeBases 切片即可切换视图 -->
         <div
-          v-if="(spaceSelection === 'all' || spaceSelection === 'favorites' || spaceSelection === 'recents') && filteredKnowledgeBases.length > 0"
+          v-if="(spaceSelection === 'all' || spaceSelection === 'favorites' || spaceSelection === 'recents' || isPortalScope) && filteredKnowledgeBases.length > 0"
           class="kb-card-wrap">
           <!-- 置顶分组标题 -->
           <div
@@ -283,6 +283,14 @@
                       :content="$t('knowledgeList.sharedToOrgs', { count: kb.share_count })" placement="top">
                       <div class="feature-badge shared">
                         <t-icon name="share" size="14px" />
+                      </div>
+                    </t-tooltip>
+                    <!-- 二开功能：门户跨租户徽标（系统管理员 portal 视图） -->
+                    <t-tooltip v-if="isPortalCrossTenant(kb)"
+                      :content="$t('knowledgeList.portalTenantBadge', { id: kb.tenant_id })" placement="top">
+                      <div class="feature-badge kg">
+                        <t-icon name="city" size="14px" />
+                        <span class="badge-count">{{ kb.tenant_id }}</span>
                       </div>
                     </t-tooltip>
                   </div>
@@ -803,6 +811,9 @@ import { useTenantModelReadiness } from '@/composables/useTenantModelReadiness'
 import { useI18n } from 'vue-i18n'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
+import { listKnowledgeBases } from '@/api/knowledge-base'
+import { mapPortalItems, isCrossTenantItem, type PortalListItem } from '@/features/portal-list/mapPortalResponse'
+import { portalListEnabled } from '@/features/common/flags'
 
 const router = useRouter()
 const route = useRoute()
@@ -899,11 +910,38 @@ const allKnowledgeBases = computed(() => kbs.value.length + sharedKbs.value.leng
 // non-org buckets — otherwise a new pseudo-scope (e.g. "favorites")
 // falls through here and triggers the per-space code paths, which
 // renders an extra "no shared KB" empty state on top of the real view.
-const RESERVED_SCOPES = new Set(['all', 'mine', 'favorites', 'recents'])
+const RESERVED_SCOPES = new Set(['all', 'mine', 'favorites', 'recents', 'portal'])
 const spaceSelectionOrgId = computed(() => {
   const s = spaceSelection.value
   return !!s && !RESERVED_SCOPES.has(s)
 })
+
+// 二开功能：门户视图（?scope=portal，决策 019）——单次服务端调用返回
+// 本部门 ∪ 共享（普通用户）或跨租户全量（系统管理员），前端不重复实现合并语义。
+const portalListFeatureEnabled = computed(() => portalListEnabled())
+const isPortalScope = computed(() => portalListFeatureEnabled.value && spaceSelection.value === 'portal')
+const portalItems = ref<PortalListItem[]>([])
+const portalLoading = ref(false)
+
+const fetchPortalList = () => {
+  if (!portalListFeatureEnabled.value) return Promise.resolve()
+  portalLoading.value = true
+  return listKnowledgeBases({ scope: 'portal' }).then((res: any) => {
+    portalItems.value = Array.isArray(res?.data) ? res.data : []
+  }).catch(() => {
+    portalItems.value = []
+  }).finally(() => {
+    portalLoading.value = false
+  })
+}
+
+const portalCards = computed(() =>
+  mapPortalItems(portalItems.value, authStore.effectiveTenantId as number | string | null | undefined),
+)
+const portalCardList = computed(() => [...portalCards.value.own, ...portalCards.value.shared])
+const portalSharedIds = computed(() => new Set(portalCards.value.shared.map(item => item.id)))
+const isPortalCrossTenant = (kb: any) =>
+  isPortalScope.value && !portalSharedIds.value.has(kb.id) && isCrossTenantItem(kb, authStore.effectiveTenantId)
 
 // 当前空间下共享给我的知识库（旧：仅他人共享；保留用于兼容）
 const sharedKbsByOrg = computed(() => {
@@ -1167,6 +1205,10 @@ const filteredKnowledgeBases = computed(() => {
   if (spaceSelection.value === 'mine') {
     return kbs.value.map(kb => ({ ...kb, isMine: true as const }))
   }
+  // 二开功能：门户视图直接消费服务端合并结果（own 卡 + shared 卡两种形态）
+  if (isPortalScope.value) {
+    return portalCardList.value as unknown as Array<(KB & { isMine: true }) | (SharedKnowledgeBase['knowledge_base'] & { isMine: false; permission: string; shared_at: string; share_id: string } & any)>
+  }
   if (spaceSelection.value !== 'all') {
     return []
   }
@@ -1253,6 +1295,12 @@ watch(spaceSelection, (val) => {
   }
   if (val === 'all' || val === 'mine' || val === 'favorites' || val === 'recents' || !val) {
     spaceKbsList.value = []
+    return
+  }
+  // 二开功能：门户视图走独立取数（服务端合并，单次调用）
+  if (val === 'portal') {
+    spaceKbsList.value = []
+    if (portalListFeatureEnabled.value) fetchPortalList()
     return
   }
   spaceKbsLoading.value = true

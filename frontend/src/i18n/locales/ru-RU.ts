@@ -4138,6 +4138,7 @@ export default {
     create: 'Создать базу знаний',
     subtitle: 'Управляйте и организуйте свои базы знаний, поддерживаются документные и FAQ-базы знаний',
     sharedToOrgs: 'Shared to {count} space(s)',
+    portalTenantBadge: 'Из другого пространства (ID {id})',
     uninitializedBanner: 'Некоторые базы знаний не инициализированы. Сначала настройте модели в разделе настроек, чтобы добавлять документы.',
     uploadProgress: {
       uploadingTitle: 'Загрузка документов папки в «{name}»',
@@ -5856,7 +5857,8 @@ export default {
     workspace: 'Рабочая область',
     spaces: 'Доступно мне',
     favorites: 'Избранное',
-    recents: 'Недавние'
+    recents: 'Недавние',
+    portal: 'Портал'
   },
   batchManage: {
     selectAll: 'Выбрать все',

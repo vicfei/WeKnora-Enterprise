@@ -310,7 +310,8 @@ export default {
     workspace: 'Workspace',
     spaces: 'Shared with me',
     favorites: 'Starred',
-    recents: 'Recent'
+    recents: 'Recent',
+    portal: 'Portal'
   },
   resourceOrigin: {
     mine: 'Mine',
@@ -1955,6 +1956,7 @@ export default {
     create: 'Create Knowledge Base',
     subtitle: 'Manage and organize your knowledge bases, supporting document-based and FAQ-based knowledge bases',
     sharedToOrgs: 'Shared to {count} space(s)',
+    portalTenantBadge: 'Cross-tenant entry (tenant {id})',
     uninitializedBanner: 'Some knowledge bases are not initialized. Configure model information in settings before adding documents.',
     empty: {
       title: 'No knowledge bases yet',

@@ -4138,6 +4138,7 @@ export default {
     create: '新建知识库',
     subtitle: '管理和组织您的知识库，支持文档型和问答型知识库',
     sharedToOrgs: '已共享给 {count} 个空间',
+    portalTenantBadge: '跨租户条目（租户 {id}）',
     uninitializedBanner: '部分知识库尚未初始化，需要先在设置中配置模型信息才能添加知识文档',
     uploadProgress: {
       uploadingTitle: '正在向「{name}」上传文件夹中的文档',
@@ -5856,7 +5857,8 @@ export default {
     workspace: '本空间',
     spaces: '共享给我',
     favorites: '收藏',
-    recents: '最近'
+    recents: '最近',
+    portal: '门户'
   },
   batchManage: {
     selectAll: '全选',

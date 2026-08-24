@@ -4138,6 +4138,7 @@ export default {
     create: '지식베이스 생성',
     subtitle: '지식베이스를 관리하고 구성합니다. 문서형과 Q&A형 지식베이스를 지원합니다',
     sharedToOrgs: '{count} 스페이스에 공유됨',
+    portalTenantBadge: '테넌트 간 항목 (테넌트 {id})',
     uninitializedBanner: '일부 지식베이스가 아직 초기화되지 않았습니다. 지식 문서를 추가하려면 먼저 설정에서 모델 정보를 구성해야 합니다',
     uploadProgress: {
       uploadingTitle: '「{name}」에 폴더의 문서 업로드 중',
@@ -5856,7 +5857,8 @@ export default {
     workspace: '워크스페이스',
     spaces: '나와 공유됨',
     favorites: '즐겨찾기',
-    recents: '최근'
+    recents: '최근',
+    portal: '포털'
   },
   batchManage: {
     selectAll: '전체 선택',

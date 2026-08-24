@@ -11,6 +11,14 @@
             <span class="icon-label">{{ $t('listSpaceSidebar.all') }}</span>
           </div>
         </t-tooltip>
+        <!-- 二开功能：门户视图入口（feature flag 默认关闭） -->
+        <t-tooltip v-if="showPortal" :content="tooltipText($t('listSpaceSidebar.portal'), countPortal)"
+          placement="right" :show-arrow="false">
+          <div class="icon-item-labeled" :class="{ active: selected === 'portal' }" @click="select('portal')">
+            <t-icon name="city" size="16px" />
+            <span class="icon-label">{{ $t('listSpaceSidebar.portal') }}</span>
+          </div>
+        </t-tooltip>
         <t-tooltip v-if="showFavorites" :content="tooltipText($t('listSpaceSidebar.favorites'), countFavorites)"
           placement="right" :show-arrow="false">
           <div class="icon-item-labeled" :class="{ active: selected === 'favorites' }" @click="select('favorites')">
@@ -81,6 +89,15 @@
           <span class="item-label">{{ $t('listSpaceSidebar.all') }}</span>
         </div>
         <span v-if="countAll !== undefined" class="item-count">{{ countAll }}</span>
+      </div>
+
+      <!-- 二开功能：门户视图入口（feature flag 默认关闭） -->
+      <div v-if="showPortal" class="sidebar-item" :class="{ active: selected === 'portal' }" @click="select('portal')">
+        <div class="item-left">
+          <t-icon name="city" class="item-icon" />
+          <span class="item-label">{{ $t('listSpaceSidebar.portal') }}</span>
+        </div>
+        <span v-if="countPortal !== undefined" class="item-count">{{ countPortal }}</span>
       </div>
 
       <template v-if="mode === 'resource'">
@@ -178,6 +195,12 @@ const props = withDefaults(
     /** Recents entry. Only meaningful in resource mode. */
     countRecents?: number
     showRecents?: boolean
+    /**
+     * Portal scope entry (second-development feature): server-merged
+     * own-tenant + shared view. Only meaningful in resource mode.
+     */
+    showPortal?: boolean
+    countPortal?: number
   }>(),
   {
     mode: 'resource',
@@ -192,6 +215,8 @@ const props = withDefaults(
     showFavorites: true,
     countRecents: 0,
     showRecents: true,
+    showPortal: false,
+    countPortal: undefined,
   }
 )
 
