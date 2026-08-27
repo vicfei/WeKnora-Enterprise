@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isCrossTenantItem, mapPortalItems } from './mapPortalResponse.ts'
+import { buildPortalGroupStream, isCrossTenantItem, isPortalGroupHeader, mapPortalItems } from './mapPortalResponse.ts'
 
 function ownKb(id, extra = {}) {
   return { id, name: `kb-${id}`, tenant_id: 10, ...extra }
@@ -57,4 +57,28 @@ test('tenant comparison is string-safe across number/string encodings', () => {
   assert.equal(isCrossTenantItem({ id: 'a', tenant_id: '10' }, 10), false)
   assert.equal(isCrossTenantItem({ id: 'a', tenant_id: 10 }, '10'), false)
   assert.equal(isCrossTenantItem({ id: 'a', tenant_id: '20' }, 10), true)
+})
+
+// ── v2 grouped stream ──────────────────────────────────────────────────
+test('buildPortalGroupStream groups personal/team/all/shared in order', () => {
+  const stream = buildPortalGroupStream([
+    { id: 'p1', tenant_id: 10, tenant_name: '我的空间', space_type: 'personal', my_role: 'owner' },
+    { id: 't1', tenant_id: 20, tenant_name: '投研团队', space_type: 'team', my_role: 'contributor' },
+    { id: 'a1', shared: true, share_id: 's1', permission: 'viewer', shared_at: 'x', space_type: 'all', tenant_name: '公司公共库' },
+    { id: 'x1', shared: true, share_id: 's2', permission: 'editor', shared_at: 'x', space_type: 'team', tenant_name: '兄弟团队' },
+  ], 10)
+  const headers = stream.filter(isPortalGroupHeader)
+  assert.equal(headers.length, 4)
+  assert.deepEqual(headers.map(h => h.__portalGroup), ['personal', 'team', 'all', 'shared'])
+  assert.equal(headers[0].role, 'owner')
+  assert.equal(headers[2].count, 1)
+  const ids = stream.filter(i => !isPortalGroupHeader(i)).map(i => i.id)
+  assert.deepEqual(ids, ['p1', 't1', 'a1', 'x1'])
+})
+
+test('empty groups are skipped', () => {
+  const stream = buildPortalGroupStream([{ id: 't1', tenant_id: 20, space_type: 'team' }], 20)
+  const headers = stream.filter(isPortalGroupHeader)
+  assert.equal(headers.length, 1)
+  assert.equal(headers[0].__portalGroup, 'team')
 })

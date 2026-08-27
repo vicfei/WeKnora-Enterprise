@@ -1957,6 +1957,12 @@ export default {
     subtitle: 'Manage and organize your knowledge bases, supporting document-based and FAQ-based knowledge bases',
     sharedToOrgs: 'Shared to {count} space(s)',
     portalTenantBadge: 'Cross-tenant entry (tenant {id})',
+    portalGroupPersonal: 'Personal spaces',
+    portalGroupTeam: 'Team spaces',
+    portalGroupAll: 'Company public',
+    portalGroupShared: 'Shared with me',
+    portalGroupCount: '{count} knowledge bases',
+    portalRoleBadge: 'My role: {role}',
     uninitializedBanner: 'Some knowledge bases are not initialized. Configure model information in settings before adding documents.',
     empty: {
       title: 'No knowledge bases yet',

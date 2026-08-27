@@ -110,7 +110,13 @@
                「已置顶」分组由顶部 header 接管。其余分段（我创建 / 本空间 ·
                仅查看 / 共享给我）各自打自己的标题；原本的「其他」过渡标题
                在 per-user 置顶模型下已无意义，删除以免和具体子段标题叠加。 -->
-          <template v-for="(kb, index) in filteredKnowledgeBases" :key="kb.id">
+          <template v-for="(kb, index) in filteredKnowledgeBases" :key="kb.id || kb.__portalGroup">
+            <!-- 二开功能（v2）：门户分组标题行——个人/团队/公司公共/共享给我 -->
+            <div v-if="isPortalGroupHeader(kb)" class="kb-section-header kb-section-header-portal">
+              <span class="portal-group-title">{{ $t(kb.labelKey) }}</span>
+              <span class="portal-group-count">{{ $t('knowledgeList.portalGroupCount', { count: kb.count }) }}</span>
+              <span v-if="kb.role" class="portal-group-role">{{ $t('knowledgeList.portalRoleBadge', { role: kb.role }) }}</span>
+            </div>
             <!-- 我创建的：第一张「我创建」非置顶卡片前打标题，统一展示
                  不管上方是否存在「已置顶」段。与「本空间 · 仅查看」同样
                  仅在 contributor 视图下出现——admin/owner 视图原本就没有
@@ -287,10 +293,10 @@
                     </t-tooltip>
                     <!-- 二开功能：门户跨租户徽标（系统管理员 portal 视图） -->
                     <t-tooltip v-if="isPortalCrossTenant(kb)"
-                      :content="$t('knowledgeList.portalTenantBadge', { id: kb.tenant_id })" placement="top">
+                      :content="$t('knowledgeList.portalTenantBadge', { id: kb.tenant_name || kb.tenant_id })" placement="top">
                       <div class="feature-badge kg">
                         <t-icon name="city" size="14px" />
-                        <span class="badge-count">{{ kb.tenant_id }}</span>
+                        <span class="badge-count">{{ kb.tenant_name || kb.tenant_id }}</span>
                       </div>
                     </t-tooltip>
                   </div>
@@ -812,7 +818,7 @@ import { useI18n } from 'vue-i18n'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
 import { listKnowledgeBases } from '@/api/knowledge-base'
-import { mapPortalItems, isCrossTenantItem, type PortalListItem } from '@/features/portal-list/mapPortalResponse'
+import { mapPortalItems, isCrossTenantItem, buildPortalGroupStream, isPortalGroupHeader, type PortalListItem } from '@/features/portal-list/mapPortalResponse'
 import { portalListEnabled } from '@/features/common/flags'
 
 const router = useRouter()
@@ -939,6 +945,8 @@ const portalCards = computed(() =>
   mapPortalItems(portalItems.value, authStore.effectiveTenantId as number | string | null | undefined),
 )
 const portalCardList = computed(() => [...portalCards.value.own, ...portalCards.value.shared])
+// v2 grouped stream for the portal view (headers interleaved with cards)
+const portalGroupStream = computed(() => buildPortalGroupStream(portalItems.value, authStore.effectiveTenantId))
 const portalSharedIds = computed(() => new Set(portalCards.value.shared.map(item => item.id)))
 const isPortalCrossTenant = (kb: any) =>
   isPortalScope.value && !portalSharedIds.value.has(kb.id) && isCrossTenantItem(kb, authStore.effectiveTenantId)
@@ -1205,9 +1213,10 @@ const filteredKnowledgeBases = computed(() => {
   if (spaceSelection.value === 'mine') {
     return kbs.value.map(kb => ({ ...kb, isMine: true as const }))
   }
-  // 二开功能：门户视图直接消费服务端合并结果（own 卡 + shared 卡两种形态）
+  // 二开功能（v2）：门户视图按 个人/团队/公司公共/共享给我 分组——分组标题作为
+  // 标记对象内插进同一卡片流，卡片模板只加一个头分支，不复制卡片模板
   if (isPortalScope.value) {
-    return portalCardList.value as unknown as Array<(KB & { isMine: true }) | (SharedKnowledgeBase['knowledge_base'] & { isMine: false; permission: string; shared_at: string; share_id: string } & any)>
+    return portalGroupStream.value as unknown as Array<any>
   }
   if (spaceSelection.value !== 'all') {
     return []
@@ -2250,6 +2259,32 @@ const handleUploadFinishedEvent = (event: Event) => {
 
 .kb-section-header {
   grid-column: 1 / -1;
+  &.kb-section-header-portal {
+    // v2 门户分组标题：非折叠、纯展示行（个人/团队/公司公共/共享给我）
+    pointer-events: auto;
+    cursor: default;
+    gap: 10px;
+
+    .portal-group-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .portal-group-count {
+      color: var(--td-text-color-placeholder);
+      font-size: 12px;
+    }
+
+    .portal-group-role {
+      margin-left: auto;
+      color: var(--td-brand-color);
+      font-size: 12px;
+      border: 1px solid var(--td-brand-color-focus);
+      border-radius: 999px;
+      padding: 1px 10px;
+    }
+  }
+
   display: flex;
   align-items: center;
   gap: 6px;

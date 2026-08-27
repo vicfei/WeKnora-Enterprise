@@ -4139,6 +4139,12 @@ export default {
     subtitle: 'Управляйте и организуйте свои базы знаний, поддерживаются документные и FAQ-базы знаний',
     sharedToOrgs: 'Shared to {count} space(s)',
     portalTenantBadge: 'Из другого пространства (ID {id})',
+    portalGroupPersonal: 'Личные пространства',
+    portalGroupTeam: 'Пространства команд',
+    portalGroupAll: 'Общедоступные компании',
+    portalGroupShared: 'Мне предоставлен доступ',
+    portalGroupCount: 'баз знаний: {count}',
+    portalRoleBadge: 'Моя роль: {role}',
     uninitializedBanner: 'Некоторые базы знаний не инициализированы. Сначала настройте модели в разделе настроек, чтобы добавлять документы.',
     uploadProgress: {
       uploadingTitle: 'Загрузка документов папки в «{name}»',

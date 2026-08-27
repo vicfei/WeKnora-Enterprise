@@ -4139,6 +4139,12 @@ export default {
     subtitle: '管理和组织您的知识库，支持文档型和问答型知识库',
     sharedToOrgs: '已共享给 {count} 个空间',
     portalTenantBadge: '跨租户条目（租户 {id}）',
+    portalGroupPersonal: '个人空间',
+    portalGroupTeam: '团队空间',
+    portalGroupAll: '公司公共',
+    portalGroupShared: '共享给我',
+    portalGroupCount: '{count} 个知识库',
+    portalRoleBadge: '我的角色：{role}',
     uninitializedBanner: '部分知识库尚未初始化，需要先在设置中配置模型信息才能添加知识文档',
     uploadProgress: {
       uploadingTitle: '正在向「{name}」上传文件夹中的文档',

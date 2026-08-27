@@ -22,6 +22,10 @@ export interface PortalListItem {
   source_tenant_id?: number | string
   shared_at?: string
   tenant_id?: number | string
+  /** v2 aggregation metadata (backend listKnowledgeBasesPortal) */
+  tenant_name?: string
+  space_type?: 'personal' | 'team' | 'all' | string
+  my_role?: string
   [key: string]: unknown
 }
 
@@ -80,4 +84,64 @@ export function isCrossTenantItem(
   currentTenantId?: number | string | null,
 ): boolean {
   return !sameTenant(item.tenant_id, currentTenantId)
+}
+
+// ── v2 grouped portal view ──────────────────────────────────────────────
+
+export type PortalGroupKey = 'personal' | 'team' | 'all' | 'shared'
+
+export interface PortalGroupHeader {
+  __portalGroup: PortalGroupKey
+  labelKey: string
+  count: number
+  role?: string
+}
+
+const GROUP_ORDER: PortalGroupKey[] = ['personal', 'team', 'all', 'shared']
+const GROUP_LABEL_KEYS: Record<PortalGroupKey, string> = {
+  personal: 'knowledgeList.portalGroupPersonal',
+  team: 'knowledgeList.portalGroupTeam',
+  all: 'knowledgeList.portalGroupAll',
+  shared: 'knowledgeList.portalGroupShared',
+}
+
+function classify(item: PortalListItem, isShared: boolean): PortalGroupKey {
+  if (isShared) {
+    // shared entries from an `all` space belong to the company-public group
+    return item.space_type === 'all' ? 'all' : 'shared'
+  }
+  if (item.space_type === 'personal') return 'personal'
+  if (item.space_type === 'all') return 'all'
+  return 'team'
+}
+
+/**
+ * Interleaves group header markers into the flat portal card stream so the
+ * existing single card loop can render "个人/团队/公司公共/共享给我"
+ * sections without duplicating the card template. The first my_role seen in
+ * a group rides on its header (own spaces have a stable role per user).
+ */
+export function buildPortalGroupStream(
+  items: PortalListItem[],
+  currentTenantId?: number | string | null,
+): Array<PortalGroupHeader | (Record<string, unknown> & { id: string; isMine: boolean })> {
+  const cards = mapPortalItems(items, currentTenantId)
+  const buckets: Record<PortalGroupKey, Array<Record<string, unknown> & { id: string; isMine: boolean }>> = {
+    personal: [], team: [], all: [], shared: [],
+  }
+  ;[...cards.own, ...cards.shared].forEach((card) => {
+    buckets[classify(card as PortalListItem, card.isMine === false)].push(card as any)
+  })
+  const stream: Array<PortalGroupHeader | any> = []
+  for (const key of GROUP_ORDER) {
+    if (buckets[key].length === 0) continue
+    const role = (buckets[key].find((c) => (c as any).my_role) as any)?.my_role
+    stream.push({ __portalGroup: key, labelKey: GROUP_LABEL_KEYS[key], count: buckets[key].length, role })
+    stream.push(...buckets[key])
+  }
+  return stream
+}
+
+export function isPortalGroupHeader(item: unknown): item is PortalGroupHeader {
+  return typeof item === 'object' && item !== null && '__portalGroup' in item
 }

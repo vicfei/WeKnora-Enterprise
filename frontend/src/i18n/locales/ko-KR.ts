@@ -4139,6 +4139,12 @@ export default {
     subtitle: '지식베이스를 관리하고 구성합니다. 문서형과 Q&A형 지식베이스를 지원합니다',
     sharedToOrgs: '{count} 스페이스에 공유됨',
     portalTenantBadge: '테넌트 간 항목 (테넌트 {id})',
+    portalGroupPersonal: '개인 공간',
+    portalGroupTeam: '팀 공간',
+    portalGroupAll: '회사 공용',
+    portalGroupShared: '공유받음',
+    portalGroupCount: '지식 베이스 {count}개',
+    portalRoleBadge: '내 역할: {role}',
     uninitializedBanner: '일부 지식베이스가 아직 초기화되지 않았습니다. 지식 문서를 추가하려면 먼저 설정에서 모델 정보를 구성해야 합니다',
     uploadProgress: {
       uploadingTitle: '「{name}」에 폴더의 문서 업로드 중',
