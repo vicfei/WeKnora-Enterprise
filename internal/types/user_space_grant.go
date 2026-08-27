@@ -39,7 +39,7 @@ type UserSpaceGrant struct {
 	TenantID    uint64               `json:"tenant_id"            gorm:"not null;uniqueIndex:uq_user_space_grants_uum_tenant,priority:2"`
 	Role        TenantRole           `json:"role"                 gorm:"type:varchar(20);not null;default:'viewer'"`
 	Status      UserSpaceGrantStatus `json:"status"               gorm:"type:varchar(20);not null;default:'pending'"`
-	ValidUntil  *time.Time           `json:"valid_until,omitempty" gorm:"type:timestamptz"`
+	ValidUntil  *time.Time           `json:"valid_until,omitempty"`
 	RequestedBy string               `json:"requested_by"         gorm:"type:varchar(128);not null;default:''"`
 	ApprovedBy  string               `json:"approved_by,omitempty" gorm:"type:varchar(128)"`
 	Reason      string               `json:"reason,omitempty"     gorm:"type:varchar(255)"`

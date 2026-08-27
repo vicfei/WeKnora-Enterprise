@@ -231,14 +231,22 @@ func (s *userSpaceGrantService) applyGrantMembership(ctx context.Context, grant 
 	}
 }
 
-func (s *userSpaceGrantService) dropGrantMembership(ctx context.Context, grant *types.UserSpaceGrant) {
+// dropGrantMembership removes the linked membership when present.
+// Returns true when a membership was actually removed.
+func (s *userSpaceGrantService) dropGrantMembership(ctx context.Context, grant *types.UserSpaceGrant) bool {
 	userID, ok, err := s.repo.ResolveUserIDByUUM(ctx, grant.UUMUserID)
 	if err != nil || !ok {
-		return
+		return false
+	}
+	member, err := s.memberService.GetMembership(ctx, userID, grant.TenantID)
+	if err != nil || member == nil {
+		return false
 	}
 	if err := s.memberService.RemoveMember(ctx, userID, grant.TenantID); err != nil {
 		logger.Warnf(ctx, "UserSpaceGrant drop: remove member failed uum=%s tenant=%d: %v", grant.UUMUserID, grant.TenantID, err)
+		return false
 	}
+	return true
 }
 
 // ApplyForUser (re)materializes one user's effective grants at login time.
@@ -285,7 +293,9 @@ func (s *userSpaceGrantService) Sweep(ctx context.Context, now time.Time) (inter
 	}
 	stats.Expired = len(expired)
 	for _, grant := range expired {
-		s.dropGrantMembership(ctx, grant)
+		if s.dropGrantMembership(ctx, grant) {
+			stats.MembershipDropped++
+		}
 	}
 
 	grants, err := s.repo.List(ctx, types.UserSpaceGrantFilter{})
