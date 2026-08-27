@@ -31,9 +31,12 @@ func NewIdentityBridgeHandler(bridgeService interfaces.IdentityBridgeService) *I
 }
 
 // bridgeLoginResponse is the login shape plus the provisioning flag.
+// No omitempty on IsNewUser: false must be rendered explicitly — omitting
+// it made idempotent re-bridges look like error responses to jq consumers
+// (documented in .context/research/permission_single_source_review.md §二).
 type bridgeLoginResponse struct {
 	dto.AuthLoginResponse
-	IsNewUser bool `json:"is_new_user,omitempty"`
+	IsNewUser bool `json:"is_new_user"`
 }
 
 // Bridge godoc
