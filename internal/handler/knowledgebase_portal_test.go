@@ -36,7 +36,14 @@ func (s *stubPortalKBService) ListAllKnowledgeBases(ctx context.Context) ([]*typ
 }
 
 func (s *stubPortalKBService) ListKnowledgeBasesByTenantID(ctx context.Context, tenantID uint64) ([]*types.KnowledgeBase, error) {
-	return s.byTenant, nil
+	// real service semantics: only the tenant's own KBs
+	out := make([]*types.KnowledgeBase, 0, len(s.byTenant))
+	for _, kb := range s.byTenant {
+		if kb.TenantID == tenantID {
+			out = append(out, kb)
+		}
+	}
+	return out, nil
 }
 
 type stubPortalShareService struct {
@@ -213,4 +220,94 @@ func TestListKnowledgeBasesAgentIDWinsOverPortalScope(t *testing.T) {
 	assert.Equal(t, "kb-agent", data[0]["id"])
 	assert.False(t, svc.allCalled)
 	assert.False(t, share.sharedCalled)
+}
+
+// --- v2 aggregation ------------------------------------------------------
+
+type stubPortalMemberService struct {
+	interfaces.TenantMemberService
+	members []*types.TenantMember
+}
+
+func (s *stubPortalMemberService) ListByUser(_ context.Context, _ string) ([]*types.TenantMember, error) {
+	return s.members, nil
+}
+
+type stubPortalTenantService struct {
+	interfaces.TenantService
+	byID map[uint64]*types.Tenant
+}
+
+func (s *stubPortalTenantService) GetTenantsByIDs(_ context.Context, ids []uint64) (map[uint64]*types.Tenant, error) {
+	out := map[uint64]*types.Tenant{}
+	for _, id := range ids {
+		if t, ok := s.byID[id]; ok {
+			out[id] = t
+		}
+	}
+	return out, nil
+}
+
+func TestListKnowledgeBasesPortalAggregatesAllMemberships(t *testing.T) {
+	// user holds: personal space 1 (owner), team space 2 (contributor);
+	// a shared KB from the all-staff space (tenant 3) arrives via org share.
+	svc := &stubPortalKBService{
+		byTenant: []*types.KnowledgeBase{portalKB("kb-personal", 1, false), portalKB("kb-team", 2, false)},
+	}
+	share := &stubPortalShareService{
+		shared: []*types.SharedKnowledgeBaseInfo{{
+			KnowledgeBase:  portalKB("kb-public", 3, false),
+			ShareID:        "share-9",
+			OrganizationID: "org-9",
+			OrgName:        "全员共享组",
+			Permission:     types.OrgRoleViewer,
+			SourceTenantID: 3,
+		}},
+	}
+	h := &KnowledgeBaseHandler{
+		service: svc, kbShareService: share,
+		memberService: &stubPortalMemberService{members: []*types.TenantMember{
+			{TenantID: 1, Role: types.TenantRoleOwner, Status: types.TenantMemberStatusActive},
+			{TenantID: 2, Role: types.TenantRoleContributor, Status: types.TenantMemberStatusActive},
+		}},
+		tenantService: &stubPortalTenantService{byID: map[uint64]*types.Tenant{
+			1: {ID: 1, Name: "张三的空间", SpaceType: types.SpaceTypePersonal},
+			2: {ID: 2, Name: "投研团队", SpaceType: types.SpaceTypeTeam},
+			3: {ID: 3, Name: "公司公共库", SpaceType: types.SpaceTypeAll},
+		}},
+	}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set(types.TenantIDContextKey.String(), uint64(1))
+		c.Set(types.UserIDContextKey.String(), "user-1")
+		ctx := context.WithValue(c.Request.Context(), types.TenantIDContextKey, uint64(1))
+		ctx = context.WithValue(ctx, types.UserIDContextKey, "user-1")
+		ctx = context.WithValue(ctx, types.TenantRoleContextKey, types.TenantRoleOwner)
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	})
+	r.Use(middleware.ErrorHandler())
+	r.GET("/api/v1/knowledge-bases", h.ListKnowledgeBases)
+	server := httptest.NewServer(r)
+	t.Cleanup(server.Close)
+
+	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal")
+	require.Equal(t, http.StatusOK, status)
+	require.Len(t, data, 3)
+
+	byID := map[string]map[string]interface{}{}
+	for _, item := range data {
+		byID[item["id"].(string)] = item
+	}
+	require.Contains(t, byID, "kb-personal")
+	assert.Equal(t, "张三的空间", byID["kb-personal"]["tenant_name"])
+	assert.Equal(t, types.SpaceTypePersonal, byID["kb-personal"]["space_type"])
+	assert.Equal(t, string(types.TenantRoleOwner), byID["kb-personal"]["my_role"])
+	assert.Equal(t, "投研团队", byID["kb-team"]["tenant_name"])
+	assert.Equal(t, types.SpaceTypeTeam, byID["kb-team"]["space_type"])
+	assert.Equal(t, string(types.TenantRoleContributor), byID["kb-team"]["my_role"])
+	assert.Equal(t, true, byID["kb-public"]["shared"])
+	assert.Equal(t, "公司公共库", byID["kb-public"]["tenant_name"])
+	assert.Equal(t, types.SpaceTypeAll, byID["kb-public"]["space_type"])
 }

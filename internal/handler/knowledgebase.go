@@ -35,6 +35,10 @@ type KnowledgeBaseHandler struct {
 	// userService 仅在 list 类接口里用于批量回填 creator_name；
 	// 真正的鉴权由 RBAC 中间件 + Lookup 完成，这里不参与决策。
 	userService interfaces.UserService
+	// memberService/tenantService 驱动 v2 ?scope=portal 聚合（全部活跃
+	// memberships ∪ 组织共享）；为 nil 时（旧测试/降级）回退单租户行为。
+	memberService interfaces.TenantMemberService
+	tenantService interfaces.TenantService
 }
 
 // NewKnowledgeBaseHandler creates a new knowledge base handler instance
@@ -46,6 +50,8 @@ func NewKnowledgeBaseHandler(
 	asynqClient interfaces.TaskEnqueuer,
 	vectorStoreService interfaces.VectorStoreService,
 	userService interfaces.UserService,
+	memberService interfaces.TenantMemberService,
+	tenantService interfaces.TenantService,
 ) *KnowledgeBaseHandler {
 	return &KnowledgeBaseHandler{
 		service:            service,
@@ -53,6 +59,8 @@ func NewKnowledgeBaseHandler(
 		kbShareService:     kbShareService,
 		agentShareService:  agentShareService,
 		asynqClient:        asynqClient,
+		memberService:      memberService,
+		tenantService:      tenantService,
 		vectorStoreService: vectorStoreService,
 		userService:        userService,
 	}
@@ -765,51 +773,135 @@ func (h *KnowledgeBaseHandler) listKnowledgeBasesPortal(c *gin.Context) {
 		return
 	}
 
-	// Own department tenant KBs — same enrichment as the default list.
-	own, err := h.service.ListKnowledgeBases(ctx)
-	if err != nil {
-		logger.ErrorWithFields(ctx, err, nil)
-		c.Error(apperrors.NewInternalServerError(err.Error()))
-		return
-	}
-	own = filterKnowledgeBasesForAPIKeyScope(ctx, own)
-	if len(own) > 0 && h.kbShareService != nil {
-		kbIDs := make([]string, len(own))
-		for i, kb := range own {
-			kbIDs[i] = kb.ID
+	// v2 aggregation: every ACTIVE membership's own KBs plus everything
+	// shared into those tenants, enriched with tenant_name / space_type /
+	// my_role so the portal can group by space (plan §3.2-11). Falls back
+	// to the previous single-active-tenant semantics when membership data
+	// is unavailable (legacy deployments / degraded mode).
+	userIDVal, _ := c.Get(types.UserIDContextKey.String())
+	userID, _ := userIDVal.(string)
+	var memberships []*types.TenantMember
+	if h.memberService != nil && userID != "" {
+		if ms, merr := h.memberService.ListByUser(ctx, userID); merr == nil {
+			memberships = ms
+		} else {
+			logger.Warnf(ctx, "portal aggregation: membership listing failed, fallback to single-tenant: %v", merr)
 		}
-		if shareCounts, err := h.kbShareService.CountSharesByKnowledgeBaseIDs(ctx, kbIDs); err == nil {
-			for _, kb := range own {
-				if count, ok := shareCounts[kb.ID]; ok {
-					kb.ShareCount = count
+	}
+	degraded := len(memberships) == 0
+	if degraded {
+		// degraded mode mirrors the pre-aggregation single-tenant semantics
+		memberships = []*types.TenantMember{{
+			TenantID: callerTenantID, Role: types.TenantRoleFromContext(ctx),
+			Status: types.TenantMemberStatusActive,
+		}}
+	}
+
+	// batch tenant metadata (name + space_type) for all membership tenants
+	tenantIDs := make([]uint64, 0, len(memberships))
+	for _, m := range memberships {
+		if m != nil && m.TenantID != 0 {
+			tenantIDs = append(tenantIDs, m.TenantID)
+		}
+	}
+	tenantsByID := map[uint64]*types.Tenant{}
+	if h.tenantService != nil && len(tenantIDs) > 0 {
+		if found, terr := h.tenantService.GetTenantsByIDs(ctx, tenantIDs); terr == nil {
+			tenantsByID = found
+		}
+	}
+
+	data := make([]interface{}, 0, 16)
+	seen := make(map[string]bool)
+	defaultView := h.envDefaultStoreView(ctx)
+
+	// 1) own KBs per membership tenant (active memberships first, deduped)
+	for _, m := range memberships {
+		if m == nil || m.TenantID == 0 || m.Status != types.TenantMemberStatusActive {
+			continue
+		}
+		var kbs []*types.KnowledgeBase
+		var err error
+		if degraded {
+			kbs, err = h.service.ListKnowledgeBases(ctx)
+		} else {
+			kbs, err = h.service.ListKnowledgeBasesByTenantID(ctx, m.TenantID)
+		}
+		if err != nil {
+			logger.Warnf(ctx, "portal aggregation: list tenant %d failed: %v", m.TenantID, err)
+			continue
+		}
+		kbs = filterKnowledgeBasesForAPIKeyScope(ctx, kbs)
+		if len(kbs) > 0 && h.kbShareService != nil {
+			kbIDs := make([]string, len(kbs))
+			for i, kb := range kbs {
+				kbIDs[i] = kb.ID
+			}
+			if shareCounts, err := h.kbShareService.CountSharesByKnowledgeBaseIDs(ctx, kbIDs); err == nil {
+				for _, kb := range kbs {
+					if count, ok := shareCounts[kb.ID]; ok {
+						kb.ShareCount = count
+					}
 				}
 			}
-		} else {
-			logger.Warnf(ctx, "Failed to get share counts: %v", err)
+		}
+		enrichKBCreatorNames(ctx, h.userService, kbs)
+
+		views := h.buildKBListResponse(ctx, kbs, callerTenantID)
+		for i, kb := range kbs {
+			if seen[kb.ID] || i >= len(views) {
+				continue
+			}
+			seen[kb.ID] = true
+			if vm, ok := views[i].(map[string]interface{}); ok {
+				vm["tenant_name"] = spaceMeta(tenantsByID, kb.TenantID).name
+				vm["space_type"] = spaceMeta(tenantsByID, kb.TenantID).spaceType
+				vm["my_role"] = m.Role
+			}
+			data = append(data, views[i])
 		}
 	}
-	enrichKBCreatorNames(ctx, h.userService, own)
 
-	// KBs shared into the caller's organizations.
-	callerTenantRole := types.TenantRoleFromContext(ctx)
-	shared, err := h.kbShareService.ListSharedKnowledgeBases(ctx, callerTenantID, callerTenantRole)
-	if err != nil {
-		logger.ErrorWithFields(ctx, err, nil)
-		c.Error(apperrors.NewInternalServerError(err.Error()))
-		return
-	}
-
-	ownIDs := make(map[string]bool, len(own))
-	for _, kb := range own {
-		ownIDs[kb.ID] = true
-	}
-
-	data := h.buildKBListResponse(ctx, own, callerTenantID)
-	defaultView := h.envDefaultStoreView(ctx)
-	for _, info := range shared {
-		if info == nil || info.KnowledgeBase == nil || ownIDs[info.KnowledgeBase.ID] {
-			continue // dedupe: the own-tenant entry wins over the shared row
+	// 2) KBs shared into any of the membership tenants (org-share chain;
+	// this is also how the all-staff space reaches every user, see plan §四-5)
+	// First collect all shared candidates, then batch-load the metadata of
+	// SOURCE tenants (they may be outside the caller's memberships, e.g.
+	// the all-staff space tenant).
+	type sharedItem = *types.SharedKnowledgeBaseInfo
+	var sharedCandidates []sharedItem
+	for _, m := range memberships {
+		if m == nil || m.TenantID == 0 || m.Status != types.TenantMemberStatusActive {
+			continue
 		}
+		shared, err := h.kbShareService.ListSharedKnowledgeBases(ctx, m.TenantID, m.Role)
+		if err != nil {
+			logger.Warnf(ctx, "portal aggregation: shared list tenant %d failed: %v", m.TenantID, err)
+			continue
+		}
+		for _, info := range shared {
+			if info == nil || info.KnowledgeBase == nil || seen[info.KnowledgeBase.ID] {
+				continue // dedupe: own entries win over shared rows
+			}
+			seen[info.KnowledgeBase.ID] = true
+			sharedCandidates = append(sharedCandidates, info)
+		}
+	}
+	if len(sharedCandidates) > 0 && h.tenantService != nil {
+		need := make([]uint64, 0, len(sharedCandidates))
+		for _, info := range sharedCandidates {
+			if _, ok := tenantsByID[info.SourceTenantID]; !ok {
+				need = append(need, info.SourceTenantID)
+			}
+		}
+		if len(need) > 0 {
+			if found, terr := h.tenantService.GetTenantsByIDs(ctx, need); terr == nil {
+				for id, t := range found {
+					tenantsByID[id] = t
+				}
+			}
+		}
+	}
+	for _, info := range sharedCandidates {
 		view := defaultView
 		if info.KnowledgeBase.HasVectorStore() {
 			if info.KnowledgeBase.TenantID != callerTenantID {
@@ -826,6 +918,8 @@ func (h *KnowledgeBaseHandler) listKnowledgeBasesPortal(c *gin.Context) {
 			"permission":       info.Permission,
 			"source_tenant_id": info.SourceTenantID,
 			"shared_at":        info.SharedAt,
+			"tenant_name":      spaceMeta(tenantsByID, info.SourceTenantID).name,
+			"space_type":       spaceMeta(tenantsByID, info.SourceTenantID).spaceType,
 		}))
 	}
 
@@ -833,6 +927,27 @@ func (h *KnowledgeBaseHandler) listKnowledgeBasesPortal(c *gin.Context) {
 		"success": true,
 		"data":    data,
 	})
+}
+
+type spaceMetaInfo struct {
+	name      string
+	spaceType string
+}
+
+var emptySpaceMeta = spaceMetaInfo{spaceType: types.SpaceTypeTeam}
+
+// spaceMeta resolves a tenant's display name and space type; unknown
+// tenants (e.g. shared sources outside the caller's memberships) degrade
+// to empty name + default space_type.
+func spaceMeta(byID map[uint64]*types.Tenant, id uint64) spaceMetaInfo {
+	if t, ok := byID[id]; ok && t != nil {
+		st := t.SpaceType
+		if st == "" {
+			st = types.SpaceTypeTeam
+		}
+		return spaceMetaInfo{name: t.Name, spaceType: st}
+	}
+	return emptySpaceMeta
 }
 
 func filterKnowledgeBasesForAPIKeyScope(ctx context.Context, kbs []*types.KnowledgeBase) []*types.KnowledgeBase {
