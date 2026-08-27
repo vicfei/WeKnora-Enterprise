@@ -74,3 +74,10 @@ const (
 func IsValidSpaceType(s string) bool {
 	return s == SpaceTypePersonal || s == SpaceTypeTeam || s == SpaceTypeAll
 }
+
+// UserSpaceGrantFilter narrows grant list queries; zero values mean "no filter".
+type UserSpaceGrantFilter struct {
+	TenantID uint64
+	UUMUser  string
+	Status   UserSpaceGrantStatus
+}

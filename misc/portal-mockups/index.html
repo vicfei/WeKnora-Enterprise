@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>门户首页设计方案 · 对比导航</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #F0F2F5;
+    color: #1A1A1A;
+    min-height: 100vh;
+    padding: 48px 24px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 600; margin-bottom: 8px; }
+  .sub { color: #666; font-size: 14px; line-height: 1.8; margin-bottom: 36px; }
+  .sub strong { color: #0052D9; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .card {
+    background: #fff; border-radius: 12px; overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06);
+    text-decoration: none; color: inherit;
+    transition: transform .2s ease, box-shadow .2s ease;
+    display: flex; flex-direction: column;
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+  .shot { height: 200px; position: relative; overflow: hidden; }
+  .shot .nav { height: 34px; display: flex; align-items: center; padding: 0 14px; font-size: 10px; color: rgba(255,255,255,.92); font-weight: 600; letter-spacing: 1px; }
+  .shot .logo { font-size: 12px; }
+  .shot .navitems { margin-left: auto; display: flex; gap: 12px; opacity: .8; font-weight: 400; }
+  .shot-body { padding: 12px 14px; }
+  .pill { display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 999px; margin: 2px 3px 2px 0; }
+  .searchbar { height: 22px; border-radius: 999px; margin: 8px 24px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; }
+  .blocks { display: flex; gap: 6px; padding: 0 14px; }
+  .blk { flex: 1; border-radius: 5px; height: 44px; }
+  .info { padding: 16px 18px 20px; flex: 1; display: flex; flex-direction: column; }
+  .tagline { font-size: 12px; font-weight: 600; color: #0052D9; margin-bottom: 6px; }
+  .info h2 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+  .info p { font-size: 12.5px; color: #666; line-height: 1.75; flex: 1; }
+  .meta { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #E7E7E7; font-size: 11px; color: #999; }
+  /* A 经典企业门户 */
+  .a .shot { background: linear-gradient(135deg, #F7F9FC 60%, #EDF2FA); }
+  .a .nav { background: #12264F; color: #fff; }
+  .a .searchbar { background: #fff; border: 1px solid #DDE4EF; box-shadow: 0 2px 8px rgba(18,38,79,.10); color: #8A94A6; }
+  .a .blk { background: #fff; border: 1px solid #E7ECF4; }
+  .a .pill { background: #E8F0FE; color: #0052D9; }
+  /* B 内容信息流 */
+  .b .shot { background: #F7F8FA; }
+  .b .nav { background: #fff; color: #1A1A1A; border-bottom: 1px solid #EBEBEB; }
+  .b .searchbar { background: #F2F3F5; color: #8A8A8A; margin: 8px 60px 8px 14px; }
+  .b .cols { display: flex; gap: 8px; padding: 4px 14px 0; }
+  .b .side { width: 64px; border-radius: 5px; background: #fff; border: 1px solid #EBEBEB; }
+  .b .feed { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .b .post { background: #fff; border: 1px solid #EBEBEB; border-radius: 5px; height: 30px; }
+  .b .pill { background: #E8F7EE; color: #0B8A4B; }
+  /* C 紧凑工作台 */
+  .c .shot { background: #F0F2F5; }
+  .c .nav { background: #fff; color: #1A1A1A; border-bottom: 1px solid #E3E6EB; }
+  .c .searchbar { background: #fff; border: 1px solid #D4D9E0; color: #9AA2AF; margin: 8px 40px; }
+  .c .grid3 { display: flex; gap: 6px; padding: 0 14px; }
+  .c .blk { background: #fff; border: 1px solid #E3E6EB; border-top: 2px solid #0052D9; }
+  .c .pill { background: #FFF3E0; color: #D46B08; }
+  .foot { margin-top: 40px; padding: 18px 22px; background: #fff; border-radius: 10px; font-size: 13px; color: #555; line-height: 2; }
+  .foot b { color: #1A1A1A; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>门户首页 · 三方案对比</h1>
+  <p class="sub">
+    本目录为<strong>纯静态视觉演示稿</strong>（零依赖、假数据、双击即开），用于评审门户首页的形态与信息架构，<strong>不涉及任何系统改动</strong>。
+    三个方案使用同一套虚构数据（投研部/固收研究/合规风控等），便于横向对比。评审意见可直接反馈给开发，定稿后再立项集成（features/portal-home/ + feature flag）。
+  </p>
+  <div class="cards">
+    <a class="card a" href="mockup-a-classic.html">
+      <div class="shot">
+        <div class="nav"><span class="logo">资管知识门户</span><span class="navitems">首页 · 知识库 · 问答 · 分类</span></div>
+        <div class="searchbar">🔍 搜索研报、制度、FAQ、标签…</div>
+        <div class="shot-body"><span class="pill">锂电</span><span class="pill">固收策略</span><span class="pill">反洗钱</span><span class="pill">量化中性</span></div>
+        <div class="blocks"><div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk"></div></div>
+      </div>
+      <div class="info">
+        <span class="tagline">方案 A · 经典企业门户</span>
+        <h2>大搜索 + 快捷入口 + 双栏内容</h2>
+        <p>深蓝金融风顶栏，居中大搜索与热门标签，快捷入口矩阵，左"最新文档流"右"收藏/标签/统计"。庄重、正式，最接近传统企业内网门户的预期。</p>
+        <div class="meta">关键词：仪式感 · 全员场景 · 迎合汇报</div>
+      </div>
+    </a>
+    <a class="card b" href="mockup-b-content.html">
+      <div class="shot">
+        <div class="nav"><span class="logo">📍 知识门户</span><span class="navitems">推荐 · 最新 · 收藏 · 问答</span></div>
+        <div class="searchbar">搜索研报、制度、FAQ…</div>
+        <div class="cols">
+          <div class="side"></div>
+          <div class="feed"><div class="post"></div><div class="post"></div><div class="post"></div></div>
+        </div>
+      </div>
+      <div class="info">
+        <span class="tagline">方案 B · 内容信息流</span>
+        <h2>左侧标签树导航 + 右侧文档卡片流</h2>
+        <p>以"看内容"为中心：文档卡片直接展示标题/摘要/作者/发布日期（元数据价值呈现），左侧是我们已建成的层级标签树作为分类导航。最贴近"内容消费"习惯。</p>
+        <div class="meta">关键词：内容分发 · 标签树落地 · 元数据展示</div>
+      </div>
+    </a>
+    <a class="card c" href="mockup-c-workbench.html">
+      <div class="shot">
+        <div class="nav"><span class="logo">工作台</span><span class="navitems">知识库 · 问答 · 设置</span></div>
+        <div class="searchbar">全局搜索，支持标签过滤…</div>
+        <div class="grid3"><div class="blk"></div><div class="blk"></div><div class="blk"></div></div>
+        <div class="blocks" style="margin-top:6px"><div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk"></div></div>
+      </div>
+      <div class="info">
+        <span class="tagline">方案 C · 紧凑工作台</span>
+        <h2>搜索置顶 + 三列卡片 + 库矩阵</h2>
+        <p>现有系统 的"升级版首页"：顶部大搜索，最近浏览/我的收藏/快捷操作三列，部门库矩阵（scope=portal 数据）。改动最小、学习成本最低，但"门户感"最弱。</p>
+        <div class="meta">关键词：低风险 · 复用度最高 · 工具感仍存</div>
+      </div>
+    </a>
+  </div>
+  <div class="foot">
+    <b>评审建议关注：</b>① 第一眼信息密度是否合适；② 大搜索框的权重；③ 标签分类（我们已建成的标签树）在首页的呈现方式；④ 文档流要不要展示作者/发布日期等元数据；⑤ 顶栏导航的栏目命名。
+    <b>数据说明：</b>所有部门名/文档标题/人名/日期均为虚构演示数据，与真实系统无关。三个方案可混搭（例如 A 的顶栏 + B 的内容流），反馈时说明取哪些区块组合即可。
+  </div>
+</div>
+</body>
+</html>
