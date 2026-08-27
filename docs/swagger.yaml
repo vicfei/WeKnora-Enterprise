@@ -1320,6 +1320,10 @@ definitions:
         description: optional; default viewer (least privilege)
         type: string
       tenant_id:
+        description: |-
+          TenantID is optional since v2: omitted means tenantless personal-space
+          bootstrap (see identityBridgeService.bridgePersonalSpace). The service
+          validates; a binding:"required" here would reject the omit-case first.
         type: integer
       username:
         description: optional; default derived "uum-{uum_user_id}"
@@ -1330,7 +1334,6 @@ definitions:
       uum_user_id:
         type: string
     required:
-    - tenant_id
     - uum_user_id
     type: object
   github_com_Tencent_WeKnora_internal_types.IdentityDisableRequest:
@@ -3762,6 +3765,12 @@ definitions:
         allOf:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.RetrieverEngines'
         description: Retriever engines
+      space_type:
+        description: |-
+          SpaceType classifies the tenant for portal aggregation (v2, migration 000086):
+          personal / team / all (company-wide public space). Defaults to team so
+          pre-existing tenants keep their semantics unchanged.
+        type: string
       status:
         description: Status
         type: string
@@ -4785,6 +4794,21 @@ definitions:
         type: integer
       total_pages:
         type: integer
+    type: object
+  github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest:
+    properties:
+      activate_now:
+        type: boolean
+      reason:
+        type: string
+      role:
+        $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole'
+      tenant_id:
+        type: integer
+      uum_user_id:
+        type: string
+      valid_until:
+        type: string
     type: object
   gorm.DeletedAt:
     properties:
@@ -5866,6 +5890,18 @@ definitions:
     required:
     - role
     type: object
+  internal_handler.createSpaceRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      space_type:
+        type: string
+    required:
+    - name
+    - space_type
+    type: object
   internal_handler.createTenantRequest:
     properties:
       description:
@@ -5956,6 +5992,13 @@ definitions:
     - name
     - provider
     type: object
+  internal_handler.updateGrantRequest:
+    properties:
+      role:
+        $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole'
+      valid_until:
+        type: string
+    type: object
   internal_handler.updateLastFAQImportResultDisplayStatusRequest:
     properties:
       display_status:
@@ -5983,6 +6026,15 @@ definitions:
           at next login, not here. Nil = field omitted from the PATCH and
           stays untouched.
         type: integer
+    type: object
+  internal_handler.updateSpaceRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      space_type:
+        type: string
     type: object
   internal_handler_session.AttachmentUpload:
     properties:
@@ -6186,6 +6238,257 @@ info:
   title: WeKnora API
   version: "1.0"
 paths:
+  /admin/grants:
+    get:
+      description: 按 uum_user_id / tenant_id / status 过滤授权记录（含 pending 预授权与 revoked/expired
+        历史）。
+      parameters:
+      - description: 按工号过滤
+        in: query
+        name: uum_user_id
+        type: string
+      - description: 按空间过滤
+        in: query
+        name: tenant_id
+        type: integer
+      - description: pending|active|expired|revoked
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: 授权查询（v2 管理端）
+      tags:
+      - 空间授权管理
+    post:
+      consumes:
+      - application/json
+      description: upsert 语义（一人一空间一行）。activate_now=false 进 pending（预授权：工号无需已建号）；true
+        直接生效（未建号用户在首登时落成员关系）。
+      parameters:
+      - description: 授权请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 新建/更新授权（v2 管理端）
+      tags:
+      - 空间授权管理
+  /admin/grants/{id}:
+    delete:
+      description: 移除成员关系——用户下一请求即 403（逐请求成员校验），无需吊销 token。幂等。
+      parameters:
+      - description: 授权ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 回收授权（v2 管理端）
+      tags:
+      - 空间授权管理
+    get:
+      parameters:
+      - description: 授权ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 授权详情（v2 管理端）
+      tags:
+      - 空间授权管理
+    put:
+      consumes:
+      - application/json
+      description: role 变更同步成员角色；valid_until 延长可复活 expired 授权。
+      parameters:
+      - description: 授权ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 更新字段
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateGrantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 改角色/有效期（v2 管理端）
+      tags:
+      - 空间授权管理
+  /admin/grants/{id}/approve:
+    put:
+      description: pending → active；未建号的预授权在用户首次登录时落成员关系。幂等。
+      parameters:
+      - description: 授权ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 审批通过（v2 管理端）
+      tags:
+      - 空间授权管理
+  /admin/spaces:
+    get:
+      description: 列出全部空间（租户）及其 space_type。系统管理员专属。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 空间清单（v2 管理端）
+      tags:
+      - 空间授权管理
+    post:
+      consumes:
+      - application/json
+      description: 创建团队/全员空间（personal 由用户首登自动创建）。不 bootstrap Owner——成员关系只经 grants
+        流转（治理冻结）。
+      parameters:
+      - description: 空间信息
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.createSpaceRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 创建空间（v2 管理端）
+      tags:
+      - 空间授权管理
+  /admin/spaces/{tenant_id}:
+    put:
+      consumes:
+      - application/json
+      description: 改名 / 改描述 / 改 space_type。
+      parameters:
+      - description: 空间（租户）ID
+        in: path
+        name: tenant_id
+        required: true
+        type: integer
+      - description: 更新字段
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_handler.updateSpaceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 更新空间（v2 管理端）
+      tags:
+      - 空间授权管理
   /agent-chat/{session_id}:
     post:
       consumes:

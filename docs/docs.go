@@ -19,6 +19,396 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/grants": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "按 uum_user_id / tenant_id / status 过滤授权记录（含 pending 预授权与 revoked/expired 历史）。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "授权查询（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "按工号过滤",
+                        "name": "uum_user_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "按空间过滤",
+                        "name": "tenant_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "pending|active|expired|revoked",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "upsert 语义（一人一空间一行）。activate_now=false 进 pending（预授权：工号无需已建号）；true 直接生效（未建号用户在首登时落成员关系）。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "新建/更新授权（v2 管理端）",
+                "parameters": [
+                    {
+                        "description": "授权请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/grants/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "授权详情（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "授权ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "role 变更同步成员角色；valid_until 延长可复活 expired 授权。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "改角色/有效期（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "授权ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateGrantRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "移除成员关系——用户下一请求即 403（逐请求成员校验），无需吊销 token。幂等。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "回收授权（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "授权ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/grants/{id}/approve": {
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "pending → active；未建号的预授权在用户首次登录时落成员关系。幂等。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "审批通过（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "授权ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/spaces": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "列出全部空间（租户）及其 space_type。系统管理员专属。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "空间清单（v2 管理端）",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "创建团队/全员空间（personal 由用户首登自动创建）。不 bootstrap Owner——成员关系只经 grants 流转（治理冻结）。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "创建空间（v2 管理端）",
+                "parameters": [
+                    {
+                        "description": "空间信息",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.createSpaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/spaces/{tenant_id}": {
+            "put": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "改名 / 改描述 / 改 space_type。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "空间授权管理"
+                ],
+                "summary": "更新空间（v2 管理端）",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "空间（租户）ID",
+                        "name": "tenant_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "更新字段",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.updateSpaceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/agent-chat/{session_id}": {
             "post": {
                 "security": [
@@ -17760,7 +18150,6 @@ const docTemplate = `{
         "github_com_Tencent_WeKnora_internal_types.IdentityBridgeRequest": {
             "type": "object",
             "required": [
-                "tenant_id",
                 "uum_user_id"
             ],
             "properties": {
@@ -17773,6 +18162,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tenant_id": {
+                    "description": "TenantID is optional since v2: omitted means tenantless personal-space\nbootstrap (see identityBridgeService.bridgePersonalSpace). The service\nvalidates; a binding:\"required\" here would reject the omit-case first.",
                     "type": "integer"
                 },
                 "username": {
@@ -20983,6 +21373,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "space_type": {
+                    "description": "SpaceType classifies the tenant for portal aggregation (v2, migration 000086):\npersonal / team / all (company-wide public space). Defaults to team so\npre-existing tenants keep their semantics unchanged.",
+                    "type": "string"
+                },
                 "status": {
                     "description": "Status",
                     "type": "string"
@@ -22282,6 +22676,29 @@ const docTemplate = `{
                 },
                 "total_pages": {
                     "type": "integer"
+                }
+            }
+        },
+        "github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest": {
+            "type": "object",
+            "properties": {
+                "activate_now": {
+                    "type": "boolean"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole"
+                },
+                "tenant_id": {
+                    "type": "integer"
+                },
+                "uum_user_id": {
+                    "type": "string"
+                },
+                "valid_until": {
+                    "type": "string"
                 }
             }
         },
@@ -23840,6 +24257,24 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.createSpaceRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "space_type"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "space_type": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.createTenantRequest": {
             "type": "object",
             "required": [
@@ -23975,6 +24410,17 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_handler.updateGrantRequest": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole"
+                },
+                "valid_until": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_handler.updateLastFAQImportResultDisplayStatusRequest": {
             "type": "object",
             "required": [
@@ -24007,6 +24453,20 @@ const docTemplate = `{
                 "last_active_tenant_id": {
                     "description": "LastActiveTenantID lets the SPA persist \"after a fresh login,\ndrop me back into this workspace\" across devices. Send a positive\nworkspace id to set / replace, or 0 to clear. Membership is validated\nat next login, not here. Nil = field omitted from the PATCH and\nstays untouched.",
                     "type": "integer"
+                }
+            }
+        },
+        "internal_handler.updateSpaceRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "space_type": {
+                    "type": "string"
                 }
             }
         },
