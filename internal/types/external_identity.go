@@ -38,11 +38,14 @@ func (UUMDepartment) TableName() string { return "uum_departments" }
 // (transfer/disable must be applied before any newer bridge call) is a
 // caller-side contract, see decision 020.
 type IdentityBridgeRequest struct {
-	UUMUserID       string `json:"uum_user_id"       binding:"required"`
-	TenantID        uint64 `json:"tenant_id"         binding:"required"`
-	Role            string `json:"role"`             // optional; default viewer (least privilege)
-	Username        string `json:"username"`         // optional; default derived "uum-{uum_user_id}"
-	Email           string `json:"email"`            // optional; default derived "{uum_user_id}@uum.invalid"
+	UUMUserID string `json:"uum_user_id" binding:"required"`
+	// TenantID is optional since v2: omitted means tenantless personal-space
+	// bootstrap (see identityBridgeService.bridgePersonalSpace). The service
+	// validates; a binding:"required" here would reject the omit-case first.
+	TenantID        uint64 `json:"tenant_id"`
+	Role            string `json:"role"`              // optional; default viewer (least privilege)
+	Username        string `json:"username"`          // optional; default derived "uum-{uum_user_id}"
+	Email           string `json:"email"`             // optional; default derived "{uum_user_id}@uum.invalid"
 	UUMDepartmentID string `json:"uum_department_id"` // optional snapshot / mapping upsert
 }
 
@@ -54,7 +57,7 @@ type IdentityTransferRequest struct {
 	UUMUserID    string `json:"uum_user_id"     binding:"required"`
 	FromTenantID uint64 `json:"from_tenant_id" binding:"required"`
 	ToTenantID   uint64 `json:"to_tenant_id"   binding:"required"`
-	Role         string `json:"role"`           // optional; default preserves the current role
+	Role         string `json:"role"` // optional; default preserves the current role
 }
 
 // IdentityDisableRequest disables a bridged user and revokes all tokens.

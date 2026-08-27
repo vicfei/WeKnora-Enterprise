@@ -167,6 +167,8 @@ func (s *userService) Register(ctx context.Context, req *types.RegisterRequest) 
 			Name:        fmt.Sprintf("%s's Workspace", secutils.SanitizeForLog(req.Username)),
 			Description: "Default workspace",
 			Status:      "active",
+			// v2 (migration 000086): self-service workspaces are personal spaces
+			SpaceType: types.SpaceTypePersonal,
 		}
 
 		createdTenant, err = s.tenantService.CreateTenant(ctx, tenant)
