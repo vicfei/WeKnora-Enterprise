@@ -74,6 +74,7 @@ type RouterParams struct {
 	FAQHandler                   *handler.FAQHandler
 	TagHandler                   *handler.TagHandler
 	TagTreeHandler               *handler.TagTreeHandler
+	UserSpaceGrantHandler        *handler.UserSpaceGrantHandler
 	IdentityBridgeHandler        *handler.IdentityBridgeHandler
 	CustomAgentHandler           *handler.CustomAgentHandler
 	UserFavoriteHandler          *handler.UserResourceFavoriteHandler
@@ -260,6 +261,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		RegisterKnowledgeTagRoutes(v1, params.TagHandler, rbacGuards)
 		RegisterTagTreeRoutes(v1, params.TagTreeHandler, rbacGuards)
 		RegisterIdentityBridgeRoutes(v1, params.IdentityBridgeHandler, rbacGuards)
+		RegisterUserSpaceGrantRoutes(v1, params.UserSpaceGrantHandler, rbacGuards)
 		RegisterKnowledgeRoutes(v1, params.KnowledgeHandler, rbacGuards)
 		RegisterFAQRoutes(v1, params.FAQHandler, rbacGuards)
 		RegisterChunkRoutes(v1, params.ChunkHandler, rbacGuards)
