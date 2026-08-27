@@ -1184,3 +1184,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_uum_id
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_tenant
     ON uum_departments (tenant_id);
+
+-- 000086 user_space_grants (v2 space permission grants, see versioned/000086)
+CREATE TABLE IF NOT EXISTS user_space_grants (
+    id           VARCHAR(36) PRIMARY KEY,
+    uum_user_id  VARCHAR(128) NOT NULL,
+    tenant_id    INTEGER NOT NULL,
+    role         VARCHAR(20) NOT NULL DEFAULT 'viewer',
+    status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+    valid_until  DATETIME,
+    requested_by VARCHAR(128) NOT NULL DEFAULT '',
+    approved_by  VARCHAR(128),
+    reason       VARCHAR(255),
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_space_grants_uum_tenant
+    ON user_space_grants (uum_user_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_uum  ON user_space_grants (uum_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_tenant ON user_space_grants (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_status ON user_space_grants (status);
+
+ALTER TABLE tenants ADD COLUMN space_type VARCHAR(16) NOT NULL DEFAULT 'team';
