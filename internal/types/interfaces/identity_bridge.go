@@ -15,6 +15,10 @@ type IdentityBridgeRepository interface {
 	GetMappingByUUM(ctx context.Context, uumUserID string, tenantID uint64) (*types.ExternalIdentity, error)
 	// GetMappingsByUser returns every mapping row of a WeKnora user.
 	GetMappingsByUser(ctx context.Context, userID string) ([]*types.ExternalIdentity, error)
+	// GetAnyMappingByUUM returns the most recent mapping row of a UUM user
+	// across tenants (nil when none) — used by the tenantless personal-space
+	// bridge to find an already-provisioned user.
+	GetAnyMappingByUUM(ctx context.Context, uumUserID string) (*types.ExternalIdentity, error)
 	// DeleteMapping removes the (uumUserID, tenantID) mapping row. Transfer
 	// semantics: the row is deleted, never stacked as history (decision 020).
 	DeleteMapping(ctx context.Context, uumUserID string, tenantID uint64) error

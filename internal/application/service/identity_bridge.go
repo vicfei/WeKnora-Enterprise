@@ -34,6 +34,7 @@ type identityBridgeService struct {
 	memberService interfaces.TenantMemberService
 	tenantService interfaces.TenantService
 	tokenRepo     interfaces.AuthTokenRepository
+	grantService  interfaces.UserSpaceGrantService
 }
 
 // NewIdentityBridgeService creates a new identity bridge service.
@@ -43,6 +44,7 @@ func NewIdentityBridgeService(
 	memberService interfaces.TenantMemberService,
 	tenantService interfaces.TenantService,
 	tokenRepo interfaces.AuthTokenRepository,
+	grantService interfaces.UserSpaceGrantService,
 ) (interfaces.IdentityBridgeService, error) {
 	return &identityBridgeService{
 		repo:          repo,
@@ -50,6 +52,7 @@ func NewIdentityBridgeService(
 		memberService: memberService,
 		tenantService: tenantService,
 		tokenRepo:     tokenRepo,
+		grantService:  grantService,
 	}, nil
 }
 
@@ -62,16 +65,22 @@ func (s *identityBridgeService) Bridge(
 	ctx context.Context,
 	req *types.IdentityBridgeRequest,
 ) (*types.LoginResponse, bool, error) {
-	if strings.TrimSpace(req.UUMUserID) == "" || req.TenantID == 0 {
-		return nil, false, werrors.NewBadRequestError("uum_user_id 和 tenant_id 不能为空")
+	if strings.TrimSpace(req.UUMUserID) == "" {
+		return nil, false, werrors.NewBadRequestError("uum_user_id 不能为空")
 	}
 	if len(req.UUMUserID) > 128 {
 		return nil, false, werrors.NewBadRequestError("uum_user_id 长度不能超过128")
 	}
+	req.UUMDepartmentID = strings.TrimSpace(req.UUMDepartmentID)
+
+	// v2: tenant_id 省略 → 个人空间 bootstrap（已有映射/成员则登录既有空间，
+	// 全无则创建个人空间并成为 owner），随后按活跃 grants 补成员关系。
+	if req.TenantID == 0 {
+		return s.bridgePersonalSpace(ctx, req)
+	}
 	if _, err := s.tenantService.GetTenantByID(ctx, req.TenantID); err != nil {
 		return nil, false, werrors.NewNotFoundError("目标部门租户不存在")
 	}
-	req.UUMDepartmentID = strings.TrimSpace(req.UUMDepartmentID)
 
 	operator := s.operatorForLog(ctx)
 	existing, err := s.repo.GetMappingByUUM(ctx, req.UUMUserID, req.TenantID)
@@ -96,6 +105,7 @@ func (s *identityBridgeService) Bridge(
 				return nil, false, err
 			}
 		}
+		s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
 		resp, err := s.issueLogin(ctx, user, req.TenantID)
 		if err != nil {
 			return nil, false, err
@@ -150,6 +160,7 @@ func (s *identityBridgeService) Bridge(
 		return nil, false, err
 	}
 
+	s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
 	identity := &types.ExternalIdentity{
 		ID:              uuid.New().String(),
 		UUMUserID:       req.UUMUserID,
@@ -416,6 +427,153 @@ func (s *identityBridgeService) ensureMembership(ctx context.Context, userID str
 		return err
 	}
 	return nil
+}
+
+// bridgePersonalSpace is the v2 tenantless entry: "SSO gives just a user id".
+// Resolution order: existing mapping → login into an active membership or the
+// home tenant; no mapping but a derivable user → attach personal space if they
+// have none; brand new → Register(create_personal). Active grants are applied
+// before issuing tokens so pre-authorized team spaces materialize at login.
+func (s *identityBridgeService) bridgePersonalSpace(
+	ctx context.Context,
+	req *types.IdentityBridgeRequest,
+) (*types.LoginResponse, bool, error) {
+	username := strings.TrimSpace(req.Username)
+	if username == "" {
+		username = fmt.Sprintf(identityBridgeUsernameFmt, req.UUMUserID)
+	}
+
+	if mapping, err := s.repo.GetAnyMappingByUUM(ctx, req.UUMUserID); err == nil && mapping != nil {
+		user, err := s.loadActiveUser(ctx, mapping.UserID)
+		if err != nil {
+			return nil, false, err
+		}
+		tenantID, err := s.ensurePersonalSpace(ctx, user, username)
+		if err != nil {
+			return nil, false, err
+		}
+		s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
+		resp, err := s.issueLogin(ctx, user, tenantID)
+		if err != nil {
+			return nil, false, err
+		}
+		logger.Infof(ctx, "Identity bridge personal-space login, uum_user_id: %s, user_id: %s, tenant_id: %d",
+			req.UUMUserID, user.ID, tenantID)
+		return resp, false, nil
+	}
+
+	email := strings.TrimSpace(req.Email)
+	if email == "" {
+		email = fmt.Sprintf(identityBridgeEmailFmt, req.UUMUserID)
+	}
+	user, err := s.userService.GetUserByUsername(ctx, username)
+	if err != nil && !isUserLookupNotFound(err) {
+		return nil, false, err
+	}
+	isNew := false
+	if user == nil {
+		password, perr := generateRandomString(32)
+		if perr != nil {
+			return nil, false, perr
+		}
+		// create_personal: one dedicated workspace per user, owner membership
+		// bootstrapped by Register (user.go Register/EnsureOwner).
+		user, err = s.userService.Register(ctx, &types.RegisterRequest{
+			Username:          username,
+			Email:             email,
+			Password:          password,
+			TenantProvisioning: types.TenantProvisioningCreatePersonal,
+		})
+		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "already exists") {
+				return nil, false, werrors.NewConflictError("用户名或邮箱已被占用")
+			}
+			return nil, false, err
+		}
+		isNew = true
+	}
+	if !user.IsActive {
+		return nil, false, werrors.NewForbiddenError("用户已被禁用")
+	}
+	tenantID, err := s.ensurePersonalSpace(ctx, user, username)
+	if err != nil {
+		return nil, false, err
+	}
+	identity := &types.ExternalIdentity{
+		ID:              uuid.New().String(),
+		UUMUserID:       req.UUMUserID,
+		UserID:          user.ID,
+		TenantID:        tenantID,
+		UUMDepartmentID: req.UUMDepartmentID,
+		Source:          identityBridgeSource,
+	}
+	if err := s.repo.CreateMapping(ctx, identity); err != nil {
+		if winner, rerr := s.repo.GetAnyMappingByUUM(ctx, req.UUMUserID); rerr == nil && winner != nil {
+			identity = winner
+		} else {
+			return nil, false, err
+		}
+	}
+	s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
+	resp, err := s.issueLogin(ctx, user, tenantID)
+	if err != nil {
+		return nil, false, err
+	}
+	logger.Infof(ctx, "Identity bridge personal-space provisioned, uum_user_id: %s, user_id: %s, tenant_id: %d, is_new: %t",
+		req.UUMUserID, user.ID, tenantID, isNew)
+	return resp, isNew, nil
+}
+
+// ensurePersonalSpace returns a tenant the user may log into, creating a
+// personal space when they hold no active membership anywhere.
+func (s *identityBridgeService) ensurePersonalSpace(ctx context.Context, user *types.User, username string) (uint64, error) {
+	if user.TenantID != 0 {
+		if member, err := s.memberService.GetMembership(ctx, user.ID, user.TenantID); err == nil &&
+			member != nil && member.Status == types.TenantMemberStatusActive {
+			return user.TenantID, nil
+		}
+	}
+	if members, err := s.memberService.ListByUser(ctx, user.ID); err == nil {
+		for _, m := range members {
+			if m != nil && m.Status == types.TenantMemberStatusActive {
+				return m.TenantID, nil
+			}
+		}
+	}
+	tenant, err := s.tenantService.CreateTenant(ctx, &types.Tenant{
+		Name:        fmt.Sprintf("%s's Space", username),
+		Description: "Personal space (auto-created at first portal login)",
+		Status:      "active",
+		SpaceType:   types.SpaceTypePersonal,
+	})
+	if err != nil {
+		return 0, werrors.NewInternalServerError("创建个人空间失败").WithDetails(err.Error())
+	}
+	if _, err := s.memberService.EnsureOwner(ctx, user.ID, tenant.ID); err != nil {
+		return 0, werrors.NewInternalServerError("个人空间归属失败").WithDetails(err.Error())
+	}
+	user.TenantID = tenant.ID
+	if err := s.userService.UpdateUser(ctx, user); err != nil {
+		logger.Warnf(ctx, "persist home tenant failed user=%s tenant=%d: %v", user.ID, tenant.ID, err)
+	}
+	logger.WarnWithFields(ctx, map[string]interface{}{
+		"operator":  s.operatorForLog(ctx),
+		"uum":       username,
+		"user_id":   user.ID,
+		"tenant_id": tenant.ID,
+	}, "Personal space bootstrapped at bridge login")
+	return tenant.ID, nil
+}
+
+// applySpaceGrants materializes effective v2 grants into memberships at
+// login. Failures are non-fatal: the sweeper and next login re-attempt.
+func (s *identityBridgeService) applySpaceGrants(ctx context.Context, uumUserID, userID string) {
+	if s.grantService == nil {
+		return
+	}
+	if err := s.grantService.ApplyForUser(ctx, uumUserID, userID); err != nil {
+		logger.Warnf(ctx, "apply space grants failed uum=%s user=%s: %v", uumUserID, userID, err)
+	}
 }
 
 func (s *identityBridgeService) operatorForLog(ctx context.Context) string {

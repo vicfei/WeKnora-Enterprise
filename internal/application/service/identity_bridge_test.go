@@ -77,7 +77,16 @@ func (s *stubBridgeUserService) SwitchTenant(
 
 type stubBridgeTenantService struct {
 	interfaces.TenantService
-	tenants map[uint64]*types.Tenant
+	tenants     map[uint64]*types.Tenant
+	nextTenantID int
+}
+
+func (s *stubBridgeTenantService) CreateTenant(ctx context.Context, tenant *types.Tenant) (*types.Tenant, error) {
+	s.nextTenantID++
+	tenant.ID = uint64(s.nextTenantID)
+	tenant.SpaceType = types.SpaceTypePersonal
+	s.tenants[tenant.ID] = tenant
+	return tenant, nil
 }
 
 func (s *stubBridgeTenantService) GetTenantByID(ctx context.Context, id uint64) (*types.Tenant, error) {
@@ -129,7 +138,7 @@ func newIdentityBridgeFixture(t *testing.T) *identityBridgeFixture {
 	tokens := &stubBridgeTokenRepo{}
 	bridgeRepo := repository.NewIdentityBridgeRepository(db)
 	memberService := NewTenantMemberService(repository.NewTenantMemberRepository(db), nil, nil, nil)
-	svc, err := NewIdentityBridgeService(bridgeRepo, users, memberService, tenants, tokens)
+	svc, err := NewIdentityBridgeService(bridgeRepo, users, memberService, tenants, tokens, nil)
 	require.NoError(t, err)
 
 	return &identityBridgeFixture{svc: svc, users: users, tokens: tokens, db: db, bridgeRepo: bridgeRepo}
@@ -325,4 +334,38 @@ func TestIdentityBridgeDepartmentUpsertAndConflict(t *testing.T) {
 	// Unknown tenant is rejected.
 	_, err = f.svc.UpsertDepartment(ctx, "DEPT-C", &types.UUMDepartmentRequest{TenantID: 404})
 	requireAppErrorCode(t, err, werrors.ErrNotFound)
+}
+
+
+// --- v2 personal-space bootstrap (tenantless bridge) ---------------------
+
+func TestBridgePersonalSpaceBootstrap(t *testing.T) {
+	f := newIdentityBridgeFixture(t)
+	ctx := bridgeContext()
+
+	// brand new UUM user, no tenant_id: personal space created, mapping row
+	// points at it, login response issued for that tenant.
+	resp, isNew, err := f.svc.Bridge(ctx, &types.IdentityBridgeRequest{UUMUserID: "V2-P1"})
+	require.NoError(t, err)
+	assert.True(t, isNew)
+	assert.NotEmpty(t, resp.Token)
+	require.NotNil(t, resp.ActiveTenant)
+	personalTenant := resp.ActiveTenant.ID
+	assert.NotZero(t, personalTenant)
+
+	mapping, err := f.bridgeRepo.GetAnyMappingByUUM(ctx, "V2-P1")
+	require.NoError(t, err)
+	assert.Equal(t, "V2-P1", mapping.UUMUserID)
+
+	// idempotent re-bridge: login only, no duplicate account
+	resp2, isNew2, err := f.svc.Bridge(ctx, &types.IdentityBridgeRequest{UUMUserID: "V2-P1"})
+	require.NoError(t, err)
+	assert.False(t, isNew2)
+	assert.NotEmpty(t, resp2.Token)
+}
+
+func TestBridgeTenantlessBadPayload(t *testing.T) {
+	f := newIdentityBridgeFixture(t)
+	_, _, err := f.svc.Bridge(bridgeContext(), &types.IdentityBridgeRequest{UUMUserID: " "})
+	assert.Error(t, err, "empty uum id must be rejected even in tenantless mode")
 }

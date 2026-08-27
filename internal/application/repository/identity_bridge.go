@@ -53,6 +53,18 @@ func (r *identityBridgeRepository) GetMappingsByUser(ctx context.Context, userID
 	return identities, nil
 }
 
+func (r *identityBridgeRepository) GetAnyMappingByUUM(ctx context.Context, uumUserID string) (*types.ExternalIdentity, error) {
+	var identity types.ExternalIdentity
+	err := r.db.WithContext(ctx).
+		Where("uum_user_id = ?", uumUserID).
+		Order("updated_at DESC").
+		First(&identity).Error
+	if err != nil {
+		return nil, err
+	}
+	return &identity, nil
+}
+
 func (r *identityBridgeRepository) DeleteMapping(ctx context.Context, uumUserID string, tenantID uint64) error {
 	return r.db.WithContext(ctx).
 		Where("uum_user_id = ? AND tenant_id = ?", uumUserID, tenantID).

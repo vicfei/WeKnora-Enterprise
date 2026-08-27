@@ -54,6 +54,7 @@ func TestIdentityBridgeReBridgeKeepsExistingTokensAlive(t *testing.T) {
 		NewTenantMemberService(repository.NewTenantMemberRepository(db), nil, nil, nil),
 		tenants,
 		repository.NewAuthTokenRepository(db),
+		nil,
 	)
 	require.NoError(t, err)
 

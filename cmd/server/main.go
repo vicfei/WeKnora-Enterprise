@@ -67,6 +67,7 @@ func main() {
 		router *gin.Engine,
 		resourceCleaner interfaces.ResourceCleaner,
 		systemSettingSvc interfaces.SystemSettingService,
+		grantSvc interfaces.UserSpaceGrantService,
 	) error {
 		// Create HTTP server
 		server := &http.Server{
@@ -89,6 +90,30 @@ func main() {
 		if err := systemSettingSvc.SubscribeRedis(ctx); err != nil {
 			logger.Warnf(ctx, "[system_settings] subscribe failed: %v", err)
 		}
+
+		// v2 grant sweeper: expire overdue grants and reconcile grant-linked
+		// memberships (convergence path, see service/user_space_grant.go).
+		// Initial pass at startup so an overnight-expired grant recovers
+		// without waiting a full interval.
+		go func() {
+			sweepCtx := ctx
+			runSweep := func() {
+				if _, err := grantSvc.Sweep(sweepCtx, time.Now()); err != nil {
+					logger.Warnf(sweepCtx, "[grant-sweeper] sweep failed: %v", err)
+				}
+			}
+			runSweep()
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-sweepCtx.Done():
+					return
+				case <-ticker.C:
+					runSweep()
+				}
+			}
+		}()
 
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, shutdownSignals...)
