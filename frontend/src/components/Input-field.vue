@@ -570,7 +570,10 @@ const tagTreeCandidateKbs = computed(() =>
     .map((kb: any) => ({ id: kb.id, name: kb.name }))
 );
 
-// 标签树选择确认：叶子直接成 chip；分组节点聚合为一个 chip，发送前在 send 构造处展开为叶子 mention
+// 标签树选择确认：叶子直接成 chip；分组节点聚合为一个 chip，发送前在 send 构造处展开为叶子 mention。
+// 叶子 chip 的 id 必须是真标签 ID（collectLeafTags 返回的 tag_id），不能用树节点 ID：
+// 后端按 knowledge_tag_relations.tag_id 解析文档白名单，nodeId 在那里匹配不到任何文档（检索范围为空）。
+// 分组节点的 id 只是 chip 标识，发送时经 tagTreeNode.leafTags 展开为真标签 ID，不会进入请求。
 const onTagTreeSelect = (payload: {
   kbId: string;
   kbName: string;
@@ -578,7 +581,7 @@ const onTagTreeSelect = (payload: {
 }) => {
   payload.items.forEach((item) => {
     settingsStore.addTag({
-      id: item.nodeId,
+      id: item.isGroup ? item.nodeId : item.leafTags[0].id,
       name: item.isGroup ? `${item.name} (${item.leafTags.length})` : item.name,
       kbId: payload.kbId,
       kbName: payload.kbName,
