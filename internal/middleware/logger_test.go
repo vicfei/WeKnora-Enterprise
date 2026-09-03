@@ -54,6 +54,16 @@ func TestSanitizeBody(t *testing.T) {
 			want: `{"baseUrl":"https://example.com","modelName":"gpt"}`,
 		},
 		{
+			name: "hmac_secret masked, adjacent mode field untouched",
+			in:   `{"mode":"signed_token","hmac_secret":"ON5xxxxxxxxxxxxxxxx","require_direct_header":false}`,
+			want: `{"mode":"signed_token","hmac_secret":"***","require_direct_header":false}`,
+		},
+		{
+			name: "camelCase hmacSecret",
+			in:   `{"hmacSecret":"leak"}`,
+			want: `{"hmacSecret":"***"}`,
+		},
+		{
 			name: "OAuth authorization response fields",
 			in:   `{"authorization_url":"https://idp.example/authorize?state=secret","authorization_attempt":"secret-state"}`,
 			want: `{"authorization_url":"***","authorization_attempt":"***"}`,
