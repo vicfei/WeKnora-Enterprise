@@ -294,7 +294,6 @@ func (s *knowledgeBaseService) HybridSearch(ctx context.Context,
 	return s.processSearchResults(ctx, deduplicatedChunks, params.SkipContextEnrichment)
 }
 
-<<<<<<< HEAD
 // resolveDocumentTagScope mirrors the chat pipeline's buildSearchTargets tag
 // branch: document-type KBs keep tags at the knowledge level
 // (knowledge_tag_relations), while the chunks.tag_id column only carries FAQ
@@ -359,7 +358,8 @@ func (s *knowledgeBaseService) resolveDocumentTagScope(
 func mustTenantIDForLog(ctx context.Context) uint64 {
 	tenantID, _ := types.TenantIDFromContext(ctx)
 	return tenantID
-=======
+}
+
 // normalizedMatchCount resolves the effective primary-match cap for a search.
 //
 // MatchCount arrives as Go's zero value whenever a caller omits it — JSON
@@ -379,7 +379,6 @@ func normalizedMatchCount(requested int) int {
 		return types.DefaultRetrievalTopK
 	}
 	return requested
->>>>>>> upstream/main
 }
 
 // pickPrimary returns the KB whose ID matches id, or nil if id is not in

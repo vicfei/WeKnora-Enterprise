@@ -90,13 +90,10 @@ func (s *processSyncKBService) ListKnowledgeBases(context.Context) ([]*types.Kno
 func (s *processSyncKBService) ListKnowledgeBasesByTenantID(context.Context, uint64) ([]*types.KnowledgeBase, error) {
 	return nil, nil
 }
-<<<<<<< HEAD
 func (s *processSyncKBService) ListAllKnowledgeBases(context.Context) ([]*types.KnowledgeBase, error) {
 	return nil, nil
 }
-=======
 
->>>>>>> upstream/main
 func (s *processSyncKBService) UpdateKnowledgeBase(
 	context.Context, string, string, string, *types.KnowledgeBaseConfig,
 ) (*types.KnowledgeBase, error) {

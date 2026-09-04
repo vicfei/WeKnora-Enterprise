@@ -817,7 +817,7 @@ import { useTenantModelReadiness } from '@/composables/useTenantModelReadiness'
 import { useI18n } from 'vue-i18n'
 import { useListUrlState } from '@/composables/useListUrlState'
 import { useResourcePins } from '@/composables/useResourcePins'
-import { listKnowledgeBases } from '@/api/knowledge-base'
+import { listKnowledgeBases, listPortalKnowledgeBases } from '@/api/knowledge-base'
 import { mapPortalItems, isCrossTenantItem, buildPortalGroupStream, isPortalGroupHeader, type PortalListItem } from '@/features/portal-list/mapPortalResponse'
 import { portalListEnabled } from '@/features/common/flags'
 
@@ -922,8 +922,9 @@ const spaceSelectionOrgId = computed(() => {
   return !!s && !RESERVED_SCOPES.has(s)
 })
 
-// 二开功能：门户视图（?scope=portal，决策 019）——单次服务端调用返回
-// 本部门 ∪ 共享（普通用户）或跨租户全量（系统管理员），前端不重复实现合并语义。
+// 二开功能：门户视图（决策 019，已抽离为独立端点 /portal/knowledge-bases）——
+// 单次服务端调用返回全部活跃空间 ∪ 共享（普通用户）或跨租户全量（系统管理员），
+// 前端不重复实现合并语义。
 const portalListFeatureEnabled = computed(() => portalListEnabled())
 const isPortalScope = computed(() => portalListFeatureEnabled.value && spaceSelection.value === 'portal')
 const portalItems = ref<PortalListItem[]>([])
@@ -932,7 +933,7 @@ const portalLoading = ref(false)
 const fetchPortalList = () => {
   if (!portalListFeatureEnabled.value) return Promise.resolve()
   portalLoading.value = true
-  return listKnowledgeBases({ scope: 'portal' }).then((res: any) => {
+  return listPortalKnowledgeBases().then((res: any) => {
     portalItems.value = Array.isArray(res?.data) ? res.data : []
   }).catch(() => {
     portalItems.value = []

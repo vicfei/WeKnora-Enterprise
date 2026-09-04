@@ -46,13 +46,9 @@ import {
   type AgentNotReadyReasonKey,
 } from '@/utils/agent-readiness';
 import { formatLocalizedList } from '@/utils/format-list';
-<<<<<<< HEAD
 import TagTreePickerMenu from '@/features/tag-tree/TagTreePickerMenu.vue';
 import { tagTreeEnabled } from '@/features/common/flags';
-import type { MentionItem, MentionItemType, MentionRequestItem } from '@/types/mention';
-=======
 import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequestItem } from '@/types/mention';
->>>>>>> upstream/main
 
 const route = useRoute();
 const router = useRouter();

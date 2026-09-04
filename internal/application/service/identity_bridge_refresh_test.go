@@ -47,6 +47,7 @@ func TestIdentityBridgeReBridgeKeepsExistingTokensAlive(t *testing.T) {
 		repository.NewAuthTokenRepository(db),
 		tenants,
 		NewTenantMemberService(repository.NewTenantMemberRepository(db), nil, nil, nil),
+		nil, // systemSettingSvc: complex-password policy falls back to config when nil
 	)
 	bridgeSvc, err := NewIdentityBridgeService(
 		repository.NewIdentityBridgeRepository(db),

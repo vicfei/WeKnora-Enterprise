@@ -351,11 +351,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useRoleLabel } from '@/composables/useRoleLabel'
 import { notifyLoginSuccess } from '@/utils/loginNotify'
-<<<<<<< HEAD
 import { bridgeLoginEnabled, portalLoginUrl } from '@/features/common/flags'
-=======
 import { newPasswordRules } from '@/utils/passwordPolicy'
->>>>>>> upstream/main
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay, EffectFade, Pagination } from 'swiper/modules'
 import 'swiper/css'

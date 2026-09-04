@@ -1,6 +1,6 @@
 /**
  * Portal knowledge base list mapping (second-development feature, decision
- * 019). `GET /knowledge-bases?scope=portal` answers a single flat array:
+ * 019). `GET /portal/knowledge-bases` answers a single flat array:
  * own-tenant KBs (default list shape) plus shared entries carrying inline
  * `shared/share_id/organization_id/org_name/permission/source_tenant_id/
  * shared_at` fields; system-admin responses additionally carry `tenant_id`

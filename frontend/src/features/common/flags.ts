@@ -18,7 +18,7 @@ export function tagTreeEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_TAG_TREE)
 }
 
-/** Portal knowledge base list via `GET /knowledge-bases?scope=portal`. */
+/** Portal knowledge base list via `GET /portal/knowledge-bases`. */
 export function portalListEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_PORTAL_LIST)
 }

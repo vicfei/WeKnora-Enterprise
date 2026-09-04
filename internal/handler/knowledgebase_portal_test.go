@@ -86,7 +86,7 @@ func newPortalTestServer(
 ) *httptest.Server {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	h := &KnowledgeBaseHandler{service: svc, kbShareService: share, agentShareService: agentShare}
+	h := &PortalListHandler{KnowledgeBaseHandler: &KnowledgeBaseHandler{service: svc, kbShareService: share, agentShareService: agentShare}}
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
 		c.Set(types.TenantIDContextKey.String(), tenantID)
@@ -99,6 +99,9 @@ func newPortalTestServer(
 		c.Next()
 	})
 	r.Use(middleware.ErrorHandler())
+	r.GET("/api/v1/portal/knowledge-bases", h.ListPortalKnowledgeBases)
+	// 原生列表路由同时注册：保护"默认端点行为不变"（见
+	// TestListKnowledgeBasesDefaultScopeUnchanged）。
 	r.GET("/api/v1/knowledge-bases", h.ListKnowledgeBases)
 	server := httptest.NewServer(r)
 	t.Cleanup(server.Close)
@@ -136,7 +139,7 @@ func TestListKnowledgeBasesPortalSystemAdminSeesAll(t *testing.T) {
 	share := &stubPortalShareService{}
 	server := newPortalTestServer(t, svc, share, nil, 1, true)
 
-	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal")
+	status, data := getKBList(t, server.URL+"/api/v1/portal/knowledge-bases")
 	require.Equal(t, http.StatusOK, status)
 	require.Len(t, data, 2, "temporary KBs are excluded")
 	assert.Equal(t, float64(1), data[0]["tenant_id"])
@@ -160,7 +163,7 @@ func TestListKnowledgeBasesPortalOwnPlusShared(t *testing.T) {
 	}
 	server := newPortalTestServer(t, svc, share, nil, 1, false)
 
-	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal")
+	status, data := getKBList(t, server.URL+"/api/v1/portal/knowledge-bases")
 	require.Equal(t, http.StatusOK, status)
 	require.Len(t, data, 2)
 
@@ -186,7 +189,7 @@ func TestListKnowledgeBasesPortalDedupesOwnTenantSharedRows(t *testing.T) {
 	}}
 	server := newPortalTestServer(t, svc, share, nil, 1, false)
 
-	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal")
+	status, data := getKBList(t, server.URL+"/api/v1/portal/knowledge-bases")
 	require.Equal(t, http.StatusOK, status)
 	require.Len(t, data, 2)
 	assert.Equal(t, "kb-dup", data[0]["id"])
@@ -209,18 +212,9 @@ func TestListKnowledgeBasesDefaultScopeUnchanged(t *testing.T) {
 	assert.False(t, share.sharedCalled)
 }
 
-func TestListKnowledgeBasesAgentIDWinsOverPortalScope(t *testing.T) {
-	svc := &stubPortalKBService{byTenant: []*types.KnowledgeBase{portalKB("kb-agent", 7, false)}}
-	share := &stubPortalShareService{}
-	server := newPortalTestServer(t, svc, share, &stubPortalAgentShareService{}, 1, false)
-
-	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal&agent_id=agent-1")
-	require.Equal(t, http.StatusOK, status)
-	require.Len(t, data, 1, "agent_id branch wins over scope=portal")
-	assert.Equal(t, "kb-agent", data[0]["id"])
-	assert.False(t, svc.allCalled)
-	assert.False(t, share.sharedCalled)
-}
+// TestListKnowledgeBasesAgentIDWinsOverPortalScope 已删除：portal 抽离为独立
+// 端点（/api/v1/portal/knowledge-bases）后，"agent_id 优先于 scope=portal"的
+// 优先级契约不再存在——两个语义分属两条路由，互不可达。
 
 // --- v2 aggregation ------------------------------------------------------
 
@@ -264,8 +258,8 @@ func TestListKnowledgeBasesPortalAggregatesAllMemberships(t *testing.T) {
 			SourceTenantID: 3,
 		}},
 	}
-	h := &KnowledgeBaseHandler{
-		service: svc, kbShareService: share,
+	h := &PortalListHandler{
+		KnowledgeBaseHandler: &KnowledgeBaseHandler{service: svc, kbShareService: share},
 		memberService: &stubPortalMemberService{members: []*types.TenantMember{
 			{TenantID: 1, Role: types.TenantRoleOwner, Status: types.TenantMemberStatusActive},
 			{TenantID: 2, Role: types.TenantRoleContributor, Status: types.TenantMemberStatusActive},
@@ -288,11 +282,14 @@ func TestListKnowledgeBasesPortalAggregatesAllMemberships(t *testing.T) {
 		c.Next()
 	})
 	r.Use(middleware.ErrorHandler())
+	r.GET("/api/v1/portal/knowledge-bases", h.ListPortalKnowledgeBases)
+	// 原生列表路由同时注册：保护"默认端点行为不变"（见
+	// TestListKnowledgeBasesDefaultScopeUnchanged）。
 	r.GET("/api/v1/knowledge-bases", h.ListKnowledgeBases)
 	server := httptest.NewServer(r)
 	t.Cleanup(server.Close)
 
-	status, data := getKBList(t, server.URL+"/api/v1/knowledge-bases?scope=portal")
+	status, data := getKBList(t, server.URL+"/api/v1/portal/knowledge-bases")
 	require.Equal(t, http.StatusOK, status)
 	require.Len(t, data, 3)
 

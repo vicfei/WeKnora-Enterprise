@@ -39,21 +39,23 @@ export function listKnowledgeBases(params?: {
    * mine/others — they fall out of both views by design.
    */
   creator?: 'all' | 'mine' | 'others';
-  /**
-   * 二开功能（scope=portal，决策 019）：门户语义列表。普通用户=本部门（租户）
-   * 全部 KB ∪ 组织共享进来的 KB（服务端按 kb_id 去重，共享项带 share_id/
-   * org_name/permission 等字段）；系统管理员=跨租户全量（条目带 tenant_id）。
-   * 不传时原生行为不变；agent_id 参数优先于 scope。
-   */
-  scope?: 'portal';
 }) {
   const query = new URLSearchParams();
   if (params?.agent_id) query.set('agent_id', params.agent_id);
   if (params?.agent_source_tenant_id) query.set('agent_source_tenant_id', params.agent_source_tenant_id);
   if (params?.creator && params.creator !== 'all') query.set('creator', params.creator);
-  if (params?.scope) query.set('scope', params.scope);
   const qs = query.toString();
   return get(qs ? `/api/v1/knowledge-bases?${qs}` : '/api/v1/knowledge-bases');
+}
+
+/**
+ * 二开功能（决策 019，已从 ?scope=portal 抽离为独立端点）：门户聚合列表。
+ * 全部活跃 memberships 的 KB ∪ 组织共享进来的 KB（含 space_type=all 全员空间，
+ * 服务端按 kb_id 去重，注入 tenant_name/space_type/my_role 供分组）；
+ * 系统管理员=跨租户全量（条目带 tenant_id）。
+ */
+export function listPortalKnowledgeBases() {
+  return get('/api/v1/portal/knowledge-bases');
 }
 
 // Read-only vector-store binding metadata enriched onto every KB
