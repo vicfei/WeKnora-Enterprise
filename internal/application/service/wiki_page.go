@@ -606,6 +606,13 @@ func computeGraphSubset(pages []*types.WikiPage, req *types.WikiGraphRequest) (*
 	}
 	hasTypeFilter := len(typeAllow) > 0
 
+	familiarSet := make(map[string]struct{}, len(req.FamiliarKnowledgeIDs))
+	for _, id := range req.FamiliarKnowledgeIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			familiarSet[id] = struct{}{}
+		}
+	}
+
 	pageBySlug := make(map[string]*types.WikiPage, len(pages))
 	linkCount := make(map[string]int, len(pages))
 	for _, p := range pages {
@@ -664,6 +671,7 @@ func computeGraphSubset(pages []*types.WikiPage, req *types.WikiGraphRequest) (*
 			Title:     p.Title,
 			PageType:  p.PageType,
 			LinkCount: linkCount[slug],
+			Familiar:  p.BuiltFrom(familiarSet),
 		})
 	}
 	// Deterministic node ordering — the map iteration above is random.
@@ -711,6 +719,11 @@ func computeGraphSubset(pages []*types.WikiPage, req *types.WikiGraphRequest) (*
 		Total:     total,
 		Returned:  len(nodes),
 		Truncated: len(nodes) < total,
+	}
+	for _, n := range nodes {
+		if n.Familiar {
+			meta.FamiliarCount++
+		}
 	}
 	if mode == types.WikiGraphModeEgo {
 		meta.Center = req.Center
@@ -978,6 +991,18 @@ func (s *wikiPageService) ListByTypeRecent(ctx context.Context, kbID string, pag
 // dedup pre-filter to surface candidate merge targets.
 func (s *wikiPageService) FindSimilarPages(ctx context.Context, kbID string, query string, pageTypes []string, limit int) ([]*types.WikiPageLite, error) {
 	return s.repo.FindSimilarPages(ctx, kbID, query, pageTypes, limit)
+}
+
+// FindPagesByNormalizedTitle looks up exact same-type title identities for
+// wiki ingest, independent of the trigram top-K used for semantic dedup.
+func (s *wikiPageService) FindPagesByNormalizedTitle(ctx context.Context, kbID, pageType, identity string) ([]*types.WikiPageLite, error) {
+	return s.repo.FindPagesByNormalizedTitle(ctx, kbID, pageType, identity)
+}
+
+// FindPagesByNormalizedTitles looks up several normalized title identities
+// in one query so wiki ingest does not seq-scan once per extracted item.
+func (s *wikiPageService) FindPagesByNormalizedTitles(ctx context.Context, kbID, pageType string, identities []string) ([]*types.WikiPageLite, error) {
+	return s.repo.FindPagesByNormalizedTitles(ctx, kbID, pageType, identities)
 }
 
 // ListDistinctCategoryPaths returns the existing wiki folder paths. Used by

@@ -194,11 +194,14 @@ func buildAssistantHistoryMessages(m *types.Message) []chat.Message {
 const legacyFinalAnswerToolName = "final_answer"
 
 // filterNonTerminalToolCalls drops legacy final_answer entries from historical
-// tool calls (see legacyFinalAnswerToolName). New turns never produce them.
+// tool calls (see legacyFinalAnswerToolName), plus the pipeline stages a
+// fast-answer turn records for its own timeline (see
+// types.PipelineToolCallIDPrefix): the model never issued those, so replaying
+// them would attribute calls to it that it cannot answer for.
 func filterNonTerminalToolCalls(calls []types.ToolCall) []types.ToolCall {
 	out := make([]types.ToolCall, 0, len(calls))
 	for _, tc := range calls {
-		if tc.Name == legacyFinalAnswerToolName {
+		if tc.Name == legacyFinalAnswerToolName || types.IsPipelineToolCallID(tc.ID) {
 			continue
 		}
 		out = append(out, tc)
@@ -207,17 +210,11 @@ func filterNonTerminalToolCalls(calls []types.ToolCall) []types.ToolCall {
 }
 
 // toolCallOutput returns the textual content to use for a historical tool
-// message: the recorded Output on success, or an "Error: …" line otherwise so
-// the model can tell that an earlier tool call failed.
+// message. Failures still go through CompactToolOutputForHistory so stdout
+// from a crashed skill script is not dropped in favor of a one-line exit code.
 func toolCallOutput(tc types.ToolCall) string {
 	if tc.Result == nil {
 		return ""
-	}
-	if !tc.Result.Success {
-		if tc.Result.Error != "" {
-			return "Error: " + tc.Result.Error
-		}
-		return "Error: tool call failed"
 	}
 	return agenttools.CompactToolOutputForHistory(tc.Name, tc.Result)
 }

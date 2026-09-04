@@ -49,6 +49,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/application/service"
 	chatpipeline "github.com/Tencent/WeKnora/internal/application/service/chat_pipeline"
 	"github.com/Tencent/WeKnora/internal/application/service/file"
+	"github.com/Tencent/WeKnora/internal/application/service/memory"
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	"github.com/Tencent/WeKnora/internal/common"
 	"github.com/Tencent/WeKnora/internal/config"
@@ -57,6 +58,8 @@ import (
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/core"
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/drive"
 	"github.com/Tencent/WeKnora/internal/datasource/connector/feishu/wiki"
+	gitlabConnector "github.com/Tencent/WeKnora/internal/datasource/connector/gitlab"
+	imaConnector "github.com/Tencent/WeKnora/internal/datasource/connector/ima"
 	notionConnector "github.com/Tencent/WeKnora/internal/datasource/connector/notion"
 	rssConnector "github.com/Tencent/WeKnora/internal/datasource/connector/rss"
 	yuqueConnector "github.com/Tencent/WeKnora/internal/datasource/connector/yuque"
@@ -165,6 +168,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewMCPToolApprovalRepository))
 	must(container.Provide(repository.NewMCPOAuthRepository))
 	must(container.Provide(repository.NewTenantSandboxConfigRepository))
+	must(container.Provide(repository.NewTenantSkillRepository))
 	must(container.Provide(repository.NewCustomAgentRepository))
 	must(container.Provide(repository.NewOrganizationRepository))
 	must(container.Provide(repository.NewKBShareRepository))
@@ -176,6 +180,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewDataSourceRepository))
 	must(container.Provide(repository.NewSyncLogRepository))
 	must(container.Provide(repository.NewWikiPageRepository))
+	must(container.Provide(repository.NewMemoryRepository))
 	must(container.Provide(repository.NewTaskPendingOpsRepository))
 	must(container.Provide(repository.NewTaskDeadLetterRepository))
 
@@ -222,8 +227,10 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(func(
 		repo repository.TenantSandboxConfigRepository,
 		agents interfaces.CustomAgentRepository,
+		skills repository.TenantSkillRepository,
+		files interfaces.StorageBackendResolver,
 	) *service.TenantSandboxConfigService {
-		return service.NewTenantSandboxConfigService(repo, agents, buildGlobalSandboxConfig())
+		return service.NewTenantSandboxConfigService(repo, agents, buildGlobalSandboxConfig(), skills, files)
 	}))
 	must(container.Provide(func(s *service.TenantSandboxConfigService) service.WorkspaceSandboxPolicy {
 		return s
@@ -292,8 +299,16 @@ func BuildContainer(container *dig.Container) *dig.Container {
 
 	// Session service (depends on agent service)
 	// SessionService is created after AgentService and passes itself to AgentService.CreateAgentEngine when needed
+	logger.Debugf(ctx, "[Container] Registering memory service...")
+	must(container.Provide(memory.NewMemoryService))
+
 	logger.Debugf(ctx, "[Container] Registering session service...")
 	must(container.Provide(service.NewSessionService))
+	must(container.Provide(service.NewTenantSkillService))
+	// The member-facing half of env vars is its own service because its
+	// authority is different in kind: it derives the identity from the context
+	// and touches only that identity's rows.
+	must(container.Provide(service.NewUserEnvService))
 
 	// ArtifactCollector drains skill-generated files from the sandbox on
 	// each agent turn (see spec at
@@ -365,11 +380,20 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Invoke(chatpipeline.NewPluginFilterTopK))
 	must(container.Invoke(chatpipeline.NewPluginQueryUnderstand))
 	must(container.Invoke(chatpipeline.NewPluginLoadHistory))
+	must(container.Invoke(chatpipeline.NewPluginMemoryRecall))
 	must(container.Invoke(chatpipeline.NewPluginExtractEntity))
 	must(container.Invoke(chatpipeline.NewPluginSearchEntity))
 	must(container.Invoke(chatpipeline.NewPluginSearchParallel))
 	must(container.Invoke(chatpipeline.NewPluginWikiBoost))
+	must(container.Invoke(chatpipeline.NewPluginMemoryAffinity))
 	logger.Debugf(ctx, "[Container] Chat pipeline plugins registered")
+
+	// TenantSkillService is provided next to SessionService (handlers need
+	// it), but Invoke constructs the whole chain. SessionService needs
+	// *chatpipeline.EventManager, which only exists after the pipeline
+	// block above — starting the reaper any earlier panics.
+	must(container.Invoke(startTenantSkillReaper))
+	logger.Debugf(ctx, "[Container] Tenant skill reaper registered")
 
 	// HTTP handlers layer
 	logger.Debugf(ctx, "[Container] Registering HTTP handlers...")
@@ -390,6 +414,12 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewMessageSuggestionHandler))
 	must(container.Provide(handler.NewModelHandler))
 	must(container.Provide(handler.NewSandboxConfigHandler))
+	must(container.Provide(func(
+		s *service.TenantSkillService, streams interfaces.StreamManager,
+	) *handler.SandboxSkillHandler {
+		return handler.NewSandboxSkillHandler(s, streams)
+	}))
+	must(container.Provide(handler.NewMeEnvVarHandler))
 	must(container.Provide(handler.NewEvaluationHandler))
 	must(container.Provide(handler.NewInitializationHandler))
 	must(container.Provide(handler.NewAuthHandler))
@@ -407,8 +437,11 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewCustomAgentHandler))
 	must(container.Provide(handler.NewUserResourceFavoriteHandler))
 	must(container.Provide(service.NewSkillService))
-	must(container.Provide(handler.NewSkillHandler))
+	must(container.Provide(func(s *service.TenantSkillService) *handler.SkillHandler {
+		return handler.NewSkillHandler(s, s)
+	}))
 	must(container.Provide(handler.NewOrganizationHandler))
+	must(container.Provide(handler.NewMemoryHandler))
 
 	// Data source handler
 	must(container.Provide(handler.NewDataSourceHandler))
@@ -1662,8 +1695,14 @@ func initConnectorRegistry() (*datasource.ConnectorRegistry, error) {
 	if err := registry.Register(yuqueConnector.NewConnector()); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("register yuque connector: %w", err))
 	}
+	if err := registry.Register(imaConnector.NewConnector()); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("register ima connector: %w", err))
+	}
 	if err := registry.Register(rssConnector.NewConnector()); err != nil {
 		errs = errors.Join(errs, fmt.Errorf("register rss connector: %w", err))
+	}
+	if err := registry.Register(gitlabConnector.NewConnector()); err != nil {
+		errs = errors.Join(errs, fmt.Errorf("register gitlab connector: %w", err))
 	}
 
 	// Future connectors will be registered here:
@@ -1701,6 +1740,22 @@ func startHousekeepingService(svc *service.HousekeepingService, cleaner interfac
 		logger.Warnf(context.Background(), "[Container] housekeeping start failed: %v", err)
 	}
 	cleaner.RegisterWithName("KnowledgeHousekeeping", func() error {
+		svc.Stop()
+		return nil
+	})
+}
+
+// startTenantSkillReaper starts the stuck-install / orphan-snapshot cron and
+// registers cleanup. Best-effort: a startup error is logged but does NOT abort
+// the container — the rest of the system stays usable.
+func startTenantSkillReaper(svc *service.TenantSkillService, cleaner interfaces.ResourceCleaner) {
+	if svc == nil {
+		return
+	}
+	if err := svc.Start(context.Background()); err != nil {
+		logger.Warnf(context.Background(), "[Container] tenant skill reaper start failed: %v", err)
+	}
+	cleaner.RegisterWithName("TenantSkillReaper", func() error {
 		svc.Stop()
 		return nil
 	})

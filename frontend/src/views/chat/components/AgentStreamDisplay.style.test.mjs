@@ -59,6 +59,12 @@ test('tool rows use line icon names instead of legacy asset masks', () => {
   assert.match(source, /wiki_search: 'agentEditor\.tools\.wikiSearch'/)
   assert.match(source, /wiki_read_page: 'agentEditor\.tools\.wikiReadPage'/)
   assert.match(source, /wiki_read_source_doc: 'agentStream\.tools\.wikiReadSourceDoc'/)
+  assert.match(source, /list_sandbox_files: 'agentStream\.tools\.listSandboxFiles'/)
+  assert.match(source, /read_sandbox_file: 'agentStream\.tools\.readSandboxFile'/)
+  assert.match(source, /write_sandbox_file: 'agentStream\.tools\.writeSandboxFile'/)
+  assert.match(source, /edit_sandbox_file: 'agentStream\.tools\.editSandboxFile'/)
+  assert.match(source, /getReadSkillTarget/)
+  assert.match(source, /tool_name === 'list_sandbox_files'/)
   assert.match(source, /toolName === 'get_document_content' \|\| toolName === 'wiki_read_source_doc'/)
   assert.doesNotMatch(source, /getToolIcon\(event\.tool_name\)/)
 })
@@ -90,6 +96,22 @@ test('only the collapsed root summary shows an expand chevron', () => {
   assert.match(source, /showIntermediateSteps \? 'chevron-down' : 'chevron-right'/)
   assert.doesNotMatch(source, /isEventExpanded\(event\.tool_call_id\) \? 'chevron/)
   assert.doesNotMatch(source, /isEventExpanded\(event\.event_id\) \? 'chevron/)
+})
+
+// Recalled memory is one more thing the turn did before answering, so it rides
+// the same timeline as the steps instead of sitting in a card above them. It has
+// to travel into the collapsed tree with them, and appear exactly once.
+test('recalled memory rides the agent timeline as its leading row', () => {
+  const template = source.split('<script')[0]
+  assert.equal((template.match(/<ChatMemoryStep/g) || []).length, 2)
+  assert.match(template, /<div v-if="showIntermediateSteps" class="tree-children">\s*\n\s*<ChatMemoryStep/)
+  assert.match(template, /<ChatMemoryStep\s*\n\s*v-if="showMemoryRow"/)
+  assert.match(template, /<ChatMemoryStep[\s\S]*?:is-last="memoryIsLast"/)
+  assert.match(source, /!props\.ragMode && hasMemory\.value && !shouldShowCollapsedSteps\.value/)
+  assert.match(
+    source,
+    /const memoryIsLast = computed\([\s\S]*lastStreamingTimelineEventIndex\.value === -1/,
+  )
 })
 
 test('pending tool rows do not render an extra axis dot', () => {

@@ -58,7 +58,12 @@
             >
               <div class="model-option">
                 <span class="model-option__name">{{ modelLabel(model) }}</span>
-                <span class="model-option__meta">{{ vendorLabel(model) }}</span>
+                <span class="model-option__meta">
+                  {{ vendorLabel(model) }}
+                  <template v-if="modelHasContextWindow(model.type)">
+                    · {{ formatContextWindow(model.parameters?.context_window) }}
+                  </template>
+                </span>
               </div>
             </t-option>
           </t-select>
@@ -195,10 +200,15 @@
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
+import { copyWithToast } from '@/utils/clipboard'
 import SettingDrawer from '@/components/settings/SettingDrawer.vue'
 import { debugModel, type ModelConfig, type ModelDebugResult } from '@/api/model'
 import { fileSizeVerification } from '@/utils'
 import { modelSupportsThinking } from '@/utils/thinkingControl'
+import {
+  formatContextWindow,
+  modelHasContextWindow,
+} from '@/utils/contextWindow'
 
 const props = defineProps<{
   visible: boolean
@@ -448,12 +458,7 @@ const runDebug = async () => {
 
 const copyResult = async () => {
   if (!result.value) return
-  try {
-    await navigator.clipboard.writeText(JSON.stringify(result.value, null, 2))
-    MessagePlugin.success(t('common.copied'))
-  } catch {
-    MessagePlugin.error(t('common.copyFailed'))
-  }
+  await copyWithToast(JSON.stringify(result.value, null, 2), 'common.copied')
 }
 
 onBeforeUnmount(() => {

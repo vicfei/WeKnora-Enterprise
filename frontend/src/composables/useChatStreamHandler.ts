@@ -1,6 +1,7 @@
 import { markRaw, nextTick, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ensureRagPipelineHistoryStream } from '@/utils/rag-pipeline-history'
+import { applyMessageCreatedAt, bindServerTurnTimestamps, ensureMessageCreatedAt } from '@/utils/messageTimestamp'
 
 export type ChatMessage = Record<string, unknown>
 
@@ -32,6 +33,18 @@ export interface UseChatStreamHandlerOptions {
   debug?: boolean
 }
 
+function mergeToolCallArguments(previous: unknown, incoming: unknown): Record<string, unknown> {
+  const prev =
+    previous && typeof previous === 'object' && !Array.isArray(previous)
+      ? (previous as Record<string, unknown>)
+      : {}
+  const next =
+    incoming && typeof incoming === 'object' && !Array.isArray(incoming)
+      ? (incoming as Record<string, unknown>)
+      : { value: incoming }
+  return { ...prev, ...next }
+}
+
 export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
   const { t } = useI18n()
   const {
@@ -56,6 +69,16 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     onAgentChunkBound,
     debug = false,
   } = options
+
+  const emitMessageCreated = (message: ChatMessage) => {
+    ensureMessageCreatedAt(message)
+    onMessageCreated?.(message)
+  }
+
+  const emitMessageUpdated = (message: ChatMessage, payload?: ChatMessage) => {
+    if (payload) applyMessageCreatedAt(message, payload.created_at)
+    onMessageUpdated?.(message, payload)
+  }
 
   const log = (...args: unknown[]) => {
     if (debug) console.log(...args)
@@ -166,7 +189,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
       ensureAgentMessageShell(message, data.id as string | undefined)
       messagesList.push(message)
-      onMessageCreated?.(message)
+      emitMessageCreated(message)
       loading.value = false
     } else {
       ensureAgentMessageShell(message, data.id as string | undefined)
@@ -174,8 +197,28 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
 
     message.knowledge_references = refs.slice()
     if (created) onAgentChunkBound?.(message, true)
-    onMessageUpdated?.(message, data)
+    emitMessageUpdated(message, data)
     log('[References] Saved to message, count:', refs.length)
+    return message
+  }
+
+  // Records which long-term memories the answer saw. Unlike references this
+  // never creates a message shell: memory arrives before the first token, and
+  // an empty bubble that only says "3 memories" would be worse than waiting
+  // for the answer's own placeholder.
+  const applyUsedMemories = (data: ChatMessage) => {
+    const payload = (data.data ?? {}) as Record<string, unknown>
+    const memories = (payload.memories ?? data.memories) as unknown
+    if (!Array.isArray(memories) || memories.length === 0) return undefined
+
+    const message = resolveActiveAssistantMessage(data)
+    if (!message) {
+      log('[Memory] No assistant message to attach memories to')
+      return undefined
+    }
+    message.used_memories = memories.slice()
+    emitMessageUpdated(message, data)
+    log('[Memory] Saved to message, count:', memories.length)
     return message
   }
 
@@ -257,6 +300,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     isCompleted = false,
     isFallback = false,
     agentDurationMs = 0,
+    usage?: unknown,
   ) => {
     const events: ChatMessage[] = []
 
@@ -319,10 +363,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       })
     }
 
-    if (agentDurationMs > 0) {
+    if (agentDurationMs > 0 || usage) {
       events.push({
         type: 'agent_complete',
         total_duration_ms: agentDurationMs,
+        usage,
       })
     }
 
@@ -381,6 +426,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             Boolean(item.is_completed),
             Boolean(item.is_fallback),
             Number(item.agent_duration_ms) || 0,
+            item.usage,
           ),
         )
         item.hideContent = true
@@ -453,13 +499,13 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       }
       if (payload.is_fallback) message.is_fallback = true
       if (payload.is_completed) message.is_completed = true
-      onMessageUpdated?.(message, payload)
+      emitMessageUpdated(message, payload)
     } else {
       const entry = { ...payload }
       if (entry.id && !entry.request_id) entry.request_id = entry.id
       messagesList.push(entry)
-      onMessageCreated?.(entry)
-      onMessageUpdated?.(entry, payload)
+      emitMessageCreated(entry)
+      emitMessageUpdated(entry, payload)
     }
     scrollToBottom()
   }
@@ -490,7 +536,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         knowledge_references: [],
       }
       messagesList.push(newMsg)
-      onMessageCreated?.(newMsg)
+      emitMessageCreated(newMsg)
       loading.value = false
       scrollToBottom(true)
       message = newMsg
@@ -504,6 +550,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     }
 
     ensureAgentMessageShell(message, dataId)
+    applyMessageCreatedAt(message, data.created_at)
 
     if (
       loading.value &&
@@ -564,6 +611,27 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
             console.warn('[Thinking] Received done for unknown event_id:', eventId)
           }
         }
+        break
+      }
+      case 'context_compacted': {
+        // Shown in the timeline rather than swallowed: after a compaction the
+        // agent no longer sees the earlier rounds, and without a marker that
+        // reads as the model ignoring what it was told.
+        if (!message.agentEventStream) message.agentEventStream = []
+        const d = dataPayload || {}
+        ;(message.agentEventStream as ChatMessage[]).push({
+          type: 'context_compacted',
+          event_id: data.id || `compaction-${Date.now()}`,
+          reason: d.reason,
+          round: d.round,
+          tokens_before: d.tokens_before,
+          tokens_after: d.tokens_after,
+          messages_before: d.messages_before,
+          messages_after: d.messages_after,
+          summary: d.summary,
+          degraded: d.degraded,
+          split_turn: d.split_turn,
+        })
         break
       }
       case 'tool_approval_required': {
@@ -678,7 +746,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           }
           if (toolCallEvent) {
             if (incomingToolName) toolCallEvent.tool_name = incomingToolName
-            if (incomingArguments) toolCallEvent.arguments = incomingArguments
+            if (incomingArguments) {
+              toolCallEvent.arguments = mergeToolCallArguments(toolCallEvent.arguments, incomingArguments)
+            }
             toolCallEvent.pending = true
             if (!toolCallEvent.timestamp) toolCallEvent.timestamp = Date.now()
             pending.set(toolCallId, toolCallEvent)
@@ -728,9 +798,10 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           if (toolCallEvent) {
             toolCallEvent.pending = false
             toolCallEvent.success = success
-            toolCallEvent.output = success
-              ? dataPayload.output || data.content
-              : dataPayload.error || data.content
+            // Keep stdout/markdown on failure. The error field is often just
+            // "exited with code 1" plus a retry hint; the streams live on
+            // output / tool_data and are what the terminal card should show.
+            toolCallEvent.output = dataPayload.output || data.content
             toolCallEvent.error = !success ? dataPayload.error || data.content : undefined
             const duration =
               dataPayload.duration_ms !== undefined ? dataPayload.duration_ms : dataPayload.duration
@@ -804,6 +875,14 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         break
       }
+      case 'artifacts_pending': {
+        const pendingCount = Number((dataPayload as any)?.count)
+        message.artifactsCollecting = true
+        if (Number.isFinite(pendingCount) && pendingCount > 0) {
+          message.artifactsPendingCount = pendingCount
+        }
+        break
+      }
       case 'complete': {
         log('[Agent] Complete event received')
         loading.value = false
@@ -823,11 +902,17 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         if (Array.isArray(streamedArtifacts) && streamedArtifacts.length) {
           message.artifacts = streamedArtifacts
         }
+        message.artifactsCollecting = false
+        const usage = (dataPayload as any)?.usage || (data as any).usage
+        if (usage) {
+          message.usage = usage
+        }
         if (message.agentEventStream) {
           ;(message.agentEventStream as ChatMessage[]).push({
             type: 'agent_complete',
             total_duration_ms: dataPayload?.total_duration_ms || 0,
             total_steps: dataPayload?.total_steps || 0,
+            usage,
           })
         }
         break
@@ -845,6 +930,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         isReplying.value = false
         fullContent.value = ''
         currentAssistantMessageId.value = ''
+        message.artifactsCollecting = false
         break
       }
     }
@@ -901,7 +987,7 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
           knowledge_references: [],
         }
         messagesList.push(existingMessage)
-        onMessageCreated?.(existingMessage)
+        emitMessageCreated(existingMessage)
         loading.value = false
         scrollToBottom(true)
         log('[Agent Query] Created agent placeholder message')
@@ -913,6 +999,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
         }
         log('[Agent Query] Continuing stream for existing message')
       }
+      bindServerTurnTimestamps(
+        messagesList,
+        (data.data as Record<string, unknown> | undefined) || data,
+        existingMessage,
+      )
       onAgentQuery?.(data, existingMessage, created)
       return
     }
@@ -921,7 +1012,9 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
       data.response_type === 'thinking' ||
       data.response_type === 'tool_call' ||
       data.response_type === 'tool_result' ||
-      data.response_type === 'reflection'
+      data.response_type === 'reflection' ||
+      data.response_type === 'artifacts_pending' ||
+      data.response_type === 'context_compacted'
 
     const lastMessage = messagesList[messagesList.length - 1]
     const isCurrentlyAgentMode = lastMessage?.isAgentMode === true
@@ -945,6 +1038,11 @@ export function useChatStreamHandler(options: UseChatStreamHandlerOptions) {
     if (data.response_type === 'references') {
       applyKnowledgeReferences(data)
       scrollToBottom()
+      return
+    }
+
+    if (data.response_type === 'memory_recalled') {
+      applyUsedMemories(data)
       return
     }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/common"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"gorm.io/gorm"
@@ -53,6 +54,7 @@ func NewKnowledgeRepository(db *gorm.DB) interfaces.KnowledgeRepository {
 
 // CreateKnowledge creates knowledge
 func (r *knowledgeRepository) CreateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
+	knowledge.ErrorMessage = common.CleanInvalidUTF8(knowledge.ErrorMessage)
 	err := r.db.WithContext(ctx).Create(knowledge).Error
 	return err
 }
@@ -306,6 +308,7 @@ func (r *knowledgeRepository) RenameKnowledgeFolderPath(
 
 // UpdateKnowledge updates knowledge
 func (r *knowledgeRepository) UpdateKnowledge(ctx context.Context, knowledge *types.Knowledge) error {
+	knowledge.ErrorMessage = common.CleanInvalidUTF8(knowledge.ErrorMessage)
 	omit := omitFieldsOnUpdate
 	// Legacy/unit-test schemas created before custom_metadata should continue
 	// to support unrelated updates when the caller did not provide the field.
@@ -320,6 +323,11 @@ func (r *knowledgeRepository) UpdateKnowledge(ctx context.Context, knowledge *ty
 func (r *knowledgeRepository) UpdateKnowledgeBatch(ctx context.Context, knowledgeList []*types.Knowledge) error {
 	if len(knowledgeList) == 0 {
 		return nil
+	}
+	for _, knowledge := range knowledgeList {
+		if knowledge != nil {
+			knowledge.ErrorMessage = common.CleanInvalidUTF8(knowledge.ErrorMessage)
+		}
 	}
 	return r.db.Debug().WithContext(ctx).Omit(omitFieldsOnUpdate...).Save(knowledgeList).Error
 }
@@ -513,6 +521,14 @@ func (r *knowledgeRepository) UpdateKnowledgeColumn(
 	column string,
 	value interface{},
 ) error {
+	if column == "error_message" {
+		switch v := value.(type) {
+		case string:
+			value = common.CleanInvalidUTF8(v)
+		case []byte:
+			value = common.CleanInvalidUTF8(string(v))
+		}
+	}
 	err := r.db.WithContext(ctx).Model(&types.Knowledge{}).Where("id = ?", id).Update(column, value).Error
 	return err
 }
@@ -528,6 +544,14 @@ func (r *knowledgeRepository) UpdateKnowledgeColumns(
 ) error {
 	if len(values) == 0 {
 		return nil
+	}
+	if value, ok := values["error_message"]; ok {
+		switch v := value.(type) {
+		case string:
+			values["error_message"] = common.CleanInvalidUTF8(v)
+		case []byte:
+			values["error_message"] = common.CleanInvalidUTF8(string(v))
+		}
 	}
 	return r.db.WithContext(ctx).Model(&types.Knowledge{}).Where("id = ?", id).Updates(values).Error
 }
@@ -753,6 +777,46 @@ func (r *knowledgeRepository) FindByMetadataKeyPrefix(
 		return nil, err
 	}
 	return items, nil
+}
+
+// FindByDataSourceExternalID locates a synced knowledge item without allowing
+// identical external IDs from two data sources to collide in one knowledge base.
+func (r *knowledgeRepository) FindByDataSourceExternalID(
+	ctx context.Context,
+	tenantID uint64,
+	kbID, dataSourceID, externalID string,
+) (*types.Knowledge, error) {
+	var knowledge types.Knowledge
+	err := r.db.WithContext(ctx).
+		Where("tenant_id = ? AND knowledge_base_id = ? AND deleted_at IS NULL", tenantID, kbID).
+		Where("metadata->>'datasource_id' = ? AND metadata->>'external_id' = ?", dataSourceID, externalID).
+		First(&knowledge).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &knowledge, nil
+}
+
+// HardDeleteKnowledge physically removes a knowledge row. Call it AFTER
+// DeleteKnowledge's soft-delete cascade so sync-internal deletions never
+// become tombstones that block a later re-sync of the same external item.
+func (r *knowledgeRepository) HardDeleteKnowledge(ctx context.Context, tenantID uint64, id string) error {
+	return r.db.Unscoped().WithContext(ctx).
+		Where("tenant_id = ? AND id = ?", tenantID, id).
+		Delete(&types.Knowledge{}).Error
+}
+
+// HardDeleteKnowledgeList is the batch counterpart of HardDeleteKnowledge.
+func (r *knowledgeRepository) HardDeleteKnowledgeList(ctx context.Context, tenantID uint64, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.Unscoped().WithContext(ctx).
+		Where("tenant_id = ? AND id IN ?", tenantID, ids).
+		Delete(&types.Knowledge{}).Error
 }
 
 func (r *knowledgeRepository) SearchKnowledge(

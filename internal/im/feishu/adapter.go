@@ -24,6 +24,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"sync"
@@ -35,8 +36,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Compile-time check that Adapter implements im.StreamSender and im.FileDownloader.
+// Compile-time checks for the optional IM capabilities implemented by Adapter.
 var _ im.StreamSender = (*Adapter)(nil)
+var _ im.FullOutputProgressSender = (*Adapter)(nil)
 var _ im.FileDownloader = (*Adapter)(nil)
 
 var httpClient = utils.NewSSRFSafeHTTPClient(utils.SSRFSafeHTTPClientConfig{
@@ -52,6 +54,11 @@ type Adapter struct {
 	verificationToken string
 	encryptKey        string
 
+	// apiBaseURL overrides the region's Open Platform API origin. Empty defaults
+	// to region.OpenBaseURL; set to a reverse-proxy origin for private/internal
+	// deployments that cannot reach open.feishu.cn directly.
+	apiBaseURL string
+
 	// Token cache
 	tokenMu    sync.Mutex
 	tokenCache string
@@ -59,7 +66,16 @@ type Adapter struct {
 }
 
 // NewAdapter creates a new adapter for the given region (RegionFeishu or RegionLark).
-func NewAdapter(region Region, appID, appSecret, verificationToken, encryptKey string) *Adapter {
+// apiBaseURL overrides the Open Platform API origin (empty uses the region
+// default); it is validated for scheme and SSRF safety before use.
+func NewAdapter(region Region, appID, appSecret, verificationToken, encryptKey, apiBaseURL string) (*Adapter, error) {
+	apiBaseURL = strings.TrimRight(strings.TrimSpace(apiBaseURL), "/")
+	if err := validateAPIBaseURL(apiBaseURL, region.OpenBaseURL); err != nil {
+		return nil, err
+	}
+	if apiBaseURL == "" {
+		apiBaseURL = region.OpenBaseURL
+	}
 	startStreamReaper()
 	return &Adapter{
 		region:            region,
@@ -67,13 +83,35 @@ func NewAdapter(region Region, appID, appSecret, verificationToken, encryptKey s
 		appSecret:         appSecret,
 		verificationToken: verificationToken,
 		encryptKey:        encryptKey,
+		apiBaseURL:        apiBaseURL,
+	}, nil
+}
+
+// validateAPIBaseURL checks that a custom Feishu/Lark API base URL uses an
+// http(s) scheme and passes SSRF validation. Empty or the region default is
+// allowed without further checks. Mirrors wecom.validateEndpointURL but allows
+// plain http for internal-network reverse proxies that terminate TLS at nginx.
+func validateAPIBaseURL(endpoint, defaultEndpoint string) error {
+	if endpoint == "" || endpoint == defaultEndpoint {
+		return nil
 	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("invalid api_base_url: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("api_base_url must use http(s):// scheme, got %s://", u.Scheme)
+	}
+	if err := utils.ValidateURLForSSRF(endpoint); err != nil {
+		return fmt.Errorf("%w (for private deployments on internal networks, add the hostname to SSRF_WHITELIST)", err)
+	}
+	return nil
 }
 
 // api builds an Open Platform API URL on this adapter's cloud. path is a format
 // string beginning with "/open-apis/"; args fill its verbs.
 func (a *Adapter) api(path string, args ...any) string {
-	return a.region.OpenBaseURL + fmt.Sprintf(path, args...)
+	return a.apiBaseURL + fmt.Sprintf(path, args...)
 }
 
 // startStreamReaper starts a background goroutine (once) that periodically
@@ -117,6 +155,12 @@ func StopStreamReaper() {
 // Platform returns the platform identifier.
 func (a *Adapter) Platform() im.Platform {
 	return a.region.Platform
+}
+
+// SupportsFullOutputProgress reports that StartStream immediately sends a
+// visible, replaceable thinking card suitable for full-output mode.
+func (a *Adapter) SupportsFullOutputProgress() bool {
+	return true
 }
 
 // VerifyCallback verifies the Feishu event callback by checking the verification token.
@@ -675,7 +719,7 @@ func (a *Adapter) DownloadFile(ctx context.Context, msg *im.IncomingMessage) (io
 //  1. POST  /cardkit/v1/cards                                      — create card entity
 //  2. POST  /im/v1/messages  content={"type":"card","data":{"card_id":"…"}} — send card
 //  3. PUT   /cardkit/v1/cards/{id}/elements/{eid}/content          — stream element content
-//  4. PATCH /cardkit/v1/cards/{id}/settings                        — set streaming_mode=false
+//  4. PATCH /cardkit/v1/cards/{id}/settings                        — finalize streaming and summary
 //
 // Reference: https://github.com/larksuite/openclaw-lark (official Lark plugin)
 //            https://open.feishu.cn/document/cardkit-v1/streaming-updates-openapi-overview
@@ -690,9 +734,9 @@ const (
 type feishuStreamState struct {
 	mu         sync.Mutex
 	content    strings.Builder
+	contentSeq int64     // sequence of the last successfully sent content
 	seq        int64     // strictly incrementing sequence for CardKit API
 	createdAt  time.Time // for orphan stream detection
-	firstChunk bool      // true after the first real content chunk clears the placeholder
 }
 
 const (
@@ -714,6 +758,16 @@ var (
 func (s *feishuStreamState) nextSeq() int {
 	s.seq++
 	return int(s.seq)
+}
+
+func cardSummaryPreview(content string) string {
+	content = feishuMarkdownImageRe.ReplaceAllString(content, "${1}")
+	content = feishuMarkdownLinkRe.ReplaceAllString(content, "${1}")
+	preview := []rune(strings.Join(strings.Fields(content), " "))
+	if len(preview) > 120 {
+		preview = preview[:120]
+	}
+	return string(preview)
 }
 
 // buildStreamingCardJSON builds a Card JSON 2.0 with streaming_mode enabled.
@@ -787,11 +841,6 @@ func (a *Adapter) UpdateStreamContent(ctx context.Context, incoming *im.Incoming
 	}
 
 	state.mu.Lock()
-	if !state.firstChunk {
-		state.firstChunk = true
-	}
-	state.content.Reset()
-	state.content.WriteString(fullContent)
 	seq := state.nextSeq()
 	state.mu.Unlock()
 
@@ -805,7 +854,18 @@ func (a *Adapter) UpdateStreamContent(ctx context.Context, incoming *im.Incoming
 	// (uploading on demand) so the card update does not fail with 200570.
 	content := a.resolveMarkdownImages(ctx, accessToken, fullContent)
 
-	return a.cardkitUpdateElement(ctx, accessToken, streamID, streamingElementID, content, seq)
+	if err := a.cardkitUpdateElement(ctx, accessToken, streamID, streamingElementID, content, seq); err != nil {
+		return err
+	}
+
+	state.mu.Lock()
+	if int64(seq) > state.contentSeq {
+		state.content.Reset()
+		state.content.WriteString(fullContent)
+		state.contentSeq = int64(seq)
+	}
+	state.mu.Unlock()
+	return nil
 }
 
 // FinalizeStream replaces the card with answer-only content.
@@ -818,7 +878,7 @@ func (a *Adapter) SendStreamChunk(ctx context.Context, incoming *im.IncomingMess
 	return a.UpdateStreamContent(ctx, incoming, streamID, content)
 }
 
-// EndStream disables streaming_mode and cleans up state.
+// EndStream disables streaming_mode, replaces the temporary summary, and cleans up state.
 func (a *Adapter) EndStream(ctx context.Context, incoming *im.IncomingMessage, streamID string) error {
 	feishuStreamsMu.Lock()
 	state, ok := feishuStreams[streamID]
@@ -831,14 +891,22 @@ func (a *Adapter) EndStream(ctx context.Context, incoming *im.IncomingMessage, s
 	}
 
 	var seq int
+	var finalSummary *string
 	if ok {
 		state.mu.Lock()
 		seq = state.nextSeq()
+		preview := cardSummaryPreview(state.content.String())
+		if preview != "" {
+			finalSummary = &preview
+		}
 		state.mu.Unlock()
 	}
 
-	// Turn off streaming_mode to remove loading indicator
-	if err := a.cardkitSetStreaming(ctx, accessToken, streamID, false, seq); err != nil {
+	// Always close streaming_mode under config (CardKit rejects a top-level
+	// streaming_mode field). Attach a summary only when we have delivered text;
+	// an empty summary would leave the create-time "thinking" preview in place
+	// or blank the chat list unexpectedly.
+	if err := a.cardkitSetStreaming(ctx, accessToken, streamID, false, finalSummary, seq); err != nil {
 		logger.Warnf(ctx, "[%s] Failed to disable streaming_mode: %v", a.region.Label, err)
 	}
 
@@ -973,6 +1041,10 @@ func (a *Adapter) cardkitUpdateElement(ctx context.Context, accessToken, cardID,
 
 // feishuMarkdownImageRe matches a markdown image whose target is an http(s) URL.
 var feishuMarkdownImageRe = regexp.MustCompile(`!\[([^\]]*)\]\((https?://[^)\s]+)\)`)
+
+// feishuMarkdownLinkRe matches a markdown link whose target is an http(s) URL.
+// Applied after image stripping so signed image URLs are not left as links.
+var feishuMarkdownLinkRe = regexp.MustCompile(`\[([^\]]*)\]\((https?://[^)\s]+)\)`)
 
 // feishuMaxImageBytes caps the download size of an image before uploading to
 // Feishu (Feishu's limit is 10MB; keep a small margin).
@@ -1127,12 +1199,18 @@ func (a *Adapter) uploadImageFromURL(ctx context.Context, accessToken, rawURL st
 	return result.Data.ImageKey, nil
 }
 
-// cardkitSetStreaming updates the card's streaming_mode setting.
+// cardkitSetStreaming updates streaming_mode and, when available, the final summary.
 // PATCH /open-apis/cardkit/v1/cards/:card_id/settings
-func (a *Adapter) cardkitSetStreaming(ctx context.Context, accessToken, cardID string, streaming bool, sequence int) error {
-	settings, _ := json.Marshal(map[string]interface{}{
+func (a *Adapter) cardkitSetStreaming(
+	ctx context.Context, accessToken, cardID string, streaming bool, finalSummary *string, sequence int,
+) error {
+	config := map[string]interface{}{
 		"streaming_mode": streaming,
-	})
+	}
+	if finalSummary != nil && strings.TrimSpace(*finalSummary) != "" {
+		config["summary"] = map[string]string{"content": *finalSummary}
+	}
+	settings, _ := json.Marshal(map[string]interface{}{"config": config})
 	payload, _ := json.Marshal(map[string]interface{}{
 		"settings": string(settings),
 		"sequence": sequence,

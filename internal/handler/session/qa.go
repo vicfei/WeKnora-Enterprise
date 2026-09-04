@@ -18,6 +18,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/event"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/storageurl"
+	"github.com/Tencent/WeKnora/internal/tracing/langfuse"
 	"github.com/Tencent/WeKnora/internal/types"
 	secutils "github.com/Tencent/WeKnora/internal/utils"
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,7 @@ type qaRequestContext struct {
 	sharedAgentReadOnly   bool                     // access was granted by a read-only agent share
 	images                []ImageAttachment        // Uploaded images with analysis text
 	userMessageID         string                   // Created user message ID (populated after createUserMessage)
+	userCreatedAt         time.Time                // Persisted user message timestamp, echoed on agent_query
 	channel               string                   // Source channel: "web", "api", "im", etc.
 	attachments           types.MessageAttachments // Processed base64 file attachments (legacy inline uploads)
 	attachmentIDs         []string                 // Pre-uploaded session-scoped document IDs, resolved after SSE starts
@@ -436,14 +438,15 @@ func buildMessageExecutionContext(
 	locale := types.LanguageFromContextOrDefault(ctx)
 
 	snapshot := types.MessageExecutionContext{
-		KnowledgeBaseIDs: knowledgeBaseIDs,
-		KnowledgeIDs:     knowledgeIDs,
-		TagIDs:           tagIDs,
-		TagScopes:        cloneTagScopes(tagScopes),
-		MCPServiceIDs:    mcpServiceIDs,
-		SkillNames:       skillNames,
-		WebSearchEnabled: webSearchEnabled,
-		Locale:           locale,
+		KnowledgeBaseIDs:    knowledgeBaseIDs,
+		KnowledgeIDs:        knowledgeIDs,
+		TagIDs:              tagIDs,
+		TagScopes:           cloneTagScopes(tagScopes),
+		MCPServiceIDs:       mcpServiceIDs,
+		SkillNames:          skillNames,
+		WebSearchEnabled:    webSearchEnabled,
+		Locale:              locale,
+		LangfuseTraceparent: langfuse.TraceparentFromContext(ctx),
 	}
 	if agent == nil {
 		return snapshot, "", effectiveTenantID, modelOverride
@@ -616,7 +619,13 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool) *
 	setSSEHeaders(reqCtx.c)
 
 	// Write initial agent_query event
-	h.writeAgentQueryEvent(reqCtx.ctx, reqCtx.sessionID, reqCtx.assistantMessage.ID)
+	h.writeAgentQueryEvent(
+		reqCtx.ctx,
+		reqCtx.sessionID,
+		reqCtx.userMessageID,
+		reqCtx.userCreatedAt,
+		reqCtx.assistantMessage,
+	)
 
 	// Base context for async work: when using shared agent, use source tenant for model/KB/MCP resolution
 	baseCtx := reqCtx.ctx
@@ -630,6 +639,17 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool) *
 	// borrowed tenant above drives everything else, because DeleteSession tears
 	// that sandbox down from a request that only knows the session's tenant.
 	baseCtx = types.WithSandboxTenantID(baseCtx, reqCtx.session.TenantID)
+
+	// An agent that opted out of long-term memory has to be opted out of the
+	// write path too, not just recall. The two run from different contexts:
+	// recall is marked inside the QA services, while extraction, the explicit
+	// "remember this" route and document affinity are all kicked off from
+	// completeAssistantMessage on a context descended from this one. Marking
+	// the root of the async work is what keeps them from disagreeing — an
+	// agent that cannot read the memory must not keep writing to it.
+	if reqCtx.customAgent != nil {
+		baseCtx = types.ApplyAgentMemoryPreference(baseCtx, reqCtx.customAgent.Config.MemoryEnabled)
+	}
 
 	// Create EventBus and cancellable context
 	eventBus := event.NewEventBus()
@@ -686,7 +706,7 @@ func (h *Handler) setupSSEStream(reqCtx *qaRequestContext, generateTitle bool) *
 // @Failure      400      {object}  errors.AppError         "请求参数错误"
 // @Security     Bearer
 // @Security     ApiKeyAuth
-// @Router       /sessions/search [post]
+// @Router       /knowledge-search [post]
 func (h *Handler) SearchKnowledge(c *gin.Context) {
 	ctx := logger.CloneContext(c.Request.Context())
 	logger.Info(ctx, "Start processing knowledge search request")
@@ -909,6 +929,7 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 		return
 	}
 	reqCtx.userMessageID = userMsg.ID
+	reqCtx.userCreatedAt = userMsg.CreatedAt
 
 	// Create assistant message
 	assistantMessagePtr, err := h.createAssistantMessage(ctx, reqCtx.assistantMessage)
@@ -931,6 +952,11 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 	// (Agent mode handles completion in the defer block instead)
 	if mode == qaModeNormal {
 		var completionHandled bool
+
+		// Persist the pipeline's retrieval/attachment stages so a reloaded
+		// conversation redraws the timeline it showed while streaming, including
+		// turns that searched and cited nothing.
+		registerQuickAnswerTimelineRecorder(streamCtx.eventBus, streamCtx.assistantMessage)
 
 		// Persist reasoning_content into agent_steps so historical reload can
 		// reconstruct the thinking card (same shape as Agent-mode steps).
@@ -962,7 +988,7 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 
 				logger.Infof(streamCtx.asyncCtx, "Knowledge QA service completed for session: %s", sessionID)
 				updateCtx := context.WithValue(streamCtx.asyncCtx, types.TenantIDContextKey, reqCtx.session.TenantID)
-				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query)
+				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query, reqCtx.userMessageID)
 				streamCtx.eventBus.Emit(streamCtx.asyncCtx, event.Event{
 					Type:      event.EventAgentComplete,
 					SessionID: sessionID,
@@ -998,7 +1024,7 @@ func (h *Handler) executeQA(reqCtx *qaRequestContext, mode qaMode, generateTitle
 					context.WithoutCancel(streamCtx.asyncCtx),
 					types.TenantIDContextKey, reqCtx.session.TenantID,
 				)
-				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query)
+				h.completeAssistantMessage(updateCtx, streamCtx.assistantMessage, reqCtx.query, reqCtx.userMessageID)
 				logger.Infof(streamCtx.asyncCtx, "Agent QA service completed for session: %s", sessionID)
 			}
 		}()
@@ -1398,19 +1424,14 @@ func appendQuickAnswerReasoning(msg *types.Message, content string) {
 	if content == "" {
 		return
 	}
-	if len(msg.AgentSteps) == 0 {
-		msg.AgentSteps = types.AgentSteps{{
-			Iteration: 0,
-			Timestamp: time.Now(),
-			ToolCalls: make([]types.ToolCall, 0),
-		}}
-	}
-	msg.AgentSteps[0].ReasoningContent += content
+	ensureQuickAnswerStep(msg).ReasoningContent += content
 }
 
 // completeAssistantMessage marks an assistant message as complete, updates it,
 // and asynchronously indexes the Q&A pair into the chat history knowledge base.
-func (h *Handler) completeAssistantMessage(ctx context.Context, assistantMessage *types.Message, userQuery string) {
+func (h *Handler) completeAssistantMessage(
+	ctx context.Context, assistantMessage *types.Message, userQuery, userMessageID string,
+) {
 	assistantMessage.UpdatedAt = time.Now()
 	assistantMessage.IsCompleted = true
 	_ = h.messageService.UpdateMessage(ctx, assistantMessage)
@@ -1428,4 +1449,73 @@ func (h *Handler) completeAssistantMessage(ctx context.Context, assistantMessage
 			}
 		}()
 	}
+	if userQuery != "" {
+		go h.recordTurnMemory(bgCtx, assistantMessage, userQuery, userMessageID)
+	}
+}
+
+// recordTurnMemory runs the long-term memory write path for a finished turn.
+//
+// This is the single place a conversation can produce memory, and it sits at
+// the point where both the RAG and the Agent path converge, so neither mode
+// can silently miss it. A stopped conversation arrives with an empty query and
+// is skipped by the caller.
+func (h *Handler) recordTurnMemory(
+	ctx context.Context, assistantMessage *types.Message, userQuery, userMessageID string,
+) {
+	if h.memoryService == nil {
+		return
+	}
+	// An explicit "remember ..." directive is stored verbatim and immediately,
+	// with no model in the loop. This is what makes the default explicit_only
+	// mode useful rather than merely safe.
+	if statement, ok := types.DetectExplicitMemory(userQuery); ok {
+		if _, err := h.memoryService.Remember(ctx, types.MemoryItem{
+			Kind:            types.MemoryKindFact,
+			Content:         statement,
+			Importance:      4,
+			Origin:          types.MemoryOriginExplicit,
+			SourceSessionID: assistantMessage.SessionID,
+			// Attribute to the user's own message, not the answer. Background
+			// distillation reads that same message, so the two paths must
+			// agree on provenance or a memory deleted from one can be
+			// re-derived by the other.
+			SourceMessageID: userMessageID,
+		}); err != nil {
+			logger.Warnf(ctx, "memory: explicit remember failed for message %s: %v", assistantMessage.ID, err)
+		}
+	}
+	h.recordAnswerSources(ctx, assistantMessage)
+	h.memoryService.ScheduleExtraction(ctx, assistantMessage.SessionID, assistantMessage.ID, assistantMessage.ModelID)
+}
+
+// recordAnswerSources notes which documents this answer drew on, so the
+// reranker can prefer the material this person keeps working from.
+//
+// The references attached to an answer are a weaker signal than an explicit
+// thumbs-up: they say the retriever kept picking a document, not that the user
+// found it useful. They are, however, the only per-person retrieval signal
+// available without asking for anything, and the boost they earn is capped
+// accordingly.
+func (h *Handler) recordAnswerSources(ctx context.Context, assistantMessage *types.Message) {
+	if len(assistantMessage.KnowledgeReferences) == 0 {
+		return
+	}
+	seen := make(map[string]struct{}, len(assistantMessage.KnowledgeReferences))
+	refs := make([]types.MemoryDocAffinity, 0, len(assistantMessage.KnowledgeReferences))
+	for _, ref := range assistantMessage.KnowledgeReferences {
+		if ref.KnowledgeID == "" {
+			continue
+		}
+		if _, dup := seen[ref.KnowledgeID]; dup {
+			continue
+		}
+		seen[ref.KnowledgeID] = struct{}{}
+		refs = append(refs, types.MemoryDocAffinity{
+			KnowledgeID:     ref.KnowledgeID,
+			KnowledgeBaseID: ref.KnowledgeBaseID,
+			Title:           ref.KnowledgeTitle,
+		})
+	}
+	h.memoryService.RecordAnswerSources(ctx, refs)
 }
