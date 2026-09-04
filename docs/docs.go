@@ -12698,6 +12698,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/portal/knowledge-bases": {
+            "get": {
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ],
+                "description": "GET /portal/knowledge-bases：全部活跃 memberships 的知识库 ∪ 经组织共享分发的内容（含 space_type=all 全员空间），注入 tenant_name/space_type/my_role 供门户分组。系统管理员返回全平台非临时库。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "门户"
+                ],
+                "summary": "门户聚合知识库列表（二开，决策 019）",
+                "responses": {
+                    "200": {
+                        "description": "聚合知识库列表",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未认证",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
+                        }
+                    }
+                }
+            }
+        },
         "/sandbox-configs": {
             "get": {
                 "security": [
@@ -13021,8 +13059,6 @@ const docTemplate = `{
                 }
             }
         },
-<<<<<<< HEAD
-=======
         "/sandbox-configs/{id}/skills": {
             "get": {
                 "security": [
@@ -13712,7 +13748,6 @@ const docTemplate = `{
                 }
             }
         },
->>>>>>> upstream/main
         "/sessions": {
             "get": {
                 "security": [
@@ -19189,8 +19224,6 @@ const docTemplate = `{
                 }
             }
         },
-<<<<<<< HEAD
-=======
         "github_com_Tencent_WeKnora_internal_types.CubeEgressRule": {
             "type": "object",
             "properties": {
@@ -19246,7 +19279,6 @@ const docTemplate = `{
                 }
             }
         },
->>>>>>> upstream/main
         "github_com_Tencent_WeKnora_internal_types.CubeSandboxConfig": {
             "type": "object",
             "properties": {
@@ -19260,8 +19292,6 @@ const docTemplate = `{
                 "cube_sandbox_ttl_seconds": {
                     "type": "integer"
                 },
-<<<<<<< HEAD
-=======
                 "dns_servers": {
                     "description": "DNSServers are Cube template nameserver IPs. Empty uses Cubelet's default.",
                     "type": "array",
@@ -19269,7 +19299,6 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
->>>>>>> upstream/main
                 "http_timeout_sec": {
                     "description": "HTTPTimeoutSec bounds each HTTP call to the sandbox control plane.\n0 means use the built-in default (30s), never the deployment's value.",
                     "type": "integer"
@@ -19672,10 +19701,6 @@ const docTemplate = `{
         "github_com_Tencent_WeKnora_internal_types.DockerSandboxConfig": {
             "type": "object",
             "properties": {
-<<<<<<< HEAD
-                "image": {
-                    "type": "string"
-=======
                 "cpu_limit": {
                     "description": "CPULimit is the number of CPU cores one sandbox may use. 0 uses the\nbuilt-in default.",
                     "type": "number"
@@ -19729,7 +19754,6 @@ const docTemplate = `{
                 },
                 "host": {
                     "type": "string"
->>>>>>> upstream/main
                 }
             }
         },
@@ -21359,39 +21383,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_Tencent_WeKnora_internal_types.MessageArtifact": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "description": "When WeKnora persisted the blob",
-                    "type": "string"
-                },
-                "file_name": {
-                    "description": "Original filename inside the sandbox",
-                    "type": "string"
-                },
-                "file_size": {
-                    "description": "File size in bytes",
-                    "type": "integer"
-                },
-                "file_type": {
-                    "description": "File extension (e.g., \".pptx\", \".pdf\")",
-                    "type": "string"
-                },
-                "mod_time": {
-                    "description": "Sandbox-side modification time (used for diff)",
-                    "type": "string"
-                },
-                "source_path": {
-                    "description": "Absolute path inside the sandbox (used for diff)",
-                    "type": "string"
-                },
-                "url": {
-                    "description": "Storage URL (provider://path); persisted, not sent to client",
-                    "type": "string"
-                }
-            }
-        },
         "github_com_Tencent_WeKnora_internal_types.MessageAttachment": {
             "type": "object",
             "properties": {
@@ -22524,7 +22515,7 @@ const docTemplate = `{
                     }
                 },
                 "allow_public_inbound": {
-                    "description": "AllowPublicInbound exposes the sandbox's public URL without a\ncredential. false requires every inbound request to carry the\nper-sandbox traffic access token.",
+                    "description": "AllowPublicInbound is accepted on the wire for old payloads and then\ncleared. Inbound is always credential-required; a true value has no\nruntime effect.",
                     "type": "boolean"
                 },
                 "cube_rules": {
@@ -23393,10 +23384,6 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-<<<<<<< HEAD
-                "sandbox_type": {
-                    "description": "SandboxType selects the sandbox backend. Named configs may use \"cube\",\n\"e2b\", \"docker\", or \"local\". \"disabled\" is reserved for the hidden\nworkspace policy row.",
-=======
                 "network": {
                     "description": "Network is the outbound/inbound network policy applied to every sandbox\ncreated from this config — chat sessions, skill installs and deep\nconnectivity probes alike. nil and the zero value mean the same thing:\noutbound egress allowed, inbound public access closed.",
                     "allOf": [
@@ -23419,7 +23406,6 @@ const docTemplate = `{
                 },
                 "skill_rollout": {
                     "description": "SkillRollout decides whether sessions that already hold a sandbox of\nthis config rebuild after a skill install or removal. Empty and\nSkillRolloutNextTurn rebuild on the next chat turn. SkillRolloutNewSession\nleaves those sandboxes on the previous image; only sessions that start\nafterwards boot the new snapshot.",
->>>>>>> upstream/main
                     "type": "string"
                 },
                 "volume_mount": {
@@ -23432,8 +23418,6 @@ const docTemplate = `{
                 }
             }
         },
-<<<<<<< HEAD
-=======
         "github_com_Tencent_WeKnora_internal_types.TokenUsage": {
             "type": "object",
             "properties": {
@@ -23467,7 +23451,6 @@ const docTemplate = `{
                 }
             }
         },
->>>>>>> upstream/main
         "github_com_Tencent_WeKnora_internal_types.ToolCall": {
             "type": "object",
             "properties": {
@@ -26459,8 +26442,6 @@ const docTemplate = `{
                 }
             }
         },
-<<<<<<< HEAD
-=======
         "internal_handler.skillPatchRequest": {
             "type": "object",
             "properties": {
@@ -26486,7 +26467,6 @@ const docTemplate = `{
                 }
             }
         },
->>>>>>> upstream/main
         "internal_handler.storageBackendRequest": {
             "type": "object",
             "required": [

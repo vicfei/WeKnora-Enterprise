@@ -693,8 +693,6 @@ definitions:
       weknoracloud:
         $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.WeKnoraCloudCredentials'
     type: object
-<<<<<<< HEAD
-=======
   github_com_Tencent_WeKnora_internal_types.CubeEgressRule:
     properties:
       audit:
@@ -735,7 +733,6 @@ definitions:
       secret:
         type: string
     type: object
->>>>>>> upstream/main
   github_com_Tencent_WeKnora_internal_types.CubeSandboxConfig:
     properties:
       api_key:
@@ -745,15 +742,12 @@ definitions:
         type: string
       cube_sandbox_ttl_seconds:
         type: integer
-<<<<<<< HEAD
-=======
       dns_servers:
         description: DNSServers are Cube template nameserver IPs. Empty uses Cubelet's
           default.
         items:
           type: string
         type: array
->>>>>>> upstream/main
       http_timeout_sec:
         description: |-
           HTTPTimeoutSec bounds each HTTP call to the sandbox control plane.
@@ -1152,10 +1146,6 @@ definitions:
     type: object
   github_com_Tencent_WeKnora_internal_types.DockerSandboxConfig:
     properties:
-<<<<<<< HEAD
-      image:
-        type: string
-=======
       cpu_limit:
         description: |-
           CPULimit is the number of CPU cores one sandbox may use. 0 uses the
@@ -1217,7 +1207,6 @@ definitions:
         type: object
       host:
         type: string
->>>>>>> upstream/main
     type: object
   github_com_Tencent_WeKnora_internal_types.E2BSandboxConfig:
     properties:
@@ -2467,30 +2456,6 @@ definitions:
         description: Storage URL (provider://path); persisted, not sent to client
         type: string
     type: object
-  github_com_Tencent_WeKnora_internal_types.MessageArtifact:
-    properties:
-      created_at:
-        description: When WeKnora persisted the blob
-        type: string
-      file_name:
-        description: Original filename inside the sandbox
-        type: string
-      file_size:
-        description: File size in bytes
-        type: integer
-      file_type:
-        description: File extension (e.g., ".pptx", ".pdf")
-        type: string
-      mod_time:
-        description: Sandbox-side modification time (used for diff)
-        type: string
-      source_path:
-        description: Absolute path inside the sandbox (used for diff)
-        type: string
-      url:
-        description: Storage URL (provider://path); persisted, not sent to client
-        type: string
-    type: object
   github_com_Tencent_WeKnora_internal_types.MessageAttachment:
     properties:
       content:
@@ -3355,9 +3320,9 @@ definitions:
         type: array
       allow_public_inbound:
         description: |-
-          AllowPublicInbound exposes the sandbox's public URL without a
-          credential. false requires every inbound request to carry the
-          per-sandbox traffic access token.
+          AllowPublicInbound is accepted on the wire for old payloads and then
+          cleared. Inbound is always credential-required; a true value has no
+          runtime effect.
         type: boolean
       cube_rules:
         description: |-
@@ -4049,13 +4014,6 @@ definitions:
           become visible to all scripts running in the tenant's\nsandboxes — do not
           place secrets here that scripts must not access."
         type: object
-<<<<<<< HEAD
-      sandbox_type:
-        description: |-
-          SandboxType selects the sandbox backend. Named configs may use "cube",
-          "e2b", "docker", or "local". "disabled" is reserved for the hidden
-          workspace policy row.
-=======
       network:
         allOf:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.SandboxNetworkPolicy'
@@ -4083,7 +4041,6 @@ definitions:
           SkillRolloutNextTurn rebuild on the next chat turn. SkillRolloutNewSession
           leaves those sandboxes on the previous image; only sessions that start
           afterwards boot the new snapshot.
->>>>>>> upstream/main
         type: string
       volume_mount:
         allOf:
@@ -4095,8 +4052,6 @@ definitions:
           any volume-mount use case (shared datasets, pre-installed toolchains,
           etc.).
     type: object
-<<<<<<< HEAD
-=======
   github_com_Tencent_WeKnora_internal_types.TokenUsage:
     properties:
       cache_miss_tokens:
@@ -4121,7 +4076,6 @@ definitions:
       total_tokens:
         type: integer
     type: object
->>>>>>> upstream/main
   github_com_Tencent_WeKnora_internal_types.ToolCall:
     properties:
       args:
@@ -6309,8 +6263,6 @@ definitions:
     required:
     - name
     type: object
-<<<<<<< HEAD
-=======
   internal_handler.skillPatchRequest:
     properties:
       enabled:
@@ -6338,7 +6290,6 @@ definitions:
           ClawHub id and a GitHub repo. The fetch carries no credential.
         type: string
     type: object
->>>>>>> upstream/main
   internal_handler.storageBackendRequest:
     properties:
       config:
@@ -14705,6 +14656,31 @@ paths:
       summary: 搜索可加入的空间
       tags:
       - 组织管理
+  /portal/knowledge-bases:
+    get:
+      description: GET /portal/knowledge-bases：全部活跃 memberships 的知识库 ∪ 经组织共享分发的内容（含
+        space_type=all 全员空间），注入 tenant_name/space_type/my_role 供门户分组。系统管理员返回全平台非临时库。
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 聚合知识库列表
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未认证
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+        "500":
+          description: 服务器错误
+          schema:
+            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
+      security:
+      - Bearer: []
+      summary: 门户聚合知识库列表（二开，决策 019）
+      tags:
+      - 门户
   /sandbox-configs:
     get:
       description: List workspace sandbox backend configs with credentials masked.
@@ -14914,8 +14890,6 @@ paths:
       summary: Inspect sandbox config inventory
       tags:
       - SandboxConfig
-<<<<<<< HEAD
-=======
   /sandbox-configs/{id}/skills:
     get:
       description: List the agent skills installed onto one sandbox config's image.
@@ -15387,7 +15361,6 @@ paths:
       summary: Follow an install's agent transcript
       tags:
       - SandboxConfig
->>>>>>> upstream/main
   /sessions:
     get:
       consumes:
