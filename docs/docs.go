@@ -21374,7 +21374,7 @@ const docTemplate = `{
                     ]
                 },
                 "space_type": {
-                    "description": "SpaceType classifies the tenant for portal aggregation (v2, migration 000086):\npersonal / team / all (company-wide public space). Defaults to team so\npre-existing tenants keep their semantics unchanged.",
+                    "description": "SpaceType classifies the tenant for portal aggregation (v2, migration 20260827095630):\npersonal / team / all (company-wide public space). Defaults to team so\npre-existing tenants keep their semantics unchanged.",
                     "type": "string"
                 },
                 "status": {

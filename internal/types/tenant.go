@@ -118,7 +118,7 @@ type Tenant struct {
 	RetrievalConfig *RetrievalConfig `yaml:"retrieval_config" json:"retrieval_config" gorm:"type:jsonb"`
 	// API principal config: controls how X-API-Key requests map to terminal principals.
 	APIPrincipalConfig *APIPrincipalConfig `yaml:"api_principal_config" json:"-" gorm:"type:jsonb"`
-	// SpaceType classifies the tenant for portal aggregation (v2, migration 000086):
+	// SpaceType classifies the tenant for portal aggregation (v2, migration 20260827095630):
 	// personal / team / all (company-wide public space). Defaults to team so
 	// pre-existing tenants keep their semantics unchanged.
 	SpaceType string `yaml:"space_type" json:"space_type" gorm:"type:varchar(16);default:'team'"`

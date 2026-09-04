@@ -3767,7 +3767,7 @@ definitions:
         description: Retriever engines
       space_type:
         description: |-
-          SpaceType classifies the tenant for portal aggregation (v2, migration 000086):
+          SpaceType classifies the tenant for portal aggregation (v2, migration 20260827095630):
           personal / team / all (company-wide public space). Defaults to team so
           pre-existing tenants keep their semantics unchanged.
         type: string
