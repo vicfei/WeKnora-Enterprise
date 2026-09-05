@@ -301,9 +301,9 @@
                     <!-- 二开功能：门户跨租户徽标（系统管理员 portal 视图） -->
                     <t-tooltip v-if="isPortalCrossTenant(kb)"
                       :content="$t('knowledgeList.portalTenantBadge', { id: kb.tenant_name || kb.tenant_id })" placement="top">
-                      <div class="feature-badge kg">
+                      <div class="feature-badge kg portal-tenant-badge">
                         <t-icon name="city" size="14px" />
-                        <span class="badge-count">{{ kb.tenant_name || kb.tenant_id }}</span>
+                        <span class="badge-count portal-tenant-name">{{ kb.tenant_name || kb.tenant_id }}</span>
                       </div>
                     </t-tooltip>
                   </div>
@@ -2761,6 +2761,21 @@ const handleUploadFinishedEvent = (event: Event) => {
 
     &:hover {
       background: rgba(124, 77, 255, 0.12);
+    }
+  }
+
+  // 门户跨租户徽标：基类固定 22px 宽，长租户名会一字一行竖排并溢出
+  // 卡片——放开宽度自适应，租户名超宽时省略号截断（tooltip 有全名）。
+  &.portal-tenant-badge {
+    width: auto;
+    gap: 3px;
+    padding: 0 6px;
+
+    .portal-tenant-name {
+      max-width: 110px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 
