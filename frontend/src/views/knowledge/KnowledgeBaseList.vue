@@ -111,12 +111,19 @@
                仅查看 / 共享给我）各自打自己的标题；原本的「其他」过渡标题
                在 per-user 置顶模型下已无意义，删除以免和具体子段标题叠加。 -->
           <template v-for="(kb, index) in filteredKnowledgeBases" :key="kb.id || kb.__portalGroup">
-            <!-- 二开功能（v2）：门户分组标题行——个人/团队/公司公共/共享给我 -->
-            <div v-if="isPortalGroupHeader(kb)" class="kb-section-header kb-section-header-portal">
-              <span class="portal-group-title">{{ $t(kb.labelKey) }}</span>
-              <span class="portal-group-count">{{ $t('knowledgeList.portalGroupCount', { count: kb.count }) }}</span>
-              <span v-if="kb.role" class="portal-group-role">{{ $t('knowledgeList.portalRoleBadge', { role: kb.role }) }}</span>
-            </div>
+            <!-- 二开功能（v2）：门户分组标题行——个人/团队/公司公共/共享给我。
+                 分组标记对象不是卡片：其余分支（分段标题 + 卡片）必须整体
+                 走 v-else，否则标记对象因 isMine 为 undefined 漏进共享卡
+                 分支，每组多渲染一张空共享卡和一个空的「共享给我·仅查看」
+                 小节头。 -->
+            <template v-if="isPortalGroupHeader(kb)">
+              <div class="kb-section-header kb-section-header-portal">
+                <span class="portal-group-title">{{ $t(kb.labelKey) }}</span>
+                <span class="portal-group-count">{{ $t('knowledgeList.portalGroupCount', { count: kb.count }) }}</span>
+                <span v-if="kb.role" class="portal-group-role">{{ $t('knowledgeList.portalRoleBadge', { role: kb.role }) }}</span>
+              </div>
+            </template>
+            <template v-else>
             <!-- 我创建的：第一张「我创建」非置顶卡片前打标题，统一展示
                  不管上方是否存在「已置顶」段。与「本空间 · 仅查看」同样
                  仅在 contributor 视图下出现——admin/owner 视图原本就没有
@@ -384,6 +391,7 @@
                 </div>
               </div>
             </div>
+            </template>
           </template>
         </div>
 
