@@ -24,6 +24,12 @@ def load_jsonl(path: str) -> list[dict]:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manifest", required=True)
+    ap.add_argument(
+        "--ingest",
+        default="",
+        help="override ingest map (default <manifest>.ingest.jsonl); "
+        "pool mode passes the .pool.ingest.jsonl written by ingest_pool.py",
+    )
     ap.add_argument("--out", required=True)
     ap.add_argument("--concurrency", type=int, default=1)
     ap.add_argument("--label", default="", help="config label, e.g. baseline / routing-on")
@@ -38,8 +44,9 @@ def main() -> None:
     args = ap.parse_args()
 
     manifest = {q["qid"]: q for q in load_jsonl(args.manifest)}
+    ingest_path = args.ingest or (args.manifest + ".ingest.jsonl")
     ingest = {
-        r["qid"]: r for r in load_jsonl(args.manifest + ".ingest.jsonl") if r.get("kb_id")
+        r["qid"]: r for r in load_jsonl(ingest_path) if r.get("kb_id")
     }
 
     out_path = Path(args.out)

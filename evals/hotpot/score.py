@@ -59,6 +59,12 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
     support_none = 0
     scored = 0
     errors = 0
+    # rank-aware: citation width + where gold ranks in the ordered refs
+    cite_width_sum = 0
+    cite_width_n = 0
+    rr_sum = 0.0  # mean reciprocal rank of the FIRST gold doc
+    rr_n = 0
+    recall_at = {1: 0, 3: 0, 5: 0, 10: 0}
     for rec in run:
         q = man.get(rec["qid"])
         if not q:
@@ -74,6 +80,8 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
         f1_sum += f1
         if normalize_answer(rec["answer"]) == normalize_answer(q["answer"]):
             em_hit += 1
+        if rec.get("ref_titles") is None:
+            continue  # 引用未采集(SSE 中断),只计入 EM/F1
         refs = {title_key(t) for t in rec.get("ref_titles", [])}
         hits = sum(1 for g in q["gold_titles"] if title_key(g) in refs)
         if hits == len(q["gold_titles"]):
@@ -82,7 +90,26 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
             support_partial += 1
         else:
             support_none += 1
+        # ordered distinct citation list (refs preserve payload order)
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for t in rec.get("ref_titles", []):
+            k = title_key(t)
+            if k not in seen:
+                seen.add(k)
+                ordered.append(k)
+        cite_width_sum += len(ordered)
+        cite_width_n += 1
+        gold_keys = [title_key(g) for g in q["gold_titles"]]
+        ranks = [ordered.index(g) + 1 for g in gold_keys if g in ordered]
+        if ranks:
+            rr_sum += 1.0 / min(ranks)
+        rr_n += 1
+        for k in recall_at:
+            recall_at[k] += sum(1 for g in gold_keys if g in ordered[:k])
     n = max(scored, 1)
+    rn = max(rr_n, 1)
+    gold_per_q = 2
     return {
         "questions": len(man),
         "scored": scored,
@@ -92,6 +119,10 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
         "support_full_pct": round(support_full / n * 100, 2),
         "support_partial_pct": round(support_partial / n * 100, 2),
         "support_zero_pct": round(support_none / n * 100, 2),
+        "cite_width_avg": round(cite_width_sum / rn, 1),
+        "MRR_first_gold": round(rr_sum / rn * 100, 2),
+        **{f"gold_in_top{k}": round(recall_at[k] / (rn * gold_per_q) * 100, 2)
+           for k in sorted(recall_at)},
     }
 
 

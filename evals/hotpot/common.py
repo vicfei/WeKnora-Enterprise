@@ -96,11 +96,14 @@ class EvalClient:
         return resp.json()["data"]["id"]
 
     def list_knowledge(self, kb_id: str) -> list:
+        return self.list_knowledge_page(kb_id, 1)
+
+    def list_knowledge_page(self, kb_id: str, page: int, size: int = 100) -> list:
         resp = self.http.get(
             f"{BASE}/api/v1/knowledge-bases/{kb_id}/knowledge",
             headers=self._headers(),
-            params={"page": 1, "page_size": 50},
-            timeout=30,
+            params={"page": page, "page_size": size},
+            timeout=60,
         )
         resp.raise_for_status()
         data = resp.json().get("data")

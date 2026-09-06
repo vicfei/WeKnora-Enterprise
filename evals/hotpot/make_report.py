@@ -27,7 +27,8 @@ AMBER = "#a05a00"
 def question_rows(manifest: list[dict], run: list[dict]) -> tuple[list[dict], dict]:
     man = {q["qid"]: q for q in manifest}
     rows = []
-    agg = {"n": 0, "em": 0, "f1": 0.0, "full": 0, "partial": 0, "zero": 0, "err": 0}
+    agg = {"n": 0, "em": 0, "f1": 0.0, "full": 0, "partial": 0, "zero": 0, "err": 0,
+           "width": 0, "width_n": 0, "rr": 0.0, "rr_n": 0, "topk": {1: 0, 3: 0, 5: 0, 10: 0}}
     for rec in run:
         q = man.get(rec["qid"])
         if not q:
@@ -48,7 +49,10 @@ def question_rows(manifest: list[dict], run: list[dict]) -> tuple[list[dict], di
         em = normalize_answer(rec["answer"]) == normalize_answer(q["answer"])
         agg["f1"] += f1
         agg["em"] += 1 if em else 0
-        refs = {title_key(t) for t in rec.get("ref_titles", [])}
+        raw_refs = rec.get("ref_titles")
+        if raw_refs is None:
+            continue  # 引用未采集(SSE 中断),只计入 EM/F1
+        refs = {title_key(t) for t in raw_refs}
         hits = sum(1 for g in q["gold_titles"] if title_key(g) in refs)
         total = len(q["gold_titles"])
         if hits == total:
@@ -57,6 +61,23 @@ def question_rows(manifest: list[dict], run: list[dict]) -> tuple[list[dict], di
             agg["partial"] += 1
         else:
             agg["zero"] += 1
+        # rank-aware: ordered distinct citations
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for t in raw_refs:
+            k = title_key(t)
+            if k not in seen:
+                seen.add(k)
+                ordered.append(k)
+        agg["width"] += len(ordered)
+        agg["width_n"] += 1
+        gold_keys = [title_key(g) for g in q["gold_titles"]]
+        ranks = [ordered.index(g) + 1 for g in gold_keys if g in ordered]
+        if ranks:
+            agg["rr"] += 1.0 / min(ranks)
+        agg["rr_n"] += 1
+        for k in agg["topk"]:
+            agg["topk"][k] += sum(1 for g in gold_keys if g in ordered[:k])
         rows.append(
             {"qid": rec["qid"], "q": q["question"], "gold": q["answer"],
              "pred": rec["answer"], "em": em, "f1": f1, "hits": f"{hits}/{total}",
@@ -120,6 +141,19 @@ def render(title: str, runs: list[dict]) -> str:
                 f'<div class=card><div class=v style="color:{color}">{val}</div>'
                 f'<div class=k>{key}</div></div>'
             )
+        if a["rr_n"]:
+            rn = a["rr_n"]
+            for val, key, color in [
+                (f"{a['rr']/rn*100:.1f}", "MRR（首个金标排位倒数）", GREEN),
+                (f"{a['width']/max(a['width_n'],1):.1f}", "平均引用文档数（宽度）", "#2f6fed"),
+                (f"{a['topk'][1]/(rn*2)*100:.1f}%", "金标进引用第1位", GREEN),
+                (f"{a['topk'][3]/(rn*2)*100:.1f}%", "金标进前3", GREEN),
+                (f"{a['topk'][5]/(rn*2)*100:.1f}%", "金标进前5", GREEN),
+            ]:
+                html.append(
+                    f'<div class=card><div class=v style="color:{color}">{val}</div>'
+                    f'<div class=k>{key}</div></div>'
+                )
         if a["err"]:
             html.append(f'<div class=card><div class=v style="color:{RED}">{a["err"]}</div><div class=k>错误/空答</div></div>')
         html.append("</div>")

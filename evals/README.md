@@ -45,3 +45,14 @@ python3 ingest.py --manifest ../data/eval-20.jsonl
 python3 run_eval.py --manifest ../data/eval-20.jsonl --out ../data/runs/pilot.jsonl
 python3 score.py --run ../data/runs/pilot.jsonl
 ```
+
+## 成本与端点教训（2026-09-06）
+
+- **跑批前先确认模型端点余额**：单轮 500 题问答 + 4955 篇池文档的摘要生成可耗尽
+  按量计费账户（实测：DeepSeek API 402 Insufficient Balance）。
+- manual 灌入的摘要生成是隐性大头（每篇一次 LLM 调用）；评估场景应通过
+  `process_config` 跳过摘要（待实现），或接受摘要失败——**摘要失败不影响
+  向量/关键词检索**（chunks 与 embeddings 在 processing 阶段完成）。
+- 余额耗尽时后端摘要队列会对全部失败文档反复重试（半小时 ~4 万次 402），
+  重试耗尽后自动停；恢复余额后队列可续。
+- 评估租户 10011 的 QA=DeepSeek、Embedding/Rerank=阿里云 dashscope，独立计费。
