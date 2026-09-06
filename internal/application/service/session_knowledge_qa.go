@@ -86,6 +86,19 @@ func (s *sessionService) KnowledgeQA(
 	// Resolve retrieval tenant scope using shared helper
 	retrievalTenantID := s.resolveRetrievalTenantID(ctx, req)
 
+	// 二开特性（kb_router.go）：显式未选库且请求开启路由时，按内容质心相似度
+	// 自动选库。显式选择（含 @提及/agent 范围）永远优先，路由不介入。
+	var kbRouting *KBRoutingInfo
+	if req.EnableKBRouting && len(knowledgeBaseIDs) == 0 && len(knowledgeIDs) == 0 && len(req.TagScopes) == 0 {
+		routedIDs, info := s.routeKnowledgeBases(ctx, retrievalTenantID, req.Query)
+		if info != nil && len(routedIDs) > 0 {
+			knowledgeBaseIDs = routedIDs
+			kbRouting = info
+		} else if info != nil {
+			kbRouting = info // keep the failure reason observable
+		}
+	}
+
 	// Build unified search targets (computed once, used throughout pipeline)
 	searchTargets, err := s.buildSearchTargets(ctx, retrievalTenantID, knowledgeBaseIDs, knowledgeIDs, req.TagScopes)
 	if err != nil {
@@ -158,6 +171,11 @@ func (s *sessionService) KnowledgeQA(
 	// plugin reads.
 	if req.CustomAgent != nil {
 		ctx = types.ApplyAgentMemoryPreference(ctx, req.CustomAgent.Config.MemoryEnabled)
+	}
+
+	// 路由决策对外可见（SSE tool_call 事件，评估端与前端均可消费）
+	if kbRouting != nil {
+		emitKBRoutingEvent(ctx, chatManage, kbRouting)
 	}
 
 	// Determine pipeline based on the effective knowledge retrieval scope and

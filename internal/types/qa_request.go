@@ -19,6 +19,7 @@ type QARequest struct {
 	ImageDescription    string             // VLM-generated image description (fallback for non-vision models)
 	UserMessageID       string             // Created user message ID
 	WebSearchEnabled    bool               // Whether web search is enabled for this request
+	EnableKBRouting     bool               // 二开特性: no explicit KB selection → auto-route by content similarity (kb_router.go)
 	QuotedContext       string             // Quoted message content from IM quote-reply (appended at LLM prompt stage, not used for retrieval)
 	Attachments         MessageAttachments // File attachments (processed and ready for prompt injection)
 }

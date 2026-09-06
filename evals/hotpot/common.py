@@ -184,6 +184,55 @@ class EvalClient:
         return {"answer": answer.strip(), "references": references, "done": done}
 
 
+    def ask_sse_routing(self, session_id: str, question: str, timeout: int = 300) -> dict:
+        """Routing-mode SSE round: no KB hint, enable_kb_routing=true.
+        Returns ask_sse fields plus routed_kbs (from the kb_router event)."""
+        events: list[dict] = []
+        with self.http.post(
+            f"{BASE}/api/v1/knowledge-chat/{session_id}",
+            headers={**self._headers(), "Accept": "text/event-stream"},
+            json={"query": question, "enable_kb_routing": True, "disable_title": True},
+            stream=True,
+            timeout=timeout,
+        ) as resp:
+            resp.raise_for_status()
+            buf = []
+            for raw in resp.iter_lines(decode_unicode=True):
+                if raw is None:
+                    continue
+                if raw.startswith("data:"):
+                    buf.append(raw[5:].strip())
+                elif raw == "" and buf:
+                    payload = "\n".join(buf)
+                    buf = []
+                    try:
+                        events.append(json.loads(payload))
+                    except json.JSONDecodeError:
+                        events.append({"_raw": payload[:200]})
+            if buf:
+                try:
+                    events.append(json.loads("\n".join(buf)))
+                except json.JSONDecodeError:
+                    pass
+        answer = ""
+        references = []
+        routed_kbs: list[dict] = []
+        done = False
+        for ev in events:
+            rtype = ev.get("response_type")
+            data = ev.get("data") or {}
+            if rtype == "answer":
+                answer += ev.get("content") or ""
+            elif rtype == "references":
+                references = ev.get("data") or ev.get("content") or []
+            elif rtype == "complete":
+                done = True
+            elif rtype == "tool_call" and isinstance(data, dict):
+                if str(data.get("tool_name")) == "kb_router":
+                    routed_kbs = (data.get("arguments") or {}).get("selected") or []
+        return {"answer": answer.strip(), "references": references, "done": done, "routed_kbs": routed_kbs}
+
+
 def reference_titles(references) -> list[str]:
     """Extract document titles from the references event payload."""
     titles = []

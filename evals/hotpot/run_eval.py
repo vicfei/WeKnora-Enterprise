@@ -34,6 +34,12 @@ def main() -> None:
     ap.add_argument("--concurrency", type=int, default=1)
     ap.add_argument("--label", default="", help="config label, e.g. baseline / routing-on")
     ap.add_argument(
+        "--route",
+        action="store_true",
+        help="KB-routing mode: no knowledge_base_ids + enable_kb_routing=true; "
+        "capture kb_router event as routed_kbs",
+    )
+    ap.add_argument(
         "--lang",
         default="en",
         choices=["en", "raw"],
@@ -61,7 +67,7 @@ def main() -> None:
             if qid in done_qids:
                 continue
             kb_id = ingest.get(qid, {}).get("kb_id")
-            if not kb_id:
+            if not kb_id and not args.route:
                 print(f"[skip] {qid}: no kb")
                 continue
             t0 = time.time()
@@ -74,15 +80,27 @@ def main() -> None:
                 )
             try:
                 sid = client.create_session(f"eval {qid} {args.label}".strip())
-                result = client.ask_sse(sid, kb_id, question)
-                rec = {
-                    "qid": qid,
-                    "label": args.label,
-                    "answer": result["answer"],
-                    "ref_titles": reference_titles(result["references"]),
-                    "done": result["done"],
-                    "secs": round(time.time() - t0, 1),
-                }
+                if args.route:
+                    result = client.ask_sse_routing(sid, question)
+                    rec = {
+                        "qid": qid,
+                        "label": args.label,
+                        "answer": result["answer"],
+                        "ref_titles": reference_titles(result["references"]),
+                        "routed_kbs": result["routed_kbs"],
+                        "done": result["done"],
+                        "secs": round(time.time() - t0, 1),
+                    }
+                else:
+                    result = client.ask_sse(sid, kb_id, question)
+                    rec = {
+                        "qid": qid,
+                        "label": args.label,
+                        "answer": result["answer"],
+                        "ref_titles": reference_titles(result["references"]),
+                        "done": result["done"],
+                        "secs": round(time.time() - t0, 1),
+                    }
             except Exception as exc:  # noqa: BLE001
                 rec = {"qid": qid, "label": args.label, "error": str(exc)[:200]}
             out.write(json.dumps(rec, ensure_ascii=False) + "\n")

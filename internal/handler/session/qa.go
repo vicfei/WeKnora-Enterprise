@@ -49,6 +49,7 @@ type qaRequestContext struct {
 	skillNames            []string
 	summaryModelID        string
 	webSearchEnabled      bool
+	enableKBRouting       bool
 	mentionedItems        types.MentionedItems
 	effectiveTenantID     uint64                   // when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant
 	sharedAgentReadOnly   bool                     // access was granted by a read-only agent share
@@ -91,6 +92,7 @@ func (rc *qaRequestContext) buildQARequest() *types.QARequest {
 		ImageDescription:    imageDescription,
 		UserMessageID:       rc.userMessageID,
 		WebSearchEnabled:    rc.webSearchEnabled,
+		EnableKBRouting:    rc.enableKBRouting,
 		Attachments:         rc.attachments,
 	}
 }
@@ -377,6 +379,7 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		skillNames:            secutils.SanitizeForLogArray(skillNames),
 		summaryModelID:        secutils.SanitizeForLog(request.SummaryModelID),
 		webSearchEnabled:      request.WebSearchEnabled,
+		enableKBRouting:       request.EnableKBRouting,
 		mentionedItems:        convertMentionedItems(request.MentionedItems),
 		effectiveTenantID:     effectiveTenantID,
 		sharedAgentReadOnly:   sharedAgentReadOnly,
