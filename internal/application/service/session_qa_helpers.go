@@ -45,6 +45,11 @@ func (s *sessionService) resolveKnowledgeBases(
 		kbIDs = nil
 		knowledgeIDs = nil
 		logger.Infof(ctx, "RetrieveKBOnlyWhenMentioned is enabled and no @ mention found, KB retrieval disabled for this request")
+	} else if customAgent != nil && req.EnableKBRouting && customAgent.ID == types.BuiltinQuickAnswerID {
+		// 二开特性（kb_router.go）：快速问答 + 自动选库 + 未显式选库时，
+		// 跳过内置伪智能体的"全部库"填充，保持 kbIDs 为空让路由介入。
+		// 仅限 builtin-quick-answer：真实自定义智能体的库范围配置不受影响。
+		logger.Infof(ctx, "KB resolution: routing requested, skipping builtin-quick-answer all-KB fill")
 	} else if customAgent != nil {
 		kbIDs = s.resolveKnowledgeBasesFromAgent(ctx, customAgent, req.Session.TenantID)
 	}

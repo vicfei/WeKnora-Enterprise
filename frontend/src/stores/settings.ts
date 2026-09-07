@@ -580,6 +580,9 @@ export const useSettingsStore = defineStore("settings", {
         if (typeof state.web_search_enabled === "boolean") {
           this.settings.webSearchEnabled = state.web_search_enabled;
         }
+        if (typeof state.kb_routing_enabled === "boolean") {
+          this.settings.kbRoutingEnabled = state.kb_routing_enabled;
+        }
       } finally {
         // 复位必须延后到下一次 flush 之后：监听 selectedAgentId 的 watcher 默认
         // flush:'pre'，是异步执行的；若在此处同步复位，watcher 真正运行时标志早已
@@ -616,4 +619,5 @@ export interface SessionLastRequestStatePayload {
     skill_name?: string;
   }>;
   web_search_enabled?: boolean;
+  kb_routing_enabled?: boolean;
 }

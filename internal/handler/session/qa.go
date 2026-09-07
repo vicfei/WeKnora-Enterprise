@@ -1414,6 +1414,7 @@ func (h *Handler) persistLastRequestState(parentCtx context.Context, reqCtx *qaR
 		SkillNames:       reqCtx.skillNames,
 		MentionedItems:   reqCtx.mentionedItems,
 		WebSearchEnabled: reqCtx.webSearchEnabled,
+		KbRoutingEnabled: reqCtx.enableKBRouting,
 	}
 
 	if err := h.sessionService.UpdateSessionLastRequestState(ctx, reqCtx.sessionID, state); err != nil {

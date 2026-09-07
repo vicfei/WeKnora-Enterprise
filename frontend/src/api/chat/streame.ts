@@ -106,6 +106,10 @@ export function useStream() {
       if (params.web_search_enabled !== undefined) {
         postBody.web_search_enabled = params.web_search_enabled;
       }
+      // 二开特性：自动选库（快速问答 + 未显式选库时后端路由 top-K）
+      if (params.enable_kb_routing !== undefined) {
+        postBody.enable_kb_routing = params.enable_kb_routing;
+      }
       // Include summary_model_id if provided (for non-Agent mode)
       if (params.summary_model_id) {
         postBody.summary_model_id = params.summary_model_id;
