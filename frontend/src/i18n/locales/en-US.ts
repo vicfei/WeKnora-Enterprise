@@ -619,6 +619,7 @@ export default {
     pdfDocFormat: 'pdf, doc format files, max 10M',
     textMarkdownFormat: 'text, markdown format files, max 200K',
     dragFileNotText: 'Please drag files instead of text or links',
+    kbRoutingAgentConflict: 'Auto KB selection applies to normal Q&A only; in agent mode the agent config decides the KB scope',
     kbRoutingToggle: 'Auto-select KBs (experimental): match the most relevant knowledge bases when none is picked',
     searchPlaceholder: 'Search knowledge bases...',
     docSearchPlaceholder: 'Search document names...',

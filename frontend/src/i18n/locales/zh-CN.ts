@@ -6417,6 +6417,7 @@ export default {
     pdfDocFormat: 'pdf、doc 格式文件，不超过10M',
     textMarkdownFormat: 'text、markdown格式文件，不超过200K',
     dragFileNotText: '请拖拽文件而不是文本或链接',
+    kbRoutingAgentConflict: '自动选库仅在普通问答模式生效，智能体模式下由智能体配置决定知识库范围',
     kbRoutingToggle: '自动选库（实验）：不手动选择时自动匹配最相关的知识库',
     searchPlaceholder: '搜索知识库...',
     docSearchPlaceholder: '搜索文档名称...',

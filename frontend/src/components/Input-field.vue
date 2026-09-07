@@ -2752,9 +2752,17 @@ defineExpose({
                请求带 enable_kb_routing，由后端按内容相似度选 top-K 知识库 -->
           <t-tooltip v-if="kbRoutingFeatureEnabled" placement="top" theme="light"
             :popupProps="{ overlayClassName: 'input-field-tooltip' }">
-            <template #content>{{ $t('knowledgeBase.kbRoutingToggle') }}</template>
-            <div class="control-btn kb-btn" :class="{ 'active': settingsStore.isKbRoutingEnabled }"
-              @click.stop @mousedown.prevent="settingsStore.toggleKbRouting(!settingsStore.isKbRoutingEnabled)">
+            <template #content>{{
+              settingsStore.selectedAgentId
+                ? $t('knowledgeBase.kbRoutingAgentConflict')
+                : $t('knowledgeBase.kbRoutingToggle')
+            }}</template>
+            <div class="control-btn kb-btn" :class="{
+              'active': settingsStore.isKbRoutingEnabled,
+              'disabled': !!settingsStore.selectedAgentId,
+            }"
+              @click.stop @mousedown.prevent="!settingsStore.selectedAgentId
+                && settingsStore.toggleKbRouting(!settingsStore.isKbRoutingEnabled)">
               <t-icon name="city" size="16px" class="control-icon" />
             </div>
           </t-tooltip>
