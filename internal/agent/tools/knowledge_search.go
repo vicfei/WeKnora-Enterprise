@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/config"
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -127,9 +127,36 @@ type KnowledgeSearchTool struct {
 	searchTargets        types.SearchTargets // Pre-computed unified search targets
 	rerankModel          rerank.Reranker
 	config               *config.Config // Global config for fallback values
+	// ranking holds the resolved composite weights + MMR lambda applied to
+	// reranked candidates. Zero value means "legacy constants" so every
+	// construction site that never calls WithRanking (tests, skill-install
+	// engine) keeps the historical formula.
+	ranking types.ResolvedRanking
 
 	seenMu     sync.Mutex
 	seenChunks map[string]bool
+}
+
+// WithRanking sets the retrieval-ranking parameters. A zero-value input is
+// normalized to the legacy defaults (0.6/0.3/0.1, MMR λ=0.7) so an unset
+// AgentConfig.Ranking can never zero out the composite score.
+func (t *KnowledgeSearchTool) WithRanking(r types.ResolvedRanking) *KnowledgeSearchTool {
+	if r == (types.ResolvedRanking{}) {
+		r = (&types.RankingConfig{}).Resolve()
+	}
+	t.ranking = r
+	return t
+}
+
+// effectiveRanking returns the ranking parameters to score with, normalizing
+// a zero value (a tool built via struct literal without WithRanking) to the
+// legacy defaults. Composite scoring with an all-zero ResolvedRanking would
+// flatten every candidate to 0, which no construction path should produce.
+func (t *KnowledgeSearchTool) effectiveRanking() types.ResolvedRanking {
+	if t.ranking == (types.ResolvedRanking{}) {
+		return (&types.RankingConfig{}).Resolve()
+	}
+	return t.ranking
 }
 
 // NewKnowledgeSearchTool creates a new knowledge search tool
@@ -149,6 +176,7 @@ func NewKnowledgeSearchTool(
 		searchTargets:        searchTargets,
 		rerankModel:          rerankModel,
 		config:               cfg,
+		ranking:              (&types.RankingConfig{}).Resolve(),
 		seenChunks:           make(map[string]bool),
 	}
 }
@@ -326,14 +354,17 @@ func (t *KnowledgeSearchTool) Execute(ctx context.Context, args json.RawMessage)
 		if mmrK < 1 {
 			mmrK = 1
 		}
-		// Apply MMR with lambda=0.7 (balance between relevance and diversity)
+		// Apply MMR with the resolved lambda (legacy default 0.7 — balance
+		// between relevance and diversity; request-level ranking overrides it)
+		mmrLambda := t.effectiveRanking().MMRLambda
 		logger.Debugf(
 			ctx,
-			"[Tool][KnowledgeSearch] Applying MMR: k=%d, lambda=0.7, input=%d results",
+			"[Tool][KnowledgeSearch] Applying MMR: k=%d, lambda=%.2f, input=%d results",
 			mmrK,
+			mmrLambda,
 			len(filteredResults),
 		)
-		mmrResults := t.applyMMR(ctx, filteredResults, mmrK, 0.7)
+		mmrResults := t.applyMMR(ctx, filteredResults, mmrK, mmrLambda)
 		if len(mmrResults) > 0 {
 			filteredResults = mmrResults
 			logger.Infof(ctx, "[Tool][KnowledgeSearch] MMR completed: %d results selected", len(filteredResults))
@@ -1206,7 +1237,12 @@ func (t *KnowledgeSearchTool) getEnrichedPassage(ctx context.Context, result *ty
 	return combinedText
 }
 
-// compositeScore calculates a composite score considering multiple factors
+// compositeScore calculates a composite score considering multiple factors.
+// The weighted-sum core is shared with the chat pipeline via
+// searchutil.CompositeScore (upstream U-03: both paths used to carry private
+// copies of the same formula). This wrapper keeps the agent-path extras: the
+// document-position prior and, when the ranking enables it, the recency
+// signal read from enriched metadata.
 func (t *KnowledgeSearchTool) compositeScore(
 	result *searchResultWithMeta,
 	modelScore, baseScore float64,
@@ -1225,8 +1261,17 @@ func (t *KnowledgeSearchTool) compositeScore(
 		positionPrior += t.clampFloat(positionRatio, -0.05, 0.05)
 	}
 
-	// Composite formula: weighted combination of model score, base score, and source weight
-	composite := 0.6*modelScore + 0.3*baseScore + 0.1*sourceWeight
+	recency := 0.0
+	ranking := t.effectiveRanking()
+	if ranking.RecencyWeight > 0 && result.Metadata != nil {
+		recency = searchutil.RecencySignal(
+			result.Metadata["knowledge_updated_at"],
+			ranking.RecencyHalfLifeDays, time.Now())
+	}
+
+	// Composite formula: weighted combination of model score, base score,
+	// source weight and recency (shared kernel), scaled by the position prior.
+	composite := searchutil.CompositeScore(modelScore, baseScore, sourceWeight, recency, ranking)
 	composite *= positionPrior
 
 	// Clamp to [0, 1]
@@ -1245,7 +1290,10 @@ func (t *KnowledgeSearchTool) clampFloat(v, minV, maxV float64) float64 {
 	return searchutil.ClampFloat(v, minV, maxV)
 }
 
-// applyMMR applies Maximal Marginal Relevance algorithm to reduce redundancy
+// applyMMR applies Maximal Marginal Relevance to reduce redundancy. The
+// selection loop is the shared searchutil.SelectMMR kernel (upstream U-03);
+// this method owns tokenization of the enriched passages and the diagnostic
+// logging the agent path emits.
 func (t *KnowledgeSearchTool) applyMMR(
 	ctx context.Context,
 	results []*searchResultWithMeta,
@@ -1259,59 +1307,28 @@ func (t *KnowledgeSearchTool) applyMMR(
 	logger.Infof(ctx, "[Tool][KnowledgeSearch] Applying MMR: lambda=%.2f, k=%d, candidates=%d",
 		lambda, k, len(results))
 
-	selected := make([]*searchResultWithMeta, 0, k)
-	candidates := make([]*searchResultWithMeta, len(results))
-	copy(candidates, results)
-
-	// Pre-compute token sets for all candidates
-	tokenSets := make([]map[string]struct{}, len(candidates))
-	for i, r := range candidates {
+	// Pre-compute token sets and scores for all candidates
+	tokenSets := make([]map[string]struct{}, len(results))
+	scores := make([]float64, len(results))
+	for i, r := range results {
 		tokenSets[i] = t.tokenizeSimple(t.getEnrichedPassage(ctx, r.SearchResult))
+		scores[i] = r.Score
 	}
 
-	// MMR selection loop, incremental form: maxRedundancy[i] caches candidate i's
-	// maximum jaccard against everything selected so far, so each round only needs
-	// one comparison per remaining candidate instead of one per (candidate, selected)
-	// pair. Selection output is identical to the naive form, including tie-breaking,
-	// because the candidate iteration order is unchanged.
-	selectedTokenSets := make([]map[string]struct{}, 0, k)
-	maxRedundancy := make([]float64, len(candidates))
-	for len(selected) < k && len(candidates) > 0 {
-		bestIdx := 0
-		bestScore := -1.0
-
-		for i, r := range candidates {
-			// MMR score: balance relevance and diversity
-			mmr := lambda*r.Score - (1.0-lambda)*maxRedundancy[i]
-			if mmr > bestScore {
-				bestScore = mmr
-				bestIdx = i
-			}
-		}
-
-		// Add best candidate to selected and remove from candidates
-		selected = append(selected, candidates[bestIdx])
-		chosenTokens := tokenSets[bestIdx]
-		selectedTokenSets = append(selectedTokenSets, chosenTokens)
-		candidates = append(candidates[:bestIdx], candidates[bestIdx+1:]...)
-		// Remove corresponding token set and cached redundancy
-		tokenSets = append(tokenSets[:bestIdx], tokenSets[bestIdx+1:]...)
-		maxRedundancy = append(maxRedundancy[:bestIdx], maxRedundancy[bestIdx+1:]...)
-
-		// Fold the freshly selected result into every remaining candidate's cache
-		for i := range candidates {
-			maxRedundancy[i] = math.Max(maxRedundancy[i], t.jaccard(tokenSets[i], chosenTokens))
-		}
+	selectedIdx := searchutil.SelectMMR(k, lambda, scores, tokenSets)
+	selected := make([]*searchResultWithMeta, 0, len(selectedIdx))
+	for _, i := range selectedIdx {
+		selected = append(selected, results[i])
 	}
 
 	// Compute average redundancy among selected results, reusing the cached token
 	// sets instead of re-tokenizing every pair
 	avgRed := 0.0
-	if len(selectedTokenSets) > 1 {
+	if len(selectedIdx) > 1 {
 		pairs := 0
-		for i := 0; i < len(selectedTokenSets); i++ {
-			for j := i + 1; j < len(selectedTokenSets); j++ {
-				avgRed += t.jaccard(selectedTokenSets[i], selectedTokenSets[j])
+		for i := 0; i < len(selectedIdx); i++ {
+			for j := i + 1; j < len(selectedIdx); j++ {
+				avgRed += t.jaccard(tokenSets[selectedIdx[i]], tokenSets[selectedIdx[j]])
 				pairs++
 			}
 		}

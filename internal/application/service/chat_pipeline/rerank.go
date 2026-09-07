@@ -467,7 +467,13 @@ func safeTopScore(results []rerank.RankResult) float64 {
 	return results[0].RelevanceScore
 }
 
-// compositeScore calculates the composite score for a search result
+// legacyRankingResolved is the resolved ranking with every field at its
+// legacy default — the exact constants the pre-weighted-ranking code used.
+var legacyRankingResolved = (&types.RankingConfig{}).Resolve()
+
+// compositeScore calculates the composite score for a search result.
+// Delegates to the shared searchutil kernel (upstream U-03) with the legacy
+// defaults; bit-identical to the historical 0.6/0.3/0.1 formula.
 func compositeScore(sr *types.SearchResult, modelScore, baseScore float64) float64 {
 	sourceWeight := 1.0
 	switch strings.ToLower(sr.KnowledgeSource) {
@@ -476,14 +482,7 @@ func compositeScore(sr *types.SearchResult, modelScore, baseScore float64) float
 	default:
 		sourceWeight = 1.0
 	}
-	composite := 0.6*modelScore + 0.3*baseScore + 0.1*sourceWeight
-	if composite < 0 {
-		composite = 0
-	}
-	if composite > 1 {
-		composite = 1
-	}
-	return composite
+	return searchutil.CompositeScore(modelScore, baseScore, sourceWeight, 0, legacyRankingResolved)
 }
 
 // weightedCompositeScore generalizes compositeScore with configurable weights.
@@ -494,15 +493,7 @@ func weightedCompositeScore(sr *types.SearchResult, modelScore, baseScore, recen
 	if strings.ToLower(sr.KnowledgeSource) == "web_search" {
 		sourceWeight = 0.95
 	}
-	composite := r.RerankWeight*modelScore + r.RetrievalWeight*baseScore +
-		r.SourceWeight*sourceWeight + r.RecencyWeight*recency
-	if composite < 0 {
-		composite = 0
-	}
-	if composite > 1 {
-		composite = 1
-	}
-	return composite
+	return searchutil.CompositeScore(modelScore, baseScore, sourceWeight, recency, r)
 }
 
 // recencySignal maps a document's last-update timestamp to an exponential
@@ -510,22 +501,10 @@ func weightedCompositeScore(sr *types.SearchResult, modelScore, baseScore, recen
 // scores 0.5, and so on. Missing or unparsable timestamps yield 0, which is
 // only meaningful when RecencyWeight > 0.
 func recencySignal(sr *types.SearchResult, halfLifeDays int, now time.Time) float64 {
-	if halfLifeDays <= 0 || sr.Metadata == nil {
+	if sr.Metadata == nil {
 		return 0
 	}
-	raw, ok := sr.Metadata["knowledge_updated_at"]
-	if !ok || raw == "" {
-		return 0
-	}
-	updatedAt, err := time.Parse(time.RFC3339, raw)
-	if err != nil || updatedAt.IsZero() {
-		return 0
-	}
-	ageDays := now.Sub(updatedAt).Hours() / 24
-	if ageDays <= 0 {
-		return 1
-	}
-	return math.Pow(2, -ageDays/float64(halfLifeDays))
+	return searchutil.RecencySignal(sr.Metadata["knowledge_updated_at"], halfLifeDays, now)
 }
 
 // logSignalDistribution emits one compact summary per rerank round covering
@@ -562,7 +541,11 @@ func logSignalDistribution(ctx context.Context, results []*types.SearchResult) {
 	})
 }
 
-// applyMMR applies the MMR algorithm to the search results with pre-computed token sets
+// applyMMR applies the MMR algorithm to the search results. Selection runs
+// in the shared searchutil.SelectMMR kernel (upstream U-03); the incremental
+// form there produces the same selection order — tie-breaking included — as
+// the naive pairwise loop this used to inline, at one comparison per
+// remaining candidate per round.
 func applyMMR(
 	ctx context.Context,
 	results []*types.SearchResult,
@@ -583,54 +566,24 @@ func applyMMR(
 	allTokenSets := ParallelMap(results, 0, func(i int, r *types.SearchResult) map[string]struct{} {
 		return searchutil.TokenizeSimple(getEnrichedPassage(ctx, r))
 	})
+	scores := make([]float64, len(results))
+	for i, r := range results {
+		scores[i] = r.Score
+	}
 
-	selected := make([]*types.SearchResult, 0, k)
-	selectedTokenSets := make([]map[string]struct{}, 0, k)
-	selectedIndices := make(map[int]struct{})
-
-	for len(selected) < k && len(selectedIndices) < len(results) {
-		bestIdx := -1
-		bestScore := -1.0
-
-		for i, r := range results {
-			if _, isSelected := selectedIndices[i]; isSelected {
-				continue
-			}
-
-			relevance := r.Score
-			redundancy := 0.0
-
-			// Use pre-computed token sets for redundancy calculation
-			for _, selTokens := range selectedTokenSets {
-				sim := searchutil.Jaccard(allTokenSets[i], selTokens)
-				if sim > redundancy {
-					redundancy = sim
-				}
-			}
-
-			mmr := lambda*relevance - (1.0-lambda)*redundancy
-			if mmr > bestScore {
-				bestScore = mmr
-				bestIdx = i
-			}
-		}
-
-		if bestIdx < 0 {
-			break
-		}
-
-		selected = append(selected, results[bestIdx])
-		selectedTokenSets = append(selectedTokenSets, allTokenSets[bestIdx])
-		selectedIndices[bestIdx] = struct{}{}
+	selectedIndices := searchutil.SelectMMR(k, lambda, scores, allTokenSets)
+	selected := make([]*types.SearchResult, 0, len(selectedIndices))
+	for _, i := range selectedIndices {
+		selected = append(selected, results[i])
 	}
 
 	// Compute average redundancy among selected using pre-computed token sets
 	avgRed := 0.0
-	if len(selected) > 1 {
+	if len(selectedIndices) > 1 {
 		pairs := 0
-		for i := 0; i < len(selectedTokenSets); i++ {
-			for j := i + 1; j < len(selectedTokenSets); j++ {
-				avgRed += searchutil.Jaccard(selectedTokenSets[i], selectedTokenSets[j])
+		for i := 0; i < len(selectedIndices); i++ {
+			for j := i + 1; j < len(selectedIndices); j++ {
+				avgRed += searchutil.Jaccard(allTokenSets[selectedIndices[i]], allTokenSets[selectedIndices[j]])
 				pairs++
 			}
 		}
