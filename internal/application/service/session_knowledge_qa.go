@@ -177,6 +177,30 @@ func (s *sessionService) KnowledgeQA(
 		},
 	}
 
+	// 二开特性：请求级 rerank 模型覆盖。chat 链路历史上从不解析 rerank 模型
+	// （仅 agent 配置可设置），rerank 阶段被静默跳过；本开关让调用方显式启用。
+	// "auto" = 租户模型表里第一个可用 rerank 模型。空 = 维持现状（跳过 rerank）。
+	if req.RerankModelID != "" {
+		resolved := req.RerankModelID
+		if resolved == "auto" {
+			if models, err := s.modelService.ListModels(ctx); err == nil {
+				for _, model := range models {
+					if model != nil && model.Type == types.ModelTypeRerank {
+						resolved = model.ID
+						break
+					}
+				}
+			}
+			if resolved == "auto" {
+				logger.Warnf(ctx, "Request asked for auto rerank model but none is available; rerank stays skipped")
+			}
+		}
+		if resolved != "auto" {
+			chatManage.RerankModelID = resolved
+			logger.Infof(ctx, "Request-level rerank model override: %s", resolved)
+		}
+	}
+
 	// Apply custom agent overrides (system prompt, temperature, retrieval params,
 	// rewrite, fallback, FAQ strategy, history turns)
 	s.applyAgentOverridesToChatManage(ctx, req.CustomAgent, chatManage)

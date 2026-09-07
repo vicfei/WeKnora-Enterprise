@@ -57,8 +57,13 @@ type CreateKnowledgeQARequest struct {
 	// rerank composite score from the legacy hardcoded formula to the
 	// configurable weights in Ranking (falls back to tenant config, then to
 	// the legacy constants). Off = exact legacy behavior.
-	EnableWeightedRanking bool                         `json:"enable_weighted_ranking"`
-	Ranking               *types.RankingConfig         `json:"ranking,omitempty"`
+	EnableWeightedRanking bool                 `json:"enable_weighted_ranking"`
+	Ranking               *types.RankingConfig `json:"ranking,omitempty"`
+	// RerankModelID is a request-level rerank-model override (二开: the chat
+	// pipeline otherwise leaves RerankModelID empty unless an agent sets one,
+	// silently skipping the whole rerank stage). "auto" picks the first
+	// available rerank model; empty = today's behavior.
+	RerankModelID         string                       `json:"rerank_model_id,omitempty"`
 	SummaryModelID        string                       `json:"summary_model_id"`             // Optional summary model ID for this request (overrides session default)
 	MCPServiceIDs         []string                     `json:"mcp_service_ids"`              // Per-request MCP services selected via @mention
 	SkillNames            []string                     `json:"skill_names"`                  // Per-request Skills selected via @mention

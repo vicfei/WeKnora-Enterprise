@@ -136,18 +136,30 @@ class EvalClient:
         return resp.json()["data"]["id"]
 
     def ask_sse(
-        self, session_id: str, kb_id: str, question: str, timeout: int = 180
+        self,
+        session_id: str,
+        kb_id: str,
+        question: str,
+        timeout: int = 180,
+        extra_body: dict | None = None,
     ) -> dict:
-        """Run one SSE knowledge-chat round; return {answer, references, events}."""
+        """Run one SSE knowledge-chat round; return {answer, references, events}.
+
+        extra_body is merged into the request body last, so experiments can
+        add request-level feature flags (e.g. enable_weighted_ranking/ranking).
+        """
+        body = {
+            "query": question,
+            "knowledge_base_ids": [kb_id],
+            "disable_title": True,
+        }
+        if extra_body:
+            body.update(extra_body)
         events: list[dict] = []
         with self.http.post(
             f"{BASE}/api/v1/knowledge-chat/{session_id}",
             headers={**self._headers(), "Accept": "text/event-stream"},
-            json={
-                "query": question,
-                "knowledge_base_ids": [kb_id],
-                "disable_title": True,
-            },
+            json=body,
             stream=True,
             timeout=timeout,
         ) as resp:

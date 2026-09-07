@@ -52,6 +52,7 @@ type qaRequestContext struct {
 	enableKBRouting       bool
 	enableWeightedRanking bool
 	ranking               *types.RankingConfig
+	rerankModelID         string
 	mentionedItems        types.MentionedItems
 	effectiveTenantID     uint64                   // when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant
 	sharedAgentReadOnly   bool                     // access was granted by a read-only agent share
@@ -97,6 +98,7 @@ func (rc *qaRequestContext) buildQARequest() *types.QARequest {
 		EnableKBRouting:       rc.enableKBRouting,
 		EnableWeightedRanking: rc.enableWeightedRanking,
 		Ranking:               rc.ranking,
+		RerankModelID:         rc.rerankModelID,
 		Attachments:           rc.attachments,
 	}
 }
@@ -386,6 +388,7 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		enableKBRouting:       request.EnableKBRouting,
 		enableWeightedRanking: request.EnableWeightedRanking,
 		ranking:               request.Ranking,
+		rerankModelID:         request.RerankModelID,
 		mentionedItems:        convertMentionedItems(request.MentionedItems),
 		effectiveTenantID:     effectiveTenantID,
 		sharedAgentReadOnly:   sharedAgentReadOnly,

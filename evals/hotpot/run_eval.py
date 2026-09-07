@@ -40,6 +40,19 @@ def main() -> None:
         "capture kb_router event as routed_kbs",
     )
     ap.add_argument(
+        "--rerank-model",
+        default="",
+        help="request-level rerank model id, or 'auto' for the first available "
+        "rerank model (the chat pipeline skips rerank entirely by default)",
+    )
+    ap.add_argument(
+        "--ranking",
+        default="",
+        help="weighted-ranking mode: JSON object merged into the request as "
+        "`ranking` with enable_weighted_ranking=true, e.g. "
+        "'{\"mmr_lambda\":1.0}'. Recorded verbatim in each run record.",
+    )
+    ap.add_argument(
         "--lang",
         default="en",
         choices=["en", "raw"],
@@ -48,6 +61,12 @@ def main() -> None:
         "English gold collapses); raw: send the question as-is",
     )
     args = ap.parse_args()
+
+    ranking_cfg = None
+    if args.ranking:
+        ranking_cfg = json.loads(args.ranking)
+        if not isinstance(ranking_cfg, dict):
+            ap.error("--ranking must be a JSON object")
 
     manifest = {q["qid"]: q for q in load_jsonl(args.manifest)}
     ingest_path = args.ingest or (args.manifest + ".ingest.jsonl")
@@ -92,7 +111,13 @@ def main() -> None:
                         "secs": round(time.time() - t0, 1),
                     }
                 else:
-                    result = client.ask_sse(sid, kb_id, question)
+                    extra_body = {}
+                    if args.rerank_model:
+                        extra_body["rerank_model_id"] = args.rerank_model
+                    if ranking_cfg is not None:
+                        extra_body["enable_weighted_ranking"] = True
+                        extra_body["ranking"] = ranking_cfg
+                    result = client.ask_sse(sid, kb_id, question, extra_body=extra_body or None)
                     rec = {
                         "qid": qid,
                         "label": args.label,
@@ -101,6 +126,10 @@ def main() -> None:
                         "done": result["done"],
                         "secs": round(time.time() - t0, 1),
                     }
+                    if ranking_cfg is not None:
+                        rec["ranking"] = ranking_cfg
+                    if args.rerank_model:
+                        rec["rerank_model"] = args.rerank_model
             except Exception as exc:  # noqa: BLE001
                 rec = {"qid": qid, "label": args.label, "error": str(exc)[:200]}
             out.write(json.dumps(rec, ensure_ascii=False) + "\n")

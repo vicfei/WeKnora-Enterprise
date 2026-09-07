@@ -22,6 +22,7 @@ type QARequest struct {
 	EnableKBRouting       bool               // 二开特性: no explicit KB selection → auto-route by content similarity (kb_router.go)
 	EnableWeightedRanking bool               // 二开特性: use configurable RankingConfig instead of the hardcoded rerank composite
 	Ranking               *RankingConfig     // Request-level weighted-ranking overrides (merged over tenant config at pipeline entry)
+	RerankModelID         string             // 二开特性: request-level rerank model ("auto" = first available); empty = skip rerank as before
 	QuotedContext         string             // Quoted message content from IM quote-reply (appended at LLM prompt stage, not used for retrieval)
 	Attachments           MessageAttachments // File attachments (processed and ready for prompt injection)
 }
