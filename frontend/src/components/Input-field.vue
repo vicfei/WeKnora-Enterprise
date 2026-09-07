@@ -4,7 +4,8 @@ import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { onBeforeRouteUpdate } from 'vue-router';
 import { MessagePlugin } from "tdesign-vue-next";
-import { useSettingsStore } from '@/stores/settings';
+import { useSettingsStore } from '@/stores/settings'
+import { kbRoutingEnabled } from '@/features/common/flags';
 import { useUIStore } from '@/stores/ui';
 import { useMenuStore } from '@/stores/menu';
 import { listKnowledgeBases, searchKnowledge, batchQueryKnowledge, listKnowledgeTags } from '@/api/knowledge-base';
@@ -52,7 +53,8 @@ import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequest
 
 const route = useRoute();
 const router = useRouter();
-const settingsStore = useSettingsStore();
+const settingsStore = useSettingsStore()
+const kbRoutingFeatureEnabled = kbRoutingEnabled();
 const uiStore = useUIStore();
 const orgStore = useOrganizationStore();
 const menuStore = useMenuStore();
@@ -2743,6 +2745,17 @@ defineExpose({
               @click.stop @mousedown.prevent="showTagTreePicker = !showTagTreePicker">
               <t-icon name="tag" size="16px" class="control-icon" />
               <span v-if="selectedTags.length > 0" class="kb-count">{{ selectedTags.length }}</span>
+            </div>
+          </t-tooltip>
+
+          <!-- 二开特性：自动选库开关（feature flag 关闭时不渲染）。开启后不选库发问，
+               请求带 enable_kb_routing，由后端按内容相似度选 top-K 知识库 -->
+          <t-tooltip v-if="kbRoutingFeatureEnabled" placement="top" theme="light"
+            :popupProps="{ overlayClassName: 'input-field-tooltip' }">
+            <template #content>{{ $t('knowledgeBase.kbRoutingToggle') }}</template>
+            <div class="control-btn kb-btn" :class="{ 'active': settingsStore.isKbRoutingEnabled }"
+              @click.stop @mousedown.prevent="settingsStore.toggleKbRouting(!settingsStore.isKbRoutingEnabled)">
+              <t-icon name="city" size="16px" class="control-icon" />
             </div>
           </t-tooltip>
 

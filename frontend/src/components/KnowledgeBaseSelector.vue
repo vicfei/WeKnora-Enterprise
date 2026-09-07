@@ -53,20 +53,6 @@
         </div>
       </div>
 
-      <!-- 二开特性：自动选库（feature flag 关闭时不渲染；开启后清空手选，
-           聊天请求改发 enable_kb_routing，由后端按内容相似度选库） -->
-      <div v-if="routingAvailable" class="kb-routing-row" @click.stop>
-        <label class="kb-routing-label">
-          <input
-            type="checkbox"
-            class="kb-routing-checkbox"
-            :checked="settingsStore.isKbRoutingEnabled"
-            @change="settingsStore.toggleKbRouting(($event.target as HTMLInputElement).checked)"
-          />
-          <span>{{ $t('knowledgeBase.kbRoutingToggle') }}</span>
-        </label>
-      </div>
-
       <!-- 底部操作 -->
       <div class="kb-actions">
         <button @click="selectAll" class="kb-btn">{{ $t('common.selectAll') }}</button>
@@ -79,7 +65,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
-import { kbRoutingEnabled } from '@/features/common/flags'
 import { listKnowledgeBases } from '@/api/knowledge-base'
 import { useI18n } from 'vue-i18n'
 import { getRootZoom, rectToCssPx, cssViewportSize } from '@/utils/zoom'
@@ -106,7 +91,6 @@ const props = defineProps<{
 const emit = defineEmits(['close', 'update:visible'])
 
 const settingsStore = useSettingsStore()
-const routingAvailable = kbRoutingEnabled()
 
 // 本地状态
 const searchQuery = ref('')
@@ -514,21 +498,5 @@ watch(() => props.visible, async (v) => {
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.98); }
   to { opacity: 1; transform: scale(1); }
-}
-.kb-routing-row {
-  padding: 6px 12px;
-  border-top: 1px solid #eef0f2;
-}
-.kb-routing-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #4a5a6a;
-  cursor: pointer;
-  user-select: none;
-}
-.kb-routing-checkbox {
-  accent-color: #00a870;
 }
 </style>
