@@ -16,6 +16,8 @@ PUBLISH_DIR = Path("/home/ubuntu/WeKnora/frontend/dist")
 
 # slug -> (title, source html in reports/, date, summary line)
 INDEX = [
+    ("agent-lab-v1-100", "智能推理模式标尺 v1：agent 基线 + RankingConfig/kb-routing 接入（100 题·池）", "agent-lab-v1-100.html",
+     "2026-09-08", "agent 基线 EM 53.0≈chat+rerank；U-03 重构零回归；agent 侧 λ=1.0 检索指标 +4~6.5（与 chat 相反：可再检索的消费者更爱纯相关度）"),
     ("weighted-ranking-v1-100", "主题3 排序加权 v1：rerank 接入与 MMR λ 三臂（100 题·池）", "weighted-ranking-v1-100.html",
      "2026-09-07", "接入 rerank：top3 +12.7 / EM +6.1；MMR λ=0.7 是功臣，λ=1.0 回吐 4-6 分（多样性防近重复挤位）"),
     ("routing-v11-100", "知识库路由 v1.1 评估（100 题）", "routing-v11-100.html",

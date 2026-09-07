@@ -125,9 +125,10 @@ max_iterations=15，web_search 关闭）。
 
 | 指标 | ① agent 基线 r1 | ② weighted-defaults | ③ λ=1.0 | ④ routing（见下） |
 |---|---|---|---|---|
-| EM / F1 | 53.0 / 75.49 | 55.0 / 76.05 | （见 run 记录） | — |
-| 金标 top3 / top5 / top10 | 78.0 / 82.0 / 84.0 | 77.5 / 83.0 / 86.5 | — | — |
-| MRR | 86.67 | 87.67 | — | — |
+| EM / F1 | 53.0 / 75.49 | 55.0 / 76.05 | 54.0 / 76.69 | — |
+| 金标 top3 / top5 / top10 | 78.0 / 82.0 / 84.0 | 77.5 / 83.0 / 86.5 | **82.0 / 86.5 / 90.5** | — |
+| 金标全命中 | 80.0% | 82.0% | **86.0%** | — |
+| MRR | 86.67 | 87.67 | **91.67** | — |
 
 结论：
 
@@ -136,12 +137,16 @@ max_iterations=15，web_search 关闭）。
    F1 75.5 显著高于 chat 双臂（agent 可多轮补检索）。
 2. **② vs ① 全部在噪声带内**（EM +2.0 / F1 +0.56 / top3 −0.5 / top5 +1.0）：
    RankingConfig 接入 + U-03 共享内核重构在默认参数下零回归（数学等价+行为等价双确认）。
-3. agent 侧 ref_titles 语义=检索并集（cite_width 8.4-9.4），跨模式对比方向性成立、
+3. **③ λ=1.0 检索指标全面超噪声提升（与 chat 侧相反！）**：top3 +4.0 / top5 +4.5 /
+   top10 +6.5 / 全命中 +6.0 / MRR +5.0，EM/F1 持平。chat 是一次性列表消费（多样性
+   防近重复挤占名额，λ=1.0 回吐）；agent 是可再检索的消费者，纯相关度排序更优。
+   **chat 的最优 λ 不迁移到 agent。** 单轮 r1，正式结论需 r2 复验。
+4. agent 侧 ref_titles 语义=检索并集（cite_width 8.4-9.4），跨模式对比方向性成立、
    模式内 A/B 精确。
-4. kb-routing（agent 侧）：`enable_kb_routing` + 智能体 kb_selection_mode=all 且
-   未显式选库时路由收窄（复用 chat 的 kb_router，事件同形状）；实验用
-   hotpot-rag-agent-all 智能体。复现：`run_eval.py --agent-id <id> [--route]
-   [--ranking '{...}']`。
+5. kb-routing（agent 侧）：`enable_kb_routing` + 智能体 kb_selection_mode=all 且
+   未显式选库时路由收窄（复用 chat 的 kb_router，事件同形状）；手测 541 库→3 库、
+   选中问题自有小库、答案正确。实验用 hotpot-rag-agent-all 智能体。
+   复现：`run_eval.py --agent-id <id> [--route] [--ranking '{...}']`。
 
 复现：`run_eval.py --manifest …eval-100.jsonl --ingest …pool.ingest.jsonl --agent-id <agent-id>
 --label <label> [--ranking '{"mmr_lambda":1.0}'] [--route]`。
