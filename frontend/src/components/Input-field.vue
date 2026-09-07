@@ -2753,15 +2753,15 @@ defineExpose({
           <t-tooltip v-if="kbRoutingFeatureEnabled" placement="top" theme="light"
             :popupProps="{ overlayClassName: 'input-field-tooltip' }">
             <template #content>{{
-              settingsStore.selectedAgentId
+              !settingsStore.isQuickAnswerMode
                 ? $t('knowledgeBase.kbRoutingAgentConflict')
                 : $t('knowledgeBase.kbRoutingToggle')
             }}</template>
             <div class="control-btn kb-btn" :class="{
               'active': settingsStore.isKbRoutingEnabled,
-              'disabled': !!settingsStore.selectedAgentId,
+              'disabled': !settingsStore.isQuickAnswerMode,
             }"
-              @click.stop @mousedown.prevent="!settingsStore.selectedAgentId
+              @click.stop @mousedown.prevent="settingsStore.isQuickAnswerMode
                 && settingsStore.toggleKbRouting(!settingsStore.isKbRoutingEnabled)">
               <t-icon name="city" size="16px" class="control-icon" />
             </div>
