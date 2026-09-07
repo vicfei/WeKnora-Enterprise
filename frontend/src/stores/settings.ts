@@ -24,6 +24,7 @@ interface Settings {
   modelConfig: ModelConfig;  // 模型配置
   ollamaConfig: OllamaConfig;  // Ollama配置
   webSearchEnabled: boolean;  // 网络搜索是否启用
+  kbRoutingEnabled: boolean; // 二开特性: 自动选库(未手选知识库时按内容路由)
   conversationModels: ConversationModels;
   selectedAgentId: string;  // 当前选中的智能体ID
   selectedAgentSourceTenantId: string | null;  // 当使用共享智能体时，来源空间 ID（用于后端 model/KB/MCP 解析）
@@ -100,6 +101,7 @@ const defaultSettings: Settings = {
     enabled: true
   },
   webSearchEnabled: false,  // 默认关闭网络搜索
+  kbRoutingEnabled: false, // 默认关闭自动选库
   conversationModels: {
     summaryModelId: "",
     rerankModelId: "",
@@ -168,6 +170,7 @@ export const useSettingsStore = defineStore("settings", {
     
     // 网络搜索是否启用
     isWebSearchEnabled: (state) => state.settings.webSearchEnabled || false,
+    isKbRoutingEnabled: (state) => state.settings.kbRoutingEnabled || false,
     
     // 是否自动检查并下载更新
     isAutoCheckUpdateEnabled: (state) => state.settings.autoCheckUpdate ?? true,
@@ -325,6 +328,15 @@ export const useSettingsStore = defineStore("settings", {
     },
     
     // 启用/禁用网络搜索
+    toggleKbRouting(enabled: boolean) {
+      this.settings.kbRoutingEnabled = enabled;
+      // 自动选库与手选互斥生效: 路由仅当未手选任何库时介入(后端同样判定)
+      if (enabled) {
+        this.settings.selectedKnowledgeBases = [];
+        this.settings.selectedFiles = [];
+      }
+    },
+
     toggleWebSearch(enabled: boolean) {
       this.settings.webSearchEnabled = enabled;
       localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));

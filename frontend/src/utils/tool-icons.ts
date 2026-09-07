@@ -54,6 +54,7 @@ export function getMatchTypeIcon(matchType: string): string {
 
 // Tool name to i18n key mapping
 const toolDisplayNameKeys: Record<string, string> = {
+    kb_router: 'tools.kbRouter',
     multi_kb_search: 'tools.multiKbSearch',
     knowledge_search: 'tools.knowledgeSearch',
     grep_chunks: 'tools.grepChunks',

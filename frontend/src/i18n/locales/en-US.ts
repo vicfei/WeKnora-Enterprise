@@ -619,6 +619,7 @@ export default {
     pdfDocFormat: 'pdf, doc format files, max 10M',
     textMarkdownFormat: 'text, markdown format files, max 200K',
     dragFileNotText: 'Please drag files instead of text or links',
+    kbRoutingToggle: 'Auto-select KBs (experimental): match the most relevant knowledge bases when none is picked',
     searchPlaceholder: 'Search knowledge bases...',
     docSearchPlaceholder: 'Search document names...',
     fileTypeFilter: 'File Type',
@@ -5323,6 +5324,7 @@ export default {
     }
   },
   tools: {
+    kbRouter: 'Auto-selecting knowledge bases',
     multiKbSearch: 'Cross-KB Search',
     knowledgeSearch: 'Knowledge Search',
     grepChunks: 'Text Pattern Search',

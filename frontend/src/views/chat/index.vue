@@ -864,6 +864,11 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
     pendingSuggestionKnowledgeBaseIds = [];
     await startStream({
         session_id: session_id.value,
+        // 二开特性：自动选库仅在未手选任何库/文件时随请求开启（后端同判定）
+        enable_kb_routing: !props.embeddedMode
+          && useSettingsStoreInstance.isKbRoutingEnabled
+          && kbIds.length === 0
+          && knowledgeIds.length === 0,
         knowledge_base_ids: kbIds,
         knowledge_ids: knowledgeIds,
         agent_enabled: agentEnabled,

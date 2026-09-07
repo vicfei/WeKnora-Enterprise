@@ -1476,6 +1476,7 @@ export default {
     unavailable: '不可用'
   },
   tools: {
+    kbRouter: '智能选择知识库',
     multiKbSearch: '跨库搜索',
     knowledgeSearch: '知识库搜索',
     grepChunks: '搜索关键词',
@@ -6416,6 +6417,7 @@ export default {
     pdfDocFormat: 'pdf、doc 格式文件，不超过10M',
     textMarkdownFormat: 'text、markdown格式文件，不超过200K',
     dragFileNotText: '请拖拽文件而不是文本或链接',
+    kbRoutingToggle: '自动选库（实验）：不手动选择时自动匹配最相关的知识库',
     searchPlaceholder: '搜索知识库...',
     docSearchPlaceholder: '搜索文档名称...',
     fileTypeFilter: '文件类型',

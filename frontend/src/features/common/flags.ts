@@ -23,6 +23,11 @@ export function portalListEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_PORTAL_LIST)
 }
 
+/** KB routing toggle in the chat KB selector (enable_kb_routing request flag). */
+export function kbRoutingEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_KB_ROUTING)
+}
+
 /** UUM bridge login entry (#bridge_result= hash callback + login button). */
 export function bridgeLoginEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_BRIDGE_LOGIN)
