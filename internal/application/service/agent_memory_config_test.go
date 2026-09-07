@@ -38,7 +38,7 @@ func TestAgentConfigCarriesTheMemoryPreference(t *testing.T) {
 				},
 			}
 
-			agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+			agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, agentConfig.MemoryEnabled)
 		})
@@ -61,7 +61,7 @@ func TestAgentConfigCarriesMaxCompletionTokens(t *testing.T) {
 		},
 	}
 
-	agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+	agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 	require.NoError(t, err)
 	require.Equal(t, 64000, agentConfig.MaxCompletionTokens)
 }

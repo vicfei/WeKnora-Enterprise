@@ -159,6 +159,13 @@ type AgentConfig struct {
 	// its source workspace. It is set from the verified share relation, never
 	// inferred from a client-provided tenant ID.
 	SharedAgentReadOnly bool `json:"-"`
+	// Ranking carries the resolved retrieval-ranking parameters the
+	// knowledge_search tool applies (composite weights + MMR lambda).
+	// Runtime only: resolved per turn from request-level RankingConfig over
+	// the agent tenant's RetrievalConfig, falling back to legacy constants
+	// (same resolution chain as the chat pipeline). Never stored on the
+	// agent record.
+	Ranking ResolvedRanking `json:"-"`
 	// LLM call timeout in seconds (default: 120). Controls the maximum time for a single LLM call.
 	LLMCallTimeout int `json:"llm_call_timeout,omitempty"`
 

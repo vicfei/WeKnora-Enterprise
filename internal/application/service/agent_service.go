@@ -1019,7 +1019,7 @@ func (s *agentService) registerTools(
 				config.SearchTargets,
 				rerankModel,
 				s.cfg,
-			)
+			).WithRanking(config.Ranking)
 		case tools.ToolGrepChunks:
 			toolToRegister = tools.NewGrepChunksTool(s.db, config.SearchTargets)
 			logger.Infof(ctx, "Registered grep_chunks tool with searchTargets: %d targets", len(config.SearchTargets))

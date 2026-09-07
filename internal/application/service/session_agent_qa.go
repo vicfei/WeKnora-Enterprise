@@ -65,7 +65,7 @@ func (s *sessionService) AgentQA(
 	req.CustomAgent.EnsureDefaults()
 
 	// Build AgentConfig from custom agent and tenant info
-	agentConfig, err := s.buildAgentConfig(ctx, req, tenantInfo, agentTenantID)
+	agentConfig, err := s.buildAgentConfig(ctx, req, tenantInfo, agentTenantID, eventBus)
 	if err != nil {
 		return err
 	}
@@ -285,6 +285,7 @@ func (s *sessionService) buildAgentConfig(
 	req *types.QARequest,
 	tenantInfo *types.Tenant,
 	agentTenantID uint64,
+	eventBus *event.EventBus,
 ) (*types.AgentConfig, error) {
 	customAgent := req.CustomAgent
 	agentConfig := &types.AgentConfig{
@@ -343,6 +344,34 @@ func (s *sessionService) buildAgentConfig(
 	agentConfig.KnowledgeBases = kbIDs
 	agentConfig.KnowledgeIDs = knowledgeIDs
 
+	// 二开特性（kb-routing，agent 侧）：智能体库范围=all 且本请求未显式
+	// 选库/@提及时，按"问题向量 vs 各库文档最大相似度"路由收窄（复用 chat
+	// 路径的 routeKnowledgeBases，top-K/阈值同一套环境变量）。显式选择永远
+	// 优先；路由结果与能力过滤后的允许范围求交，确保不引入 agent 工具集
+	// 无法检索的库。决策经 kb_router 事件外发（与 chat 路径同形状）。
+	if req.EnableKBRouting && customAgent.Config.KBSelectionMode == "all" &&
+		len(req.KnowledgeBaseIDs) == 0 && len(req.KnowledgeIDs) == 0 && len(req.TagScopes) == 0 {
+		routed, info := s.routeKnowledgeBases(ctx, agentTenantID, req.Query)
+		if info != nil && len(routed) > 0 {
+			allowed := make(map[string]bool, len(kbIDs))
+			for _, id := range kbIDs {
+				allowed[id] = true
+			}
+			narrowed := make([]string, 0, len(routed))
+			for _, id := range routed {
+				if allowed[id] {
+					narrowed = append(narrowed, id)
+				}
+			}
+			if len(narrowed) > 0 {
+				logger.Infof(ctx, "kb_router (agent): narrowed 'all' scope (%d KBs) to %d routed KB(s): %v",
+					len(kbIDs), len(narrowed), narrowed)
+				agentConfig.KnowledgeBases = narrowed
+				emitAgentKBRoutingEvent(ctx, eventBus, req.Session.ID, info)
+			}
+		}
+	}
+
 	// Use custom agent's allowed tools if specified, otherwise use defaults
 	if len(customAgent.Config.AllowedTools) > 0 {
 		agentConfig.AllowedTools = customAgent.Config.AllowedTools
@@ -360,6 +389,21 @@ func (s *sessionService) buildAgentConfig(
 	if customAgent.Config.SystemPrompt != "" {
 		agentConfig.UseCustomSystemPrompt = true
 		agentConfig.SystemPrompt = customAgent.Config.SystemPrompt
+	}
+
+	// 二开特性（多维度加权排序，agent 侧）：与 chat 管线同一条解析链——
+	// 请求级 RankingConfig 覆盖智能体属主租户的 RetrievalConfig.Ranking，
+	// Resolve() 把未设字段回落到旧版硬编码常量。knowledge_search 工具
+	// 以前用自己的一份常量拷贝（upstream U-03），现在消费这里的解析结果。
+	if req.EnableWeightedRanking {
+		var tenantRanking *types.RankingConfig
+		if tenantInfo != nil {
+			tenantRanking = tenantInfo.RetrievalConfig.GetEffectiveRanking()
+		}
+		agentConfig.Ranking = tenantRanking.Merge(req.Ranking).Resolve()
+		logger.Infof(ctx, "Weighted ranking enabled for agent run: %+v", agentConfig.Ranking)
+	} else {
+		agentConfig.Ranking = (&types.RankingConfig{}).Resolve()
 	}
 
 	logger.Infof(ctx, "Custom agent config applied: MaxIterations=%d, Temperature=%.2f, AllowedTools=%v, WebSearchEnabled=%v",
