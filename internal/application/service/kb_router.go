@@ -339,7 +339,35 @@ func emitKBRoutingEvent(ctx context.Context, chatManage *types.ChatManage, info 
 			ToolCallID: chatManage.SessionID + "-kb-router",
 			ToolName:   kbRouterEventToolName,
 			Arguments: map[string]any{
-				"selected":        selected,
+				"selected":          selected,
+				"skipped_candidates": info.Skipped,
+			},
+		},
+	})
+}
+
+// emitAgentKBRoutingEvent is the agent-path twin of emitKBRoutingEvent: the
+// agent pipeline has no ChatManage, so the bus and session id come in
+// directly. The event payload is identical so SSE consumers (frontend, eval
+// harness) need no mode-specific parsing.
+func emitAgentKBRoutingEvent(ctx context.Context, bus *event.EventBus, sessionID string, info *KBRoutingInfo) {
+	if bus == nil || info == nil || len(info.Selected) == 0 {
+		return
+	}
+	selected := make([]map[string]any, 0, len(info.Selected))
+	for _, sc := range info.Selected {
+		selected = append(selected, map[string]any{
+			"kb_id": sc.KBID, "name": sc.Name, "score": sc.Score,
+		})
+	}
+	_ = bus.Emit(ctx, event.Event{
+		Type:      event.EventAgentToolCall,
+		SessionID: sessionID,
+		Data: event.AgentToolCallData{
+			ToolCallID: sessionID + "-kb-router",
+			ToolName:   kbRouterEventToolName,
+			Arguments: map[string]any{
+				"selected":          selected,
 				"skipped_candidates": info.Skipped,
 			},
 		},
