@@ -1,3 +1,6 @@
-data/
-*.log
-__pycache__/
+# 大体积原始数据集与可再生的灌库状态不入库
+data/*.parquet
+data/*.jsonl.ingest.jsonl
+data/*.pool.ingest.jsonl
+data/*.pool-state.json
+# 题单(eval-*.jsonl)与跑批结果(runs/*.jsonl)是科学记录,必须入库
