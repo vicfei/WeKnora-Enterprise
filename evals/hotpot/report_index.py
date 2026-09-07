@@ -16,6 +16,8 @@ PUBLISH_DIR = Path("/home/ubuntu/WeKnora/frontend/dist")
 
 # slug -> (title, source html in reports/, date, summary line)
 INDEX = [
+    ("weighted-ranking-v1-100", "主题3 排序加权 v1：rerank 接入与 MMR λ 三臂（100 题·池）", "weighted-ranking-v1-100.html",
+     "2026-09-07", "接入 rerank：top3 +12.7 / EM +6.1；MMR λ=0.7 是功臣，λ=1.0 回吐 4-6 分（多样性防近重复挤位）"),
     ("routing-v11-100", "知识库路由 v1.1 评估（100 题）", "routing-v11-100.html",
      "2026-09-10", "路由 top1=96% / top3=97%；答案质量与 oracle 持平（EM +1.0 / F1 −1.3，噪声带内）"),
     ("pool-vs-small-500", "共享池 vs 小库 终版基线（500 题配对）", "pool-vs-small-v2.html",
