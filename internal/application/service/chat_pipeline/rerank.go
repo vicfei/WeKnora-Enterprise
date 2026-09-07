@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/models/rerank"
 	"github.com/Tencent/WeKnora/internal/searchutil"
@@ -185,6 +188,21 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 
 	logRerankInputScoreSample(ctx, chatManage.SearchResult)
 
+	// 二开特性（多维度加权排序）：开启时用可配置权重替代旧版硬编码公式；
+	// 关闭时走原 compositeScore，一个常量都不变。
+	var ranking types.ResolvedRanking
+	if chatManage.EnableWeightedRanking {
+		ranking = chatManage.Ranking.Resolve()
+		pipelineInfo(ctx, "Rerank", "weighted_ranking", map[string]interface{}{
+			"rerank_weight":          ranking.RerankWeight,
+			"retrieval_weight":       ranking.RetrievalWeight,
+			"source_weight":          ranking.SourceWeight,
+			"recency_weight":         ranking.RecencyWeight,
+			"recency_half_life_days": ranking.RecencyHalfLifeDays,
+			"mmr_lambda":             ranking.MMRLambda,
+		})
+	}
+
 	for i := range chatManage.SearchResult {
 		chatManage.SearchResult[i].Metadata = ensureMetadata(chatManage.SearchResult[i].Metadata)
 	}
@@ -200,7 +218,13 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 		sr.Metadata["base_score"] = fmt.Sprintf("%.4f", base)
 		modelScore := rr.RelevanceScore
 		sr.Metadata["model_score"] = fmt.Sprintf("%.4f", modelScore)
-		sr.Score = compositeScore(sr, modelScore, base)
+		if chatManage.EnableWeightedRanking {
+			recency := recencySignal(sr, ranking.RecencyHalfLifeDays, time.Now())
+			sr.Metadata["recency"] = fmt.Sprintf("%.4f", recency)
+			sr.Score = weightedCompositeScore(sr, modelScore, base, recency, ranking)
+		} else {
+			sr.Score = compositeScore(sr, modelScore, base)
+		}
 
 		// Apply FAQ score boost if enabled
 		if chatManage.FAQPriorityEnabled && chatManage.FAQScoreBoost > 1.0 &&
@@ -220,8 +244,16 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 		reranked = append(reranked, sr)
 	}
 
-	final := applyMMR(ctx, reranked, chatManage, min(len(reranked), max(1, chatManage.RerankTopK)), 0.7)
+	mmrLambda := types.LegacyMMRLambda
+	if chatManage.EnableWeightedRanking {
+		mmrLambda = ranking.MMRLambda
+	}
+	final := applyMMR(ctx, reranked, chatManage, min(len(reranked), max(1, chatManage.RerankTopK)), mmrLambda)
 	chatManage.RerankResult = final
+
+	// 信号分布观测（roadmap 主题 3：先加日志观察各信号分布再定默认权重）。
+	// 每轮一条汇总行；recency 仅在加权排序开启时存在。
+	logSignalDistribution(ctx, reranked)
 
 	// Log composite top scores and MMR selection summary
 	topN := min(3, len(reranked))
@@ -452,6 +484,82 @@ func compositeScore(sr *types.SearchResult, modelScore, baseScore float64) float
 		composite = 1
 	}
 	return composite
+}
+
+// weightedCompositeScore generalizes compositeScore with configurable weights.
+// With the default RankingConfig it reproduces the legacy formula exactly
+// (0.6*model + 0.3*base + 0.1*sourceWeight, plus an inert recency term of 0).
+func weightedCompositeScore(sr *types.SearchResult, modelScore, baseScore, recency float64, r types.ResolvedRanking) float64 {
+	sourceWeight := 1.0
+	if strings.ToLower(sr.KnowledgeSource) == "web_search" {
+		sourceWeight = 0.95
+	}
+	composite := r.RerankWeight*modelScore + r.RetrievalWeight*baseScore +
+		r.SourceWeight*sourceWeight + r.RecencyWeight*recency
+	if composite < 0 {
+		composite = 0
+	}
+	if composite > 1 {
+		composite = 1
+	}
+	return composite
+}
+
+// recencySignal maps a document's last-update timestamp to an exponential
+// decay signal in [0,1]: a document updated now scores 1, one half-life ago
+// scores 0.5, and so on. Missing or unparsable timestamps yield 0, which is
+// only meaningful when RecencyWeight > 0.
+func recencySignal(sr *types.SearchResult, halfLifeDays int, now time.Time) float64 {
+	if halfLifeDays <= 0 || sr.Metadata == nil {
+		return 0
+	}
+	raw, ok := sr.Metadata["knowledge_updated_at"]
+	if !ok || raw == "" {
+		return 0
+	}
+	updatedAt, err := time.Parse(time.RFC3339, raw)
+	if err != nil || updatedAt.IsZero() {
+		return 0
+	}
+	ageDays := now.Sub(updatedAt).Hours() / 24
+	if ageDays <= 0 {
+		return 1
+	}
+	return math.Pow(2, -ageDays/float64(halfLifeDays))
+}
+
+// logSignalDistribution emits one compact summary per rerank round covering
+// every signal that feeds the composite score, so weight tuning can be driven
+// by observed spread instead of guesswork.
+func logSignalDistribution(ctx context.Context, results []*types.SearchResult) {
+	if len(results) == 0 {
+		return
+	}
+	pick := func(key string) []float64 {
+		vals := make([]float64, 0, len(results))
+		for _, r := range results {
+			if r.Metadata != nil {
+				if v, err := strconv.ParseFloat(r.Metadata[key], 64); err == nil {
+					vals = append(vals, v)
+				}
+			}
+		}
+		sort.Float64s(vals)
+		return vals
+	}
+	stat := func(vals []float64) string {
+		if len(vals) == 0 {
+			return "n/a"
+		}
+		return fmt.Sprintf("min=%.3f p50=%.3f p90=%.3f",
+			vals[0], vals[len(vals)/2], vals[min(9*len(vals)/10, len(vals)-1)])
+	}
+	pipelineInfo(ctx, "Rerank", "signal_distribution", map[string]interface{}{
+		"n":       len(results),
+		"model":   stat(pick("model_score")),
+		"base":    stat(pick("base_score")),
+		"recency": stat(pick("recency")),
+	})
 }
 
 // applyMMR applies the MMR algorithm to the search results with pre-computed token sets

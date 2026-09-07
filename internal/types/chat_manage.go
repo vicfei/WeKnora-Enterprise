@@ -65,6 +65,14 @@ type PipelineRequest struct {
 	// query-understanding stage. Empty values fall back to tenant/global defaults.
 	IntentPromptOverrides map[string]string `json:"-"`
 
+	// Weighted ranking (二开特性 "多维度加权排序", default off).
+	// EnableWeightedRanking switches the rerank composite scoring from the
+	// legacy hardcoded formula to the configurable RankingConfig below.
+	// Ranking arrives already merged (request-level over tenant-level) and
+	// may be nil, which resolves to the legacy constants.
+	EnableWeightedRanking bool           `json:"-"`
+	Ranking               *RankingConfig `json:"-"`
+
 	// Misc request-scoped config
 	TenantID            uint64 `json:"-"`
 	WebSearchEnabled    bool   `json:"-"`

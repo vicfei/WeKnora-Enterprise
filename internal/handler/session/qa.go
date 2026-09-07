@@ -50,6 +50,8 @@ type qaRequestContext struct {
 	summaryModelID        string
 	webSearchEnabled      bool
 	enableKBRouting       bool
+	enableWeightedRanking bool
+	ranking               *types.RankingConfig
 	mentionedItems        types.MentionedItems
 	effectiveTenantID     uint64                   // when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant
 	sharedAgentReadOnly   bool                     // access was granted by a read-only agent share
@@ -77,23 +79,25 @@ type qaRequestContext struct {
 func (rc *qaRequestContext) buildQARequest() *types.QARequest {
 	imageURLs, imageDescription := extractImageURLsAndOCRText(rc.images)
 	return &types.QARequest{
-		Session:             rc.session,
-		Query:               rc.query,
-		AssistantMessageID:  rc.assistantMessage.ID,
-		SummaryModelID:      rc.summaryModelID,
-		CustomAgent:         rc.customAgent,
-		SharedAgentReadOnly: rc.sharedAgentReadOnly,
-		KnowledgeBaseIDs:    rc.knowledgeBaseIDs,
-		KnowledgeIDs:        rc.knowledgeIDs,
-		TagScopes:           rc.tagScopes,
-		MCPServiceIDs:       rc.mcpServiceIDs,
-		SkillNames:          rc.skillNames,
-		ImageURLs:           imageURLs,
-		ImageDescription:    imageDescription,
-		UserMessageID:       rc.userMessageID,
-		WebSearchEnabled:    rc.webSearchEnabled,
-		EnableKBRouting:    rc.enableKBRouting,
-		Attachments:         rc.attachments,
+		Session:               rc.session,
+		Query:                 rc.query,
+		AssistantMessageID:    rc.assistantMessage.ID,
+		SummaryModelID:        rc.summaryModelID,
+		CustomAgent:           rc.customAgent,
+		SharedAgentReadOnly:   rc.sharedAgentReadOnly,
+		KnowledgeBaseIDs:      rc.knowledgeBaseIDs,
+		KnowledgeIDs:          rc.knowledgeIDs,
+		TagScopes:             rc.tagScopes,
+		MCPServiceIDs:         rc.mcpServiceIDs,
+		SkillNames:            rc.skillNames,
+		ImageURLs:             imageURLs,
+		ImageDescription:      imageDescription,
+		UserMessageID:         rc.userMessageID,
+		WebSearchEnabled:      rc.webSearchEnabled,
+		EnableKBRouting:       rc.enableKBRouting,
+		EnableWeightedRanking: rc.enableWeightedRanking,
+		Ranking:               rc.ranking,
+		Attachments:           rc.attachments,
 	}
 }
 
@@ -380,6 +384,8 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		summaryModelID:        secutils.SanitizeForLog(request.SummaryModelID),
 		webSearchEnabled:      request.WebSearchEnabled,
 		enableKBRouting:       request.EnableKBRouting,
+		enableWeightedRanking: request.EnableWeightedRanking,
+		ranking:               request.Ranking,
 		mentionedItems:        convertMentionedItems(request.MentionedItems),
 		effectiveTenantID:     effectiveTenantID,
 		sharedAgentReadOnly:   sharedAgentReadOnly,

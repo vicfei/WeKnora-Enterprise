@@ -99,6 +99,19 @@ func (s *sessionService) KnowledgeQA(
 		}
 	}
 
+	// 二开特性（多维度加权排序）：请求级 Ranking 覆盖租户级配置；
+	// 未配置字段在 Resolve() 时回落到旧版硬编码常量。
+	var rankingCfg *types.RankingConfig
+	if req.EnableWeightedRanking {
+		var tenantRanking *types.RankingConfig
+		if tenant, err := s.tenantService.GetTenantByID(ctx, retrievalTenantID); err == nil {
+			tenantRanking = tenant.RetrievalConfig.GetEffectiveRanking()
+		} else {
+			logger.Warnf(ctx, "Weighted ranking: tenant config unavailable, using request/defaults only: %v", err)
+		}
+		rankingCfg = tenantRanking.Merge(req.Ranking)
+	}
+
 	// Build unified search targets (computed once, used throughout pipeline)
 	searchTargets, err := s.buildSearchTargets(ctx, retrievalTenantID, knowledgeBaseIDs, knowledgeIDs, req.TagScopes)
 	if err != nil {
@@ -144,6 +157,8 @@ func (s *sessionService) KnowledgeQA(
 			WebFetchEnabled:         s.resolveWebFetchEnabled(req),
 			WebFetchTopN:            s.resolveWebFetchTopN(req),
 			TenantID:                retrievalTenantID,
+			EnableWeightedRanking:   req.EnableWeightedRanking,
+			Ranking:                 rankingCfg,
 			Images:                  req.ImageURLs,
 			VLMModelID:              vlmModelID,
 			ChatModelSupportsVision: chatModelSupportsVision,

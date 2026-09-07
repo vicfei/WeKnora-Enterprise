@@ -5,6 +5,128 @@ import (
 	"encoding/json"
 )
 
+// Legacy ranking constants. These were previously hardcoded in
+// chat_pipeline/rerank.go; they now live here as the defaults of
+// RankingConfig so that enabling weighted ranking without explicit weights
+// reproduces the exact legacy scoring behavior.
+const (
+	LegacyCompositeRerankWeight    = 0.6
+	LegacyCompositeRetrievalWeight = 0.3
+	LegacyCompositeSourceWeight    = 0.1
+	LegacyMMRLambda                = 0.7
+	DefaultRecencyHalfLifeDays     = 180
+)
+
+// RankingConfig holds the configurable weighted-ranking parameters for the
+// rerank composite score (二开特性 "多维度加权排序"). Zero values mean
+// "unset" and resolve to the legacy constants above. Stored as an optional
+// nested object inside RetrievalConfig (JSONB on the tenants table) and
+// overridable per request; the chat entry point merges request-level values
+// over the tenant config before the pipeline runs.
+type RankingConfig struct {
+	// Weight semantics: every weight field independently means "unset → use
+	// the legacy default"; zero is not expressible (v1 limitation). The
+	// source term is a constant offset per knowledge source, so it cannot
+	// reorder candidates that share a source — zeroing it is unnecessary for
+	// KB-only candidate sets.
+	// RerankWeight applies to the rerank model's relevance score. Default: 0.6.
+	RerankWeight float64 `json:"rerank_weight,omitempty"`
+	// RetrievalWeight applies to the fused retrieval (RRF) score. Default: 0.3.
+	RetrievalWeight float64 `json:"retrieval_weight,omitempty"`
+	// SourceWeight applies to the knowledge-source term (a constant offset
+	// that discounts web_search hits). Default: 0.1.
+	SourceWeight float64 `json:"source_weight,omitempty"`
+	// RecencyWeight applies to the document-recency signal. Default: 0 —
+	// the signal is plumbed and logged but inert until a corpus with real
+	// time spread justifies a weight.
+	RecencyWeight float64 `json:"recency_weight,omitempty"`
+	// RecencyHalfLifeDays is the half-life of the exponential recency decay:
+	// a document updated N days ago scores 2^(-N/RecencyHalfLifeDays).
+	// Default: 180.
+	RecencyHalfLifeDays int `json:"recency_half_life_days,omitempty"`
+	// MMRLambda trades relevance against redundancy in MMR selection
+	// (1.0 = pure relevance, no diversity penalty). Default: 0.7.
+	MMRLambda float64 `json:"mmr_lambda,omitempty"`
+}
+
+// ResolvedRanking is the fully-defaulted form of RankingConfig used by the
+// scoring hot path.
+type ResolvedRanking struct {
+	RerankWeight        float64
+	RetrievalWeight     float64
+	SourceWeight        float64
+	RecencyWeight       float64
+	RecencyHalfLifeDays int
+	MMRLambda           float64
+}
+
+// Resolve returns the effective ranking parameters, filling every unset
+// field with its legacy default. Nil-safe.
+func (c *RankingConfig) Resolve() ResolvedRanking {
+	r := ResolvedRanking{
+		RerankWeight:        LegacyCompositeRerankWeight,
+		RetrievalWeight:     LegacyCompositeRetrievalWeight,
+		SourceWeight:        LegacyCompositeSourceWeight,
+		RecencyWeight:       0,
+		RecencyHalfLifeDays: DefaultRecencyHalfLifeDays,
+		MMRLambda:           LegacyMMRLambda,
+	}
+	if c == nil {
+		return r
+	}
+	if c.RerankWeight > 0 {
+		r.RerankWeight = c.RerankWeight
+	}
+	if c.RetrievalWeight > 0 {
+		r.RetrievalWeight = c.RetrievalWeight
+	}
+	if c.SourceWeight > 0 {
+		r.SourceWeight = c.SourceWeight
+	}
+	if c.RecencyWeight > 0 {
+		r.RecencyWeight = c.RecencyWeight
+	}
+	if c.RecencyHalfLifeDays > 0 {
+		r.RecencyHalfLifeDays = c.RecencyHalfLifeDays
+	}
+	if c.MMRLambda > 0 {
+		r.MMRLambda = c.MMRLambda
+	}
+	return r
+}
+
+// Merge returns a copy of c with every field set in override replacing the
+// corresponding field of c. Either side may be nil. The result keeps zero
+// values where both sides are unset; callers apply defaults via Resolve.
+func (c *RankingConfig) Merge(override *RankingConfig) *RankingConfig {
+	if override == nil {
+		return c
+	}
+	if c == nil {
+		return override
+	}
+	merged := *c
+	if override.RerankWeight > 0 {
+		merged.RerankWeight = override.RerankWeight
+	}
+	if override.RetrievalWeight > 0 {
+		merged.RetrievalWeight = override.RetrievalWeight
+	}
+	if override.SourceWeight > 0 {
+		merged.SourceWeight = override.SourceWeight
+	}
+	if override.RecencyWeight > 0 {
+		merged.RecencyWeight = override.RecencyWeight
+	}
+	if override.RecencyHalfLifeDays > 0 {
+		merged.RecencyHalfLifeDays = override.RecencyHalfLifeDays
+	}
+	if override.MMRLambda > 0 {
+		merged.MMRLambda = override.MMRLambda
+	}
+	return &merged
+}
+
 // RetrievalConfig holds the global retrieval/search configuration for a tenant.
 // This replaces the retrieval-related fields previously scattered in ConversationConfig
 // and ChatHistoryConfig. Both knowledge search and message search share these parameters.
@@ -35,6 +157,9 @@ type RetrievalConfig struct {
 	RRFVectorWeight float64 `json:"rrf_vector_weight,omitempty"`
 	// RRFKeywordWeight is the keyword counterpart. Default: 0.3.
 	RRFKeywordWeight float64 `json:"rrf_keyword_weight,omitempty"`
+	// Ranking is the optional weighted-ranking configuration for the rerank
+	// composite score (二开特性, nil = legacy hardcoded behavior).
+	Ranking *RankingConfig `json:"ranking,omitempty"`
 }
 
 // DefaultRetrievalTopK is the retrieval depth used when a caller supplies no
@@ -106,6 +231,15 @@ func (c *RetrievalConfig) GetEffectiveRRFWeights() (vector, keyword float64) {
 		k = 0.3
 	}
 	return v, k
+}
+
+// GetEffectiveRanking returns the tenant-level RankingConfig, or nil when
+// the tenant has none configured.
+func (c *RetrievalConfig) GetEffectiveRanking() *RankingConfig {
+	if c == nil {
+		return nil
+	}
+	return c.Ranking
 }
 
 // Value implements the driver.Valuer interface for database serialization
