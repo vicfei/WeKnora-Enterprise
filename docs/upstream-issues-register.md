@@ -23,6 +23,7 @@
 | U-10 | P3 | 新手引导遮罩拦截操作 / 模式切换失败无引导 / 图标无 aria | UX/可访问性债 | ★（aria 项适合首 PR） | 待修 |
 | U-11 | P3 | 知识对象状态字段语义混乱（status/parse_status/enable_status） | API 一致性 | ★ 需讨论 | 记录在案 |
 | U-12 | P3 | KB 路由质心缓存不持久化，冷缓存首问 36-38s | 特性缺口 | ★ 属新特性 | fork 记录在案 |
+| U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记 |
 
 ---
 
@@ -62,6 +63,11 @@
 
 - **证据**：kb_router 冷缓存批量算质心（`kb_router.go:255` computeKBCentroid），实测一次 8 连发 429 + 大库批次（4955 篇池）持续 500 Internal（2026-09-07 16:11 日志）。
 - **建议修法**：BatchEmbed 加指数退避重试 + 并发上限/分批（标准云服务客户端姿势）。对 upstream 同样成立（任何多 KB 租户都可能触发）。
+
+### U-13 agent 启动期失败时 SSE 流不收尾
+
+- **证据**（2026-09-08 实测，agent-lab）：配置 KB+knowledge_search 但 rerank_model_id 为空的智能体，POST /api/v1/agent-chat 后 `AgentQA` 在引擎启动前返回错误（日志 qa.go:1072 "rerank model is not configured"，EventError 已 emit）；`AgentStreamHandler.handleError`（agent_stream_handler.go:594）只 AppendEvent(Done:true) 不终结流；引擎的 defer emitCompletion（executeLoop 内）只覆盖引擎已启动的路径。客户端无超时则永久挂起（实测 60s 客户端超时，期间无任何字节抵达）。同类问题可能覆盖一切"AgentQA 装配期 return err"的分支（模型缺失、附件 staging 失败等）。
+- **建议修法**：handleError 在 AppendEvent 后终结 SSE 流（与 complete 事件同路径收尾）；或在 executeQA 的 serviceErr 分支兜底 emit 一个终结性事件。与 U-04（偶发不收尾）可能同族，建议一起定位。
 
 ## P2（可选回馈 / 内部先修）
 
