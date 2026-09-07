@@ -621,6 +621,8 @@ export default {
     dragFileNotText: 'Please drag files instead of text or links',
     kbRoutingAgentConflict: 'Auto KB selection applies to Quick Q&A only; in Smart-Reasoning/agent mode the agent config decides the KB scope',
     kbRoutingToggle: 'Auto-select KBs (experimental): match the most relevant knowledge bases when none is picked',
+    weightedRankingAgentConflict: 'Precise ranking applies to Quick Q&A only; in agent mode the agent retrieval config decides',
+    weightedRankingToggle: 'Precise ranking (experimental): rerank retrieval results before answering — more accurate citations, slightly slower',
     searchPlaceholder: 'Search knowledge bases...',
     docSearchPlaceholder: 'Search document names...',
     fileTypeFilter: 'File Type',

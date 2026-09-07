@@ -25,6 +25,7 @@ interface Settings {
   ollamaConfig: OllamaConfig;  // Ollama配置
   webSearchEnabled: boolean;  // 网络搜索是否启用
   kbRoutingEnabled: boolean; // 二开特性: 自动选库(未手选知识库时按内容路由)
+  weightedRankingEnabled: boolean; // 二开特性: 精准排序(rerank_model_id=auto 随请求开启)
   conversationModels: ConversationModels;
   selectedAgentId: string;  // 当前选中的智能体ID
   selectedAgentSourceTenantId: string | null;  // 当使用共享智能体时，来源空间 ID（用于后端 model/KB/MCP 解析）
@@ -102,6 +103,7 @@ const defaultSettings: Settings = {
   },
   webSearchEnabled: false,  // 默认关闭网络搜索
   kbRoutingEnabled: false, // 默认关闭自动选库
+  weightedRankingEnabled: false, // 默认关闭精准排序
   conversationModels: {
     summaryModelId: "",
     rerankModelId: "",
@@ -171,6 +173,7 @@ export const useSettingsStore = defineStore("settings", {
     // 网络搜索是否启用
     isWebSearchEnabled: (state) => state.settings.webSearchEnabled || false,
     isKbRoutingEnabled: (state) => state.settings.kbRoutingEnabled || false,
+    isWeightedRankingEnabled: (state) => state.settings.weightedRankingEnabled || false,
     
     // 是否自动检查并下载更新
     isAutoCheckUpdateEnabled: (state) => state.settings.autoCheckUpdate ?? true,
@@ -339,6 +342,12 @@ export const useSettingsStore = defineStore("settings", {
 
     toggleWebSearch(enabled: boolean) {
       this.settings.webSearchEnabled = enabled;
+      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+    },
+
+    // 二开特性: 精准排序开关（随请求发 rerank_model_id=auto；与选库状态正交，可叠加）
+    toggleWeightedRanking(enabled: boolean) {
+      this.settings.weightedRankingEnabled = enabled;
       localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
     },
 
@@ -583,6 +592,9 @@ export const useSettingsStore = defineStore("settings", {
         if (typeof state.kb_routing_enabled === "boolean") {
           this.settings.kbRoutingEnabled = state.kb_routing_enabled;
         }
+        if (typeof state.weighted_ranking_enabled === "boolean") {
+          this.settings.weightedRankingEnabled = state.weighted_ranking_enabled;
+        }
       } finally {
         // 复位必须延后到下一次 flush 之后：监听 selectedAgentId 的 watcher 默认
         // flush:'pre'，是异步执行的；若在此处同步复位，watcher 真正运行时标志早已
@@ -620,4 +632,5 @@ export interface SessionLastRequestStatePayload {
   }>;
   web_search_enabled?: boolean;
   kb_routing_enabled?: boolean;
+  weighted_ranking_enabled?: boolean;
 }

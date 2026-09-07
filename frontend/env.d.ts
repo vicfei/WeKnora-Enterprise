@@ -14,5 +14,7 @@ interface ImportMetaEnv {
     readonly VITE_ENABLE_TAG_TREE?: string;
     readonly VITE_ENABLE_PORTAL_LIST?: string;
     readonly VITE_ENABLE_BRIDGE_LOGIN?: string;
+    readonly VITE_ENABLE_KB_ROUTING?: string;
+    readonly VITE_ENABLE_WEIGHTED_RANKING?: string;
     readonly VITE_PORTAL_LOGIN_URL?: string;
 }

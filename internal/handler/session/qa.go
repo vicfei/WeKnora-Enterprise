@@ -1413,17 +1413,18 @@ func (h *Handler) persistLastRequestState(parentCtx context.Context, reqCtx *qaR
 	}
 
 	state := &types.SessionLastRequestState{
-		AgentID:          reqCtx.reqAgentID,
-		AgentEnabled:     agentEnabled,
-		ModelID:          reqCtx.summaryModelID,
-		KnowledgeBaseIDs: reqCtx.knowledgeBaseIDs,
-		KnowledgeIDs:     reqCtx.knowledgeIDs,
-		TagIDs:           reqCtx.tagIDs,
-		MCPServiceIDs:    reqCtx.mcpServiceIDs,
-		SkillNames:       reqCtx.skillNames,
-		MentionedItems:   reqCtx.mentionedItems,
-		WebSearchEnabled: reqCtx.webSearchEnabled,
-		KbRoutingEnabled: reqCtx.enableKBRouting,
+		AgentID:                reqCtx.reqAgentID,
+		AgentEnabled:           agentEnabled,
+		ModelID:                reqCtx.summaryModelID,
+		KnowledgeBaseIDs:       reqCtx.knowledgeBaseIDs,
+		KnowledgeIDs:           reqCtx.knowledgeIDs,
+		TagIDs:                 reqCtx.tagIDs,
+		MCPServiceIDs:          reqCtx.mcpServiceIDs,
+		SkillNames:             reqCtx.skillNames,
+		MentionedItems:         reqCtx.mentionedItems,
+		WebSearchEnabled:       reqCtx.webSearchEnabled,
+		KbRoutingEnabled:       reqCtx.enableKBRouting,
+		WeightedRankingEnabled: reqCtx.enableWeightedRanking,
 	}
 
 	if err := h.sessionService.UpdateSessionLastRequestState(ctx, reqCtx.sessionID, state); err != nil {

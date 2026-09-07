@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手动测试报告：精准排序（加权排序）前端开关 · 2026-09-07</title>
+<style>
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;margin:0;background:#f6f7f9;color:#1c1e21}
+.wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:22px} h2{font-size:17px;margin-top:34px;border-left:4px solid #4c6ef5;padding-left:10px}
+.meta{color:#667;font-size:13px;margin-bottom:8px}
+.pass{color:#128a46;font-weight:600}.blocked{color:#b8860b;font-weight:600}
+table{border-collapse:collapse;width:100%;background:#fff;font-size:13.5px}
+th,td{border:1px solid #e3e6ea;padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#f0f2f5}
+code,pre{background:#f4f5f7;border-radius:6px;font-size:12.5px}
+pre{padding:10px 12px;overflow:auto}
+img.shot{max-width:100%;border:1px solid #dfe3e8;border-radius:8px;margin:8px 0}
+.note{background:#fffbe6;border:1px solid #f0dd91;border-radius:8px;padding:10px 14px;font-size:13px;margin:12px 0}
+</style>
+<div class="wrap">
+<h1>手动测试报告：精准排序（多维度加权排序）前端开关</h1>
+<div class="meta">2026-09-07 · 分支 feature/weighted-ranking · 测试人：ZCode（第 4 棒）· 环境：上海节点 :5173（五 flag 构建）+ :8080（weknora-server-wr2）· 评估租户 10011 / hotpot-eval-runner</div>
+
+<h2>这个功能是什么（一分钟版）</h2>
+<p>输入框工具栏新增一个「精准排序」按钮（monitor 图标）。点亮后，每次提问前系统会先用一个专门的<b>排序模型（rerank）</b>给检索到的文档重新打分排序，引用更准，代价是每问慢几秒、多一次模型调用。<b>不点亮时，行为与旧版完全一致</b>。此前的批量评测显示：点亮后金标文档进引用前 3 的比例从 70.5% 升到 83.2%。</p>
+
+<h2>测试结论总览</h2>
+<table>
+<tr><th>编号</th><th>测试点</th><th>结果</th><th>依据</th></tr>
+<tr><td>T1</td><td>门户桥接登录，进入应用</td><td class="pass">通过</td><td>截图 t1；用户 hotpot-eval-runner 正常落地</td></tr>
+<tr><td>T2</td><td>聊天工具栏出现两个二开按钮（城市=自动选库、仪表=精准排序），精准排序默认<b>不</b>点亮</td><td class="pass">通过</td><td>DOM 无 active 类 + 截图 t2（两图标均灰色）</td></tr>
+<tr><td>T3</td><td>不点亮提问：走旧链路（无 rerank）</td><td class="pass">通过</td><td>截图 t3；后端日志 15:49:06 <code>Rerank skip reason="empty_model_id"</code>（会话 66f6d40f）</td></tr>
+<tr><td>T4</td><td>点亮后提问：rerank 生效</td><td class="pass">通过</td><td>点击后 DOM 加 <code>active</code>（截图 t4_toggle_on）；日志 15:49:24 <code>Request-level rerank model override: 1bdf6fae…</code> + 15:49:33 <code>signal_distribution model 0.61–0.86</code>（会话 4937c6dc）；数据库会话快照 <code>"weighted_ranking_enabled": true</code></td></tr>
+<tr><td>T5</td><td>智能体模式下按钮置灰</td><td class="blocked">环境受阻</td><td>评估租户的「智能推理」内置智能体未配置，切换被产品守卫拦截（Input-field.vue:2176 弹「未就绪」提示）。置灰逻辑与已实测过的自动选库按钮共用同一表达式（!isQuickAnswerMode），代码同构可证</td></tr>
+<tr><td>T6</td><td>离开会话再回来，开关状态保持</td><td class="pass">通过</td><td>截图 t6；DOM 仍 <code>active</code>；数据库快照字段随请求落库、回访恢复（会话 07dd21d9）</td></tr>
+</table>
+
+<h2>关键证据链（T4 为例，全部实测）</h2>
+<pre>① 按钮 DOM:      class="control-btn kb-btn active"        （点击后）
+② 请求体:        "rerank_model_id":"auto","enable_weighted_ranking":true
+③ 后端解析:      Request-level rerank model override: 1bdf6fae-41a6-…（dashscope rerank）
+④ 管线生效:      Rerank signal_distribution model="min=0.613 p50=0.738 p90=0.859" n=10
+⑤ 会话快照(DB):  sessions.agent_config → {"weighted_ranking_enabled": true, …}
+⑥ 回访恢复:      重开会话后按钮仍点亮</pre>
+
+<h2>T3 vs T4 现场截图</h2>
+<p>同一问题（Ken Pruitt / 40 members），两次独立会话：</p>
+<img class="shot" src="t3_off_answer.png" alt="T3 关态回答">
+<img class="shot" src="t4_on_answer.png" alt="T4 开态回答">
+<img class="shot" src="t4_toggle_on.png" alt="T4 开关点亮">
+<img class="shot" src="t6_persist.png" alt="T6 回访保持">
+
+<h2>顺手发现的产品问题（与本按钮无关，供参考）</h2>
+<ul>
+<li><b>新手引导会拦截自动化与真实操作</b>：欢迎引导/功能引导的遮罩会挡住工具栏，且每次新浏览器环境重新出现（引导 2 步聚焦知识库选择器）。</li>
+<li><b>聊天工具栏的「知识库」弹层是浏览型</b>：点卡片=跳知识库详情页，无法把某个库选进对话范围；快速问答不选库时默认搜全租户库（541 个），用户可能并不知道范围这么大。</li>
+<li><b>「智能推理」模式切换有前置条件</b>：内置智能体未配置时点击只弹提示不切换，新用户可能困惑为何切不过去。</li>
+<li><b>工具栏图标按钮无 aria 标签</b>：读屏/自动化只能靠图标类名识别（存量实现问题）。</li>
+</ul>
+
+<h2>如何自己复现（5 分钟）</h2>
+<pre>1. 浏览器打开 http://118.25.124.129:8082/sso/native?uum_user_id=hotpot-eval-runner
+2. 「新对话」→ 底部工具栏找到仪表盘图标（城市图标旁边），鼠标悬停应显示
+   「精准排序（实验）：回答前先用排序模型精排检索结果，引用更准但稍慢」
+3. 不点亮，问一个知识库问题 → 引用较宽
+4. 点亮图标（变蓝）→ 新开对话再问同一问题 → 引用收窄、更聚焦
+5. 验证后端：grep -a "rerank model override\|signal_distribution" /tmp/weknora-server-wr.log</pre>
+<div class="note">诚实声明：本轮为无头浏览器（Playwright + Chromium）按真实用户操作路径执行的 GUI 黑盒测试；「浏览器点击」由自动化完成，全部结论有 DOM 状态 + 截图 + 后端日志 + 数据库四类证据互相印证。T5 因环境前置条件未能触达，已如实标注。截图与页面同目录发布。</div>
+</div>
+</html>

@@ -6419,6 +6419,8 @@ export default {
     dragFileNotText: '请拖拽文件而不是文本或链接',
     kbRoutingAgentConflict: '自动选库仅在「快速问答」模式生效；「智能推理」及智能体模式下由智能体配置决定知识库范围',
     kbRoutingToggle: '自动选库（实验）：不手动选择时自动匹配最相关的知识库',
+    weightedRankingAgentConflict: '精准排序仅在「快速问答」模式生效；智能体模式下由智能体检索配置决定',
+    weightedRankingToggle: '精准排序（实验）：回答前先用排序模型精排检索结果，引用更准但稍慢',
     searchPlaceholder: '搜索知识库...',
     docSearchPlaceholder: '搜索文档名称...',
     fileTypeFilter: '文件类型',

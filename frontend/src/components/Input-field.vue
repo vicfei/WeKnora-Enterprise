@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { onBeforeRouteUpdate } from 'vue-router';
 import { MessagePlugin } from "tdesign-vue-next";
 import { useSettingsStore } from '@/stores/settings'
-import { kbRoutingEnabled } from '@/features/common/flags';
+import { kbRoutingEnabled, weightedRankingEnabled } from '@/features/common/flags';
 import { useUIStore } from '@/stores/ui';
 import { useMenuStore } from '@/stores/menu';
 import { listKnowledgeBases, searchKnowledge, batchQueryKnowledge, listKnowledgeTags } from '@/api/knowledge-base';
@@ -55,6 +55,7 @@ const route = useRoute();
 const router = useRouter();
 const settingsStore = useSettingsStore()
 const kbRoutingFeatureEnabled = kbRoutingEnabled();
+const weightedRankingFeatureEnabled = weightedRankingEnabled();
 const uiStore = useUIStore();
 const orgStore = useOrganizationStore();
 const menuStore = useMenuStore();
@@ -2764,6 +2765,25 @@ defineExpose({
               @click.stop @mousedown.prevent="settingsStore.isQuickAnswerMode
                 && settingsStore.toggleKbRouting(!settingsStore.isKbRoutingEnabled)">
               <t-icon name="city" size="16px" class="control-icon" />
+            </div>
+          </t-tooltip>
+
+          <!-- 二开特性：精准排序开关（feature flag 关闭时不渲染）。开启后请求带
+               rerank_model_id=auto，后端对检索结果跑 rerank 精排（引用更准、稍慢） -->
+          <t-tooltip v-if="weightedRankingFeatureEnabled" placement="top" theme="light"
+            :popupProps="{ overlayClassName: 'input-field-tooltip' }">
+            <template #content>{{
+              !settingsStore.isQuickAnswerMode
+                ? $t('knowledgeBase.weightedRankingAgentConflict')
+                : $t('knowledgeBase.weightedRankingToggle')
+            }}</template>
+            <div class="control-btn kb-btn" :class="{
+              'active': settingsStore.isWeightedRankingEnabled,
+              'disabled': !settingsStore.isQuickAnswerMode,
+            }"
+              @click.stop @mousedown.prevent="settingsStore.isQuickAnswerMode
+                && settingsStore.toggleWeightedRanking(!settingsStore.isWeightedRankingEnabled)">
+              <t-icon name="precise-monitor" size="16px" class="control-icon" />
             </div>
           </t-tooltip>
 

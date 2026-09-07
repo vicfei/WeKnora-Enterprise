@@ -1474,6 +1474,7 @@ export default {
     unavailable: '사용 불가'
   },
   tools: {
+    kbRouter: '지식베이스 스마트 선택',
     multiKbSearch: '크로스 KB 검색',
     knowledgeSearch: '지식베이스 검색',
     grepChunks: '텍스트 패턴 검색',
@@ -6414,6 +6415,10 @@ export default {
     pdfDocFormat: 'pdf, doc 형식 파일, 최대 10MB',
     textMarkdownFormat: 'text, markdown 형식 파일, 최대 200KB',
     dragFileNotText: '텍스트나 링크가 아닌 파일을 드래그하세요',
+    kbRoutingAgentConflict: '자동 지식베이스 선택은 「빠른 Q&A」 모드에서만 적용됩니다; 스마트 추론/에이전트 모드에서는 에이전트 설정이 지식베이스 범위를 결정합니다',
+    kbRoutingToggle: '자동 지식베이스 선택(실험): 직접 선택하지 않으면 가장 관련성 높은 지식베이스를 자동 매칭',
+    weightedRankingAgentConflict: '정밀 랭킹은 「빠른 Q&A」 모드에서만 적용됩니다; 에이전트 모드에서는 에이전트 검색 설정이 결정합니다',
+    weightedRankingToggle: '정밀 랭킹(실험): 답변 전에 재정렬 모델로 검색 결과를 정밀 정렬 — 인용이 더 정확하지만 약간 느립니다',
     searchPlaceholder: '지식베이스 검색...',
     docSearchPlaceholder: '문서 이름 검색...',
     fileTypeFilter: '파일 유형',

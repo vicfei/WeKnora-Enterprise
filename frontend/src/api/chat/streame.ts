@@ -36,7 +36,7 @@ export function useStream() {
   let renderTimer: number | null = null
 
   // 启动流式请求
-  const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; agent_source_tenant_id?: string | number; web_search_enabled?: boolean; summary_model_id?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: Array<{id: string; name: string; type: string; kb_type?: string; kb_id?: string; kb_name?: string; service_id?: string; skill_name?: string}>; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; attachment_ids?: string[]; suggestion_attribution?: { suggestion_set_id: string; question_id: string }; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
+  const startStream = async (params: { session_id: any; query: any; knowledge_base_ids?: string[]; knowledge_ids?: string[]; tag_ids?: string[]; agent_enabled?: boolean; agent_id?: string; agent_source_tenant_id?: string | number; web_search_enabled?: boolean; enable_kb_routing?: boolean; enable_weighted_ranking?: boolean; rerank_model_id?: string; summary_model_id?: string; mcp_service_ids?: string[]; skill_names?: string[]; mentioned_items?: Array<{id: string; name: string; type: string; kb_type?: string; kb_id?: string; kb_name?: string; service_id?: string; skill_name?: string}>; images?: Array<{data: string}>; attachment_uploads?: Array<{data: string; file_name: string; file_size: number}>; attachment_ids?: string[]; suggestion_attribution?: { suggestion_set_id: string; question_id: string }; method: string; url: string; embed_token?: string; embed_session_sig?: string; embed_visitor_id?: string }) => {
     const myGeneration = ++streamGeneration
     // 重置状态
     output.value = '';
@@ -109,6 +109,13 @@ export function useStream() {
       // 二开特性：自动选库（快速问答 + 未显式选库时后端路由 top-K）
       if (params.enable_kb_routing !== undefined) {
         postBody.enable_kb_routing = params.enable_kb_routing;
+      }
+      // 二开特性：精准排序（'auto' = 后端自动选 rerank 模型精排；缺省不发=旧行为）
+      if (params.rerank_model_id) {
+        postBody.rerank_model_id = params.rerank_model_id;
+      }
+      if (params.enable_weighted_ranking !== undefined) {
+        postBody.enable_weighted_ranking = params.enable_weighted_ranking;
       }
       // Include summary_model_id if provided (for non-Agent mode)
       if (params.summary_model_id) {

@@ -869,6 +869,17 @@ const sendMsg = async (value, modelId = '', mentionedItems = [], imageFiles = []
           && useSettingsStoreInstance.isKbRoutingEnabled
           && kbIds.length === 0
           && knowledgeIds.length === 0,
+        // 二开特性：精准排序开关开启且非嵌入模式时，请求同时带
+        // rerank_model_id=auto（后端接通 rerank 精排）与 enable_weighted_ranking
+        // （默认权重下公式与旧版一致；该布尔随会话快照持久，恢复开关状态）
+        rerank_model_id: !props.embeddedMode
+          && useSettingsStoreInstance.isWeightedRankingEnabled
+          && useSettingsStoreInstance.isQuickAnswerMode
+          ? 'auto'
+          : undefined,
+        enable_weighted_ranking: !props.embeddedMode
+          && useSettingsStoreInstance.isWeightedRankingEnabled
+          && useSettingsStoreInstance.isQuickAnswerMode,
         knowledge_base_ids: kbIds,
         knowledge_ids: knowledgeIds,
         agent_enabled: agentEnabled,

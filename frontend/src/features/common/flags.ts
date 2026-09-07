@@ -28,6 +28,11 @@ export function kbRoutingEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_KB_ROUTING)
 }
 
+/** Weighted-ranking (rerank) toggle in the chat input toolbar (rerank_model_id request field). */
+export function weightedRankingEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_WEIGHTED_RANKING)
+}
+
 /** UUM bridge login entry (#bridge_result= hash callback + login button). */
 export function bridgeLoginEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_BRIDGE_LOGIN)
