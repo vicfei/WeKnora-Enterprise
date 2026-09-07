@@ -245,6 +245,123 @@ class EvalClient:
         return {"answer": answer.strip(), "references": references, "done": done, "routed_kbs": routed_kbs}
 
 
+    def ask_sse_agent(
+        self,
+        session_id: str,
+        agent_id: str,
+        question: str,
+        timeout: int = 420,
+        extra_body: dict | None = None,
+    ) -> dict:
+        """Run one SSE agent-chat round; return {answer, done, tool_hints, steps}.
+
+        The agent endpoint has no `references` event: citations are inline
+        <kb/> tags in the answer and the ranked retrieval lives in the
+        persisted agent_steps (see load_agent_ref_titles). extra_body is
+        merged last so experiments can pass request-level feature flags
+        (e.g. enable_weighted_ranking/ranking).
+        """
+        body = {"query": question, "agent_id": agent_id, "disable_title": True}
+        if extra_body:
+            body.update(extra_body)
+        events: list[dict] = []
+        with self.http.post(
+            f"{BASE}/api/v1/agent-chat/{session_id}",
+            headers={**self._headers(), "Accept": "text/event-stream"},
+            json=body,
+            stream=True,
+            timeout=timeout,
+        ) as resp:
+            resp.raise_for_status()
+            buf = []
+            for raw in resp.iter_lines(decode_unicode=True):
+                if raw is None:
+                    continue
+                if raw.startswith("data:"):
+                    buf.append(raw[5:].strip())
+                elif raw == "" and buf:
+                    payload = "\n".join(buf)
+                    buf = []
+                    try:
+                        events.append(json.loads(payload))
+                    except json.JSONDecodeError:
+                        events.append({"_raw": payload[:200]})
+            if buf:
+                try:
+                    events.append(json.loads("\n".join(buf)))
+                except json.JSONDecodeError:
+                    pass
+        answer = ""
+        done = False
+        error = None
+        tool_hints: list[str] = []
+        for ev in events:
+            rtype = ev.get("response_type")
+            data = ev.get("data") or {}
+            if rtype == "answer":
+                answer += ev.get("content") or ""
+            elif rtype == "complete":
+                done = True
+            elif rtype == "error":
+                error = str(data.get("error") or data)[:200]
+            elif rtype == "tool_call":
+                hint = data.get("hint")
+                if hint and hint not in tool_hints:
+                    tool_hints.append(hint)
+        return {
+            "answer": answer.strip(),
+            "done": done,
+            "error": error,
+            "tool_hints": tool_hints,
+        }
+
+    def load_agent_ref_titles(self, session_id: str, expect_secs: float = 90.0) -> list[str] | None:
+        """Fetch the last assistant message and return ordered retrieval titles.
+
+        Walks agent_steps and collects knowledge_search result titles in
+        result_index order, deduplicated across calls preserving first-seen
+        order. Returns None when the message/steps cannot be loaded (mirrors
+        the "refs not captured" convention of interrupted SSE rounds).
+        """
+        import time as _time
+
+        deadline = _time.time() + expect_secs
+        messages = None
+        while _time.time() < deadline:
+            resp = self.http.get(
+                f"{BASE}/api/v1/messages/{session_id}/load",
+                headers=self._headers(),
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                data = resp.json().get("data")
+                messages = data if isinstance(data, list) else (data or {}).get("list") or []
+                if messages:
+                    break
+            _time.sleep(2)
+        if not messages:
+            return None
+        assistant = None
+        for m in messages:
+            if m.get("role") == "assistant":
+                assistant = m
+        if assistant is None:
+            return None
+        titles: list[str] = []
+        seen: set[str] = set()
+        for step in assistant.get("agent_steps") or []:
+            for tc in step.get("tool_calls") or []:
+                if tc.get("name") != "knowledge_search":
+                    continue
+                results = ((tc.get("result") or {}).get("data") or {}).get("results") or []
+                for r in results:
+                    t = r.get("knowledge_title")
+                    if t and t not in seen:
+                        seen.add(t)
+                        titles.append(t)
+        return titles
+
+
 def reference_titles(references) -> list[str]:
     """Extract document titles from the references event payload."""
     titles = []

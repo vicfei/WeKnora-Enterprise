@@ -40,6 +40,14 @@ def main() -> None:
         "capture kb_router event as routed_kbs",
     )
     ap.add_argument(
+        "--agent-id",
+        default="",
+        help="agent mode: POST /agent-chat with this agent id (the agent's own "
+        "KB scope applies; --route/--rerank-model/--ranking are chat-path "
+        "knobs and are ignored). ref_titles come from persisted agent_steps "
+        "(ordered union of knowledge_search results).",
+    )
+    ap.add_argument(
         "--rerank-model",
         default="",
         help="request-level rerank model id, or 'auto' for the first available "
@@ -86,7 +94,7 @@ def main() -> None:
             if qid in done_qids:
                 continue
             kb_id = ingest.get(qid, {}).get("kb_id")
-            if not kb_id and not args.route:
+            if not kb_id and not args.route and not args.agent_id:
                 print(f"[skip] {qid}: no kb")
                 continue
             t0 = time.time()
@@ -99,7 +107,29 @@ def main() -> None:
                 )
             try:
                 sid = client.create_session(f"eval {qid} {args.label}".strip())
-                if args.route:
+                if args.agent_id:
+                    extra = {}
+                    if ranking_cfg is not None:
+                        extra["enable_weighted_ranking"] = True
+                        extra["ranking"] = ranking_cfg
+                    if args.route:
+                        extra["enable_kb_routing"] = True
+                    result = client.ask_sse_agent(sid, args.agent_id, question, extra_body=extra or None)
+                    ref_titles = client.load_agent_ref_titles(sid)
+                    rec = {
+                        "qid": qid,
+                        "label": args.label,
+                        "answer": result["answer"],
+                        "ref_titles": ref_titles,
+                        "done": result["done"],
+                        "tool_hints": result["tool_hints"],
+                        "secs": round(time.time() - t0, 1),
+                    }
+                    if ranking_cfg is not None:
+                        rec["ranking"] = ranking_cfg
+                    if result.get("error"):
+                        rec["error"] = result["error"]
+                elif args.route:
                     result = client.ask_sse_routing(sid, question)
                     rec = {
                         "qid": qid,

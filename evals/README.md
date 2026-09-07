@@ -114,3 +114,35 @@ python3 score.py --run ../data/runs/pilot.jsonl
 
 复现：`run_eval.py --ingest …pool.ingest.jsonl` + `--rerank-model auto [--ranking '{"mmr_lambda":1.0}']`。
 
+## v4 智能推理模式标尺 + RankingConfig/kb-routing 接入（eval-100 池模式，2026-09-08，分支 feature/agent-lab）
+
+背景：eval harness 此前只打 knowledge-chat；智能推理（/agent-chat）没有评估覆盖。
+本版新增 `--agent-id` 模式（POST /agent-chat + agent_id；EM/F1 取 answer 文本，
+ref_titles 从落库的 agent_steps 取 knowledge_search 结果有序并集——agent 模式没有
+references 事件，引用是答案内嵌 `<kb/>` 标签）。智能体 hotpot-rag-agent
+（rag-qa 型，model=deepseek-v4-flash，rerank=qwen3-rerank，KB=hotpot-pool-500，
+max_iterations=15，web_search 关闭）。
+
+| 指标 | ① agent 基线 r1 | ② weighted-defaults | ③ λ=1.0 | ④ routing（见下） |
+|---|---|---|---|---|
+| EM / F1 | 53.0 / 75.49 | 55.0 / 76.05 | （见 run 记录） | — |
+| 金标 top3 / top5 / top10 | 78.0 / 82.0 / 84.0 | 77.5 / 83.0 / 86.5 | — | — |
+| MRR | 86.67 | 87.67 | — | — |
+
+结论：
+
+1. **agent 基线（首条标尺）**：EM 53.0 与 chat+rerank（53.1）打平、比 chat 无 rerank
+   （48.6）高 4.4——agent 的 knowledge_search 原生带 rerank，早已吃到精排红利；
+   F1 75.5 显著高于 chat 双臂（agent 可多轮补检索）。
+2. **② vs ① 全部在噪声带内**（EM +2.0 / F1 +0.56 / top3 −0.5 / top5 +1.0）：
+   RankingConfig 接入 + U-03 共享内核重构在默认参数下零回归（数学等价+行为等价双确认）。
+3. agent 侧 ref_titles 语义=检索并集（cite_width 8.4-9.4），跨模式对比方向性成立、
+   模式内 A/B 精确。
+4. kb-routing（agent 侧）：`enable_kb_routing` + 智能体 kb_selection_mode=all 且
+   未显式选库时路由收窄（复用 chat 的 kb_router，事件同形状）；实验用
+   hotpot-rag-agent-all 智能体。复现：`run_eval.py --agent-id <id> [--route]
+   [--ranking '{...}']`。
+
+复现：`run_eval.py --manifest …eval-100.jsonl --ingest …pool.ingest.jsonl --agent-id <agent-id>
+--label <label> [--ranking '{"mmr_lambda":1.0}'] [--route]`。
+
