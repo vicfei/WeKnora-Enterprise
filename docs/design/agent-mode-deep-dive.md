@@ -355,4 +355,8 @@ EM 与 chat+rerank 打平（+4.4 于无 rerank），说明 agent 的检索质量
   routeKnowledgeBases（top-K/阈值同环境变量）收窄，路由结果与能力过滤集求交，
   决策经 kb_router 事件外发（与 chat 同形状，eval harness 直接复用）。
 - 显式选择永远优先；mode=selected 的智能体（如基线 agent）不受影响。
-- 实验：hotpot-rag-agent-all（kb=all）+ enable_kb_routing on/off 配对。
+- 实测：手测 541→3 库（选中问题自有小库 score 0.60）、答案正确；routing-on 单臂
+  （agent=hotpot-rag-agent-all）EM/F1 与基线持平、检索指标略低于池基线
+  （MRR 81.1 vs 86.7，top3 75.5 vs 78.0，零命中 14% vs 11%）——3 库路由相对单一
+  pool 库有小幅漏检代价。off 配对臂因 DeepSeek 402 断费未完成（数据无效已删），
+  充值后补跑再做结论。

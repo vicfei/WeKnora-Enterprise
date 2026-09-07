@@ -123,12 +123,12 @@ references 事件，引用是答案内嵌 `<kb/>` 标签）。智能体 hotpot-r
 （rag-qa 型，model=deepseek-v4-flash，rerank=qwen3-rerank，KB=hotpot-pool-500，
 max_iterations=15，web_search 关闭）。
 
-| 指标 | ① agent 基线 r1 | ② weighted-defaults | ③ λ=1.0 | ④ routing（见下） |
+| 指标 | ① agent 基线 r1 | ② weighted-defaults | ③ λ=1.0 | ④ routing-on（kb=all 智能体） |
 |---|---|---|---|---|
-| EM / F1 | 53.0 / 75.49 | 55.0 / 76.05 | 54.0 / 76.69 | — |
-| 金标 top3 / top5 / top10 | 78.0 / 82.0 / 84.0 | 77.5 / 83.0 / 86.5 | **82.0 / 86.5 / 90.5** | — |
-| 金标全命中 | 80.0% | 82.0% | **86.0%** | — |
-| MRR | 86.67 | 87.67 | **91.67** | — |
+| EM / F1 | 53.0 / 75.49 | 55.0 / 76.05 | 54.0 / 76.69 | 55.0 / 75.62 |
+| 金标 top3 / top5 / top10 | 78.0 / 82.0 / 84.0 | 77.5 / 83.0 / 86.5 | **82.0 / 86.5 / 90.5** | 75.5 / 80.5 / 84.0 |
+| 金标全命中 | 80.0% | 82.0% | **86.0%** | 82.0%（零命中 14%） |
+| MRR | 86.67 | 87.67 | **91.67** | 81.08 |
 
 结论：
 
@@ -145,8 +145,14 @@ max_iterations=15，web_search 关闭）。
    模式内 A/B 精确。
 5. kb-routing（agent 侧）：`enable_kb_routing` + 智能体 kb_selection_mode=all 且
    未显式选库时路由收窄（复用 chat 的 kb_router，事件同形状）；手测 541 库→3 库、
-   选中问题自有小库、答案正确。实验用 hotpot-rag-agent-all 智能体。
+   选中问题自有小库、答案正确。**④ routing-on 单臂已完成**（EM/F1 与基线持平，
+   检索指标低于池基线：MRR −5.6、top3 −2.5——路由 3 库替代单一 pool 库有小幅漏检，
+   零命中 11%→14%）；**off 配对臂因 DeepSeek 账户 402 断费未完成**（arm4-off 100 题
+   全空，已删除无效数据）——充值后重跑 `--agent-id <agent-all-id>`（不带 --route）
+   补全配对，再做正式结论。
    复现：`run_eval.py --agent-id <id> [--route] [--ranking '{...}']`。
+6. **中断记录（2026-09-08 03:08）**：DeepSeek（10011 QA 模型）余额耗尽 402，
+   arm4-off 与 r2 复验受阻；充值后优先补 r2（协议两轮要求）。
 
 复现：`run_eval.py --manifest …eval-100.jsonl --ingest …pool.ingest.jsonl --agent-id <agent-id>
 --label <label> [--ranking '{"mmr_lambda":1.0}'] [--route]`。
