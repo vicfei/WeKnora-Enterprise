@@ -24,6 +24,7 @@
 | U-11 | P3 | 知识对象状态字段语义混乱（status/parse_status/enable_status） | API 一致性 | ★ 需讨论 | 记录在案 |
 | U-12 | P3 | KB 路由质心缓存不持久化，冷缓存首问 36-38s | 特性缺口 | ★ 属新特性 | fork 记录在案 |
 | U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记 |
+| U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故） |
 
 ---
 
@@ -68,6 +69,13 @@
 
 - **证据**（2026-09-08 实测，agent-lab）：配置 KB+knowledge_search 但 rerank_model_id 为空的智能体，POST /api/v1/agent-chat 后 `AgentQA` 在引擎启动前返回错误（日志 qa.go:1072 "rerank model is not configured"，EventError 已 emit）；`AgentStreamHandler.handleError`（agent_stream_handler.go:594）只 AppendEvent(Done:true) 不终结流；引擎的 defer emitCompletion（executeLoop 内）只覆盖引擎已启动的路径。客户端无超时则永久挂起（实测 60s 客户端超时，期间无任何字节抵达）。同类问题可能覆盖一切"AgentQA 装配期 return err"的分支（模型缺失、附件 staging 失败等）。
 - **建议修法**：handleError 在 AppendEvent 后终结 SSE 流（与 complete 事件同路径收尾）；或在 executeQA 的 serviceErr 分支兜底 emit 一个终结性事件。与 U-04（偶发不收尾）可能同族，建议一起定位。
+
+### U-14 runtime_context 知识库目录无上限，kb=all 智能体在多库租户上首轮即塞爆上下文
+
+- **证据**（2026-09-08/09 实测，agent-lab 评估事故）：kb_selection_mode=all 的智能体在 541 库租户上，`formatKnowledgeBaseList`（internal/agent/prompts.go:129）把全部 KB 逐个渲染进用户消息的 `<runtime_context>`（每库含 id/name/描述 + 最多 2 篇近期文档及摘要），**没有任何总量上限**。实测第一轮用户消息 = **219,319 token**（`largest=user(219319)`），超过 200k 窗口本身。后果链：估算器正确报警（222k > 183,616 阈值）→ 压缩器正确拒绝（"Nothing outside the keep-recent budget"——重量就在当前轮）→ provider 截断输入（实测 prompt=175,640，finish=length，completion=1，内容为空）→ 空答 nudge 循环 15 轮 → 迭代耗尽合成兜底。**单题烧掉 ~260 万 token（175k × 15 轮）**；评估事故中 40 题在 26 分钟内烧穿 ~1 亿 token 导致账户 402（2026-09-08 03:08，DeepSeek）。开启 kb-routing 的同批问题不受影响（范围收窄到 3 库后用户消息正常 ~1.9k token）。
+- **影响**：任何"允许全部库"的智能体（含内置智能推理默认形态）在库数成百的租户上**功能性瘫痪且大量烧钱**；智能体越诚实（多轮重试）烧得越多。
+- **建议修法**：① runtime_context 目录设总量预算（如 >N 库时只渲染"N 个知识库可用，用 knowledge_search 检索"的摘要形态，去掉逐库 recent_documents 采样）；② 引擎加首轮守卫：用户轮估算超窗口 X% 时立即终止并报清晰错误，而不是 15 轮空转（每轮都是全价 prompt）。
+- **状态**：已在 fork 的评估中实测定位（docs/design/agent-harness-design.md §案例研究），待修。
 
 ## P2（可选回馈 / 内部先修）
 
