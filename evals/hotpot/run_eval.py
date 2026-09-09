@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -89,6 +90,27 @@ def main() -> None:
         done_qids = {r["qid"] for r in load_jsonl(str(out_path))}
 
     client = EvalClient()
+
+    # ── 预检：余额/配置探针（2026-09-09 加入，两次 402 断费事故的教训）──
+    # 一道极便宜的问题先验证端点活着；402/异常立即中止，不烧整轮跑批。
+    probe_sid = client.create_session("eval preflight probe")
+    try:
+        if args.agent_id:
+            probe = client.ask_sse_agent(probe_sid, args.agent_id, "What is 2+2? Reply with only the number.", timeout=120)
+        else:
+            probe = client.ask_sse(probe_sid, ingest.get(next(iter(manifest)), {}).get("kb_id", ""), "What is 2+2? Reply with only the number.", timeout=120)
+        if probe.get("error") or not probe.get("done"):
+            print(f"[preflight] ENDPOINT UNUSABLE: {str(probe)[:200]} — aborting before burning the run")
+            sys.exit(2)
+        print(f"[preflight] endpoint OK (answer={probe.get('answer','')[:20]!r})")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[preflight] FAILED: {exc} — aborting")
+        sys.exit(2)
+
+    # ── 熔断：连续 10 题空答/报错 = 系统性故障（402/配置/U-14 类），止损 ──
+    consecutive_bad = 0
+    MAX_CONSECUTIVE_BAD = 10
+
     with open(out_path, "a", encoding="utf-8") as out:
         for i, (qid, q) in enumerate(manifest.items()):
             if qid in done_qids:
@@ -167,6 +189,14 @@ def main() -> None:
             flag = "ok" if rec.get("done") else "INCOMPLETE"
             print(f"[{i+1}/{len(manifest)}] {qid} {flag} {rec.get('secs', '?')}s "
                   f"refs={len(rec.get('ref_titles', []))}")
+            if rec.get("error") or not (rec.get("answer") or "").strip():
+                consecutive_bad += 1
+                if consecutive_bad >= MAX_CONSECUTIVE_BAD:
+                    print(f"[abort] {consecutive_bad} consecutive empty/errored questions — "
+                          "systemic failure (402 / config / context bug?). Stopping to save quota.")
+                    sys.exit(3)
+            else:
+                consecutive_bad = 0
 
 
 if __name__ == "__main__":

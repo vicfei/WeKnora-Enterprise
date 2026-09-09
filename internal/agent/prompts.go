@@ -125,10 +125,30 @@ func AvailablePlaceholders() []PlaceholderDefinition {
 	return result
 }
 
+// maxDetailedCatalogKBs caps how many knowledge bases get the full catalog
+// entry (capabilities + description + recent-document samples) inside
+// runtime_context. The rendering is linear in KB count with no ceiling of its
+// own, so a kb_selection_mode=all agent on a large tenant inflates its first
+// user message past the context window before the model does anything: a
+// 541-KB tenant measured a 219k-token user turn, over a 200k window (upstream
+// findings register U-14). Beyond the cap the catalog degrades to a compact
+// form — total count plus a name sample and a retrieval hint — which is all
+// the model can act on at that scale anyway: per-KB filtering by ID is
+// impractical past a few dozen bases, and knowledge_search defaults to every
+// bound KB.
+const maxDetailedCatalogKBs = 25
+
+// catalogNameSample bounds how many KB names the compact form lists.
+const catalogNameSample = 10
+
 // formatKnowledgeBaseList formats knowledge base information as XML for the prompt
 func formatKnowledgeBaseList(kbInfos []*KnowledgeBaseInfo) string {
 	if len(kbInfos) == 0 {
 		return "<knowledge_bases />"
+	}
+
+	if len(kbInfos) > maxDetailedCatalogKBs {
+		return formatCompactKnowledgeBaseList(kbInfos)
 	}
 
 	var b strings.Builder
@@ -211,6 +231,39 @@ func formatKnowledgeBaseList(kbInfos []*KnowledgeBaseInfo) string {
 //   - `<must_use>` is NOT a placeholder — when the user @mentions MCP/Skill,
 //     observe.buildMustUseBlock injects it as a sibling block in the user
 //     message; system prompts document it by convention (see agent_system_prompt.yaml).
+// formatCompactKnowledgeBaseList renders the over-cap catalog: total count,
+// a bounded name sample, and the retrieval hint that keeps the model from
+// assuming per-KB discovery is possible. IDs are deliberately omitted — at
+// this scale the model cannot act on 500+ of them, and enumerating them is
+// exactly the bloat this form exists to prevent.
+func formatCompactKnowledgeBaseList(kbInfos []*KnowledgeBaseInfo) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "<knowledge_bases count=\"%d\" catalog=\"compact\">\n", len(kbInfos))
+	for i, kb := range kbInfos {
+		if i >= catalogNameSample {
+			break
+		}
+		fmt.Fprintf(&b, "  <knowledge_base name=\"%s\" type=\"%s\" doc_count=\"%d\" />\n",
+			escapeXMLAttr(kb.Name), kbTypeOrDefault(kb.Type), kb.DocCount)
+	}
+	if len(kbInfos) > catalogNameSample {
+		fmt.Fprintf(&b, "  <!-- %d more knowledge bases omitted from this catalog -->\n",
+			len(kbInfos)-catalogNameSample)
+	}
+	b.WriteString("  <guidance>Many knowledge bases are bound. knowledge_search and grep_chunks\n")
+	b.WriteString("cover all of them by default; do not try to enumerate or filter them\n")
+	b.WriteString("individually unless the user names one.</guidance>\n")
+	b.WriteString("</knowledge_bases>")
+	return b.String()
+}
+
+func kbTypeOrDefault(kbType string) string {
+	if kbType == "" {
+		return "document"
+	}
+	return kbType
+}
+
 func renderPromptPlaceholders(template string, knowledgeBases []*KnowledgeBaseInfo) string {
 	result := template
 
