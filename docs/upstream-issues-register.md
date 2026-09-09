@@ -24,7 +24,8 @@
 | U-11 | P3 | 知识对象状态字段语义混乱（status/parse_status/enable_status） | API 一致性 | ★ 需讨论 | 记录在案 |
 | U-12 | P3 | KB 路由质心缓存不持久化，冷缓存首问 36-38s | 特性缺口 | ★ 属新特性 | fork 记录在案 |
 | U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记 |
-| U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故） |
+| U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故）；fork 已修 |
+| U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记 |
 
 ---
 
@@ -75,7 +76,14 @@
 - **证据**（2026-09-08/09 实测，agent-lab 评估事故）：kb_selection_mode=all 的智能体在 541 库租户上，`formatKnowledgeBaseList`（internal/agent/prompts.go:129）把全部 KB 逐个渲染进用户消息的 `<runtime_context>`（每库含 id/name/描述 + 最多 2 篇近期文档及摘要），**没有任何总量上限**。实测第一轮用户消息 = **219,319 token**（`largest=user(219319)`），超过 200k 窗口本身。后果链：估算器正确报警（222k > 183,616 阈值）→ 压缩器正确拒绝（"Nothing outside the keep-recent budget"——重量就在当前轮）→ provider 截断输入（实测 prompt=175,640，finish=length，completion=1，内容为空）→ 空答 nudge 循环 15 轮 → 迭代耗尽合成兜底。**单题烧掉 ~260 万 token（175k × 15 轮）**；评估事故中 40 题在 26 分钟内烧穿 ~1 亿 token 导致账户 402（2026-09-08 03:08，DeepSeek）。开启 kb-routing 的同批问题不受影响（范围收窄到 3 库后用户消息正常 ~1.9k token）。
 - **影响**：任何"允许全部库"的智能体（含内置智能推理默认形态）在库数成百的租户上**功能性瘫痪且大量烧钱**；智能体越诚实（多轮重试）烧得越多。
 - **建议修法**：① runtime_context 目录设总量预算（如 >N 库时只渲染"N 个知识库可用，用 knowledge_search 检索"的摘要形态，去掉逐库 recent_documents 采样）；② 引擎加首轮守卫：用户轮估算超窗口 X% 时立即终止并报清晰错误，而不是 15 轮空转（每轮都是全价 prompt）。
-- **状态**：已在 fork 的评估中实测定位（docs/design/agent-harness-design.md §案例研究），待修。
+- **状态**：fork 已修（feature/agent-lab：>25 库切换紧凑目录形态，≤25 逐字节不变，单测钉死；E2E 验证 219k→8.5k），待回馈上游。
+
+### U-15 空工具集智能体的原生协议泄漏
+
+- **证据**（2026-09-09，四原生模式基线实测）：builtin-wiki-researcher（allowed_tools 全为 wiki 工具）在无 wiki 能力知识库的租户上，registerTools 的安全网把全部 wiki 工具剥除（防陈旧配置调用必错工具，行为正确）——但系统提示词仍按 wiki_researcher 模版指示调用 wiki_search。模型在**零函数调用通道**下把 DeepSeek 原生工具调用标记直接写进答案文本：实测答案形如 `<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="wiki_search">…`，原样泄漏给用户/评估器。
+- **影响**：模式-语料错配时用户看到的是协议乱码而非可理解的错误或直答；评估侧 EM 归零。
+- **建议修法**（需讨论）：registerTools 后若工具集为空且原 allowed_tools 非空，应在系统提示注入"当前环境未提供 X 工具，请直接基于已有知识回答或说明无法检索"，或直接拒绝执行并报配置错误。与 U-10 的"模式切换前置引导"是同一族问题（配置-能力错配的用户可见性）。
+- **状态**：四模式基线如实测量（wiki-researcher 臂预期 EM≈0，此为根因）。
 
 ## P2（可选回馈 / 内部先修）
 
