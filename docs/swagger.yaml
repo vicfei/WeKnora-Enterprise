@@ -4471,6 +4471,7 @@ definitions:
     - exa
     - metaso
     - bocha
+    - doubao
     type: string
     x-enum-varnames:
     - WebSearchProviderTypeBing
@@ -4485,6 +4486,7 @@ definitions:
     - WebSearchProviderTypeExa
     - WebSearchProviderTypeMetaso
     - WebSearchProviderTypeBocha
+    - WebSearchProviderTypeDoubao
   github_com_Tencent_WeKnora_internal_types.WikiConfig:
     properties:
       content_instructions:
