@@ -226,6 +226,31 @@ func (s *agentService) CreateAgentEngine(
 		systemPromptTemplate,
 	)
 	engine.SetAppConfig(s.cfg)
+
+	// U-15 guard: when every tool the config asked for was stripped by the
+	// capability safety net (e.g. a wiki-researcher agent on a tenant with
+	// no wiki-capable knowledge base), the run has no function-call channel
+	// at all while the mode's prompt still instructs tool use. Providers
+	// with native function-calling markup (DeepSeek DSML) then leak the
+	// markers into the visible answer. Tell the model, in the prompt, that
+	// no tools exist and it must answer directly.
+	if registeredNames := toolRegistry.ListTools(); len(registeredNames) == 0 {
+		requested := config.AllowedTools
+		if len(requested) == 0 {
+			requested = tools.DefaultAllowedTools()
+		}
+		if len(requested) > 0 {
+			logger.Warnf(ctx,
+				"Agent run has zero registered tools (requested: %v); injecting no-tools guard into system prompt",
+				requested)
+			engine.SetNoToolsPrompt(fmt.Sprintf(
+				"\n\nIMPORTANT: No tools are available in this environment. The configured tools (%s) could not be provided here. "+
+					"Do NOT attempt any tool calls and do NOT emit tool-call or function-invocation markup of any kind — it would be shown to the user as raw text. "+
+					"Answer directly from your own knowledge, or clearly state that the needed retrieval capability is not available in this environment.",
+				strings.Join(requested, ", ")))
+		}
+	}
+
 	pinnedMCP := s.resolvePinnedMCPServiceInfos(ctx, config)
 	s.attachPinnedMCPToolNames(toolRegistry, pinnedMCP)
 	engine.SetPinnedMentions(

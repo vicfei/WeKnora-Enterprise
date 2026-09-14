@@ -364,6 +364,7 @@ func (h *Handler) handleAgentEventsForSSE(
 
 			// Send any new events
 			streamCompleted := false
+			streamErrored := false
 			titleReceived := false
 			for _, evt := range events {
 				// Check for stop event
@@ -405,6 +406,15 @@ func (h *Handler) handleAgentEventsForSSE(
 					streamCompleted = true
 				}
 
+				// Terminal error event: fatal service/engine failures emit
+				// error+done and nothing after it — no complete marker will
+				// ever arrive (U-13: assembly-time failures like an unset
+				// rerank model left the client hanging until its own
+				// timeout). Same terminal semantics as the stop watcher.
+				if evt.Type == types.ResponseTypeError && evt.Done {
+					streamErrored = true
+				}
+
 				// Check for title event
 				if evt.Type == types.ResponseTypeSessionTitle {
 					titleReceived = true
@@ -424,6 +434,25 @@ func (h *Handler) handleAgentEventsForSSE(
 
 			// Update offset
 			lastOffset = newOffset
+
+			// Fatal error closes the stream without waiting for a title
+			// event (none will come). Flush any held-back answer tail first —
+			// a mid-stream engine failure may have partial content buffered.
+			// The completion frame is written directly (the stop branch
+			// precedent): handleComplete never ran, so no complete event
+			// exists in the stream store to forward.
+			if streamErrored {
+				log.Infof("Stream errored for session=%s, message=%s, closing SSE", sessionID, assistantMessageID)
+				flushHeldStreamContent(ctx, c, requestID, resourceRewriter)
+				c.SSEvent("message", &types.StreamResponse{
+					ID:           requestID,
+					ResponseType: types.ResponseTypeComplete,
+					Content:      "",
+					Done:         true,
+				})
+				c.Writer.Flush()
+				return
+			}
 
 			// Check if stream is completed - wait for title event only if needed and not already received
 			if streamCompleted {

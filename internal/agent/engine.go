@@ -44,6 +44,7 @@ type AgentEngine struct {
 	sessionID            string                  // Session ID for logging and event emission
 	systemPromptTemplate string                  // System prompt template (optional, uses default if empty)
 	memoryPrompt         string                  // Long-term memory envelope appended to the system prompt
+	noToolsPrompt        string                  // Guard appended when the run has no function-call channel (U-15)
 	skillsManager        *skills.Manager         // Skills manager for Progressive Disclosure (optional)
 	appConfig            *appconfig.Config       // Application config for prompt template resolution (optional)
 	imageDescriber       ImageDescriberFunc      // VLM function for describing images in tool results (optional)
@@ -140,13 +141,23 @@ func (e *AgentEngine) buildSystemPrompt(ctx context.Context) string {
 	// Memory has to ride in the system prompt: buildMessagesWithLLMContext
 	// drops system messages coming from history, so a separate memory message
 	// would be silently discarded from the second turn onward.
-	return strings.TrimRight(prompt, " \t\r\n") + e.memoryPrompt + e.modelContext.ProtocolPrompt()
+	return strings.TrimRight(prompt, " \t\r\n") + e.memoryPrompt + e.modelContext.ProtocolPrompt() + e.noToolsPrompt
 }
 
 // SetMemoryPrompt supplies the long-term memory envelope for this run. Empty
 // input leaves the system prompt untouched.
 func (e *AgentEngine) SetMemoryPrompt(prompt string) {
 	e.memoryPrompt = prompt
+}
+
+// SetNoToolsPrompt supplies the no-function-channel guard for this run:
+// every configured tool was stripped by the capability safety net, so the
+// model must be told in the prompt not to attempt tool calls at all —
+// providers with native function-calling markup (e.g. DeepSeek DSML)
+// otherwise leak the markers into the visible answer (U-15). Empty input
+// leaves the system prompt untouched.
+func (e *AgentEngine) SetNoToolsPrompt(prompt string) {
+	e.noToolsPrompt = prompt
 }
 
 // NewAgentEngineWithSkills creates a new agent engine with skills support

@@ -23,9 +23,9 @@
 | U-10 | P3 | 新手引导遮罩拦截操作 / 模式切换失败无引导 / 图标无 aria | UX/可访问性债 | ★（aria 项适合首 PR） | 待修 |
 | U-11 | P3 | 知识对象状态字段语义混乱（status/parse_status/enable_status） | API 一致性 | ★ 需讨论 | 记录在案 |
 | U-12 | P3 | KB 路由质心缓存不持久化，冷缓存首问 36-38s | 特性缺口 | ★ 属新特性 | fork 记录在案 |
-| U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记 |
+| U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记；**fork 已修 2026-09-15** |
 | U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故）；fork 已修 |
-| U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记 |
+| U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记；**fork 已修 2026-09-15** |
 | U-16 | P1 | Docker Hub `weknora-sandbox:latest`（08-05 构建）用户名为 `sandbox`，当前代码 exec 固定 `user` → 全部 exec 失败 | 发布缺陷 | ★★★ upstream 重打 :latest 即修 | 2026-09-15 沙箱实验室测登记 |
 | U-17 | P3 | skills/preloaded 预置技能在 QA 路径不可见（by design），无一键入 catalog 入口 | 特性缺口 | ★ 需讨论 | 2026-09-15 沙箱实验室测登记 |
 
@@ -72,6 +72,7 @@
 
 - **证据**（2026-09-08 实测，agent-lab）：配置 KB+knowledge_search 但 rerank_model_id 为空的智能体，POST /api/v1/agent-chat 后 `AgentQA` 在引擎启动前返回错误（日志 qa.go:1072 "rerank model is not configured"，EventError 已 emit）；`AgentStreamHandler.handleError`（agent_stream_handler.go:594）只 AppendEvent(Done:true) 不终结流；引擎的 defer emitCompletion（executeLoop 内）只覆盖引擎已启动的路径。客户端无超时则永久挂起（实测 60s 客户端超时，期间无任何字节抵达）。同类问题可能覆盖一切"AgentQA 装配期 return err"的分支（模型缺失、附件 staging 失败等）。
 - **建议修法**：handleError 在 AppendEvent 后终结 SSE 流（与 complete 事件同路径收尾）；或在 executeQA 的 serviceErr 分支兜底 emit 一个终结性事件。与 U-04（偶发不收尾）可能同族，建议一起定位。
+- **状态**：**fork 已修（2026-09-15，复现→修→验）**。复现：空 rerank agent 提问，服务端 02:14:04 发 error 事件+落库，SSE 循环直到 45s 客户端断开才退出。修复：`stream.go handleAgentEventsForSSE` 把 `ResponseTypeError+Done` 当终止条件（与 stop watcher helpers.go:407 的既有终止语义对齐）——flush 残留内容后直接写 complete 帧收尾（stop 分支同款直写姿势，因 handleComplete 未跑、流存储里没有 complete 事件可转发）。修后：0.1s 内 agent_query→error→complete 干净收尾；正常回合回归通过（2.6s complete）。三处 EventError 发射点（qa.go:1074 / session_agent_qa.go:268 / engine.go:337）均为致命级，"error 即终止"无误伤面。
 
 ### U-14 runtime_context 知识库目录无上限，kb=all 智能体在多库租户上首轮即塞爆上下文
 
@@ -85,7 +86,7 @@
 - **证据**（2026-09-09，四原生模式基线实测）：builtin-wiki-researcher（allowed_tools 全为 wiki 工具）在无 wiki 能力知识库的租户上，registerTools 的安全网把全部 wiki 工具剥除（防陈旧配置调用必错工具，行为正确）——但系统提示词仍按 wiki_researcher 模版指示调用 wiki_search。模型在**零函数调用通道**下把 DeepSeek 原生工具调用标记直接写进答案文本：实测答案形如 `<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="wiki_search">…`，原样泄漏给用户/评估器。
 - **影响**：模式-语料错配时用户看到的是协议乱码而非可理解的错误或直答；评估侧 EM 归零。
 - **建议修法**（需讨论）：registerTools 后若工具集为空且原 allowed_tools 非空，应在系统提示注入"当前环境未提供 X 工具，请直接基于已有知识回答或说明无法检索"，或直接拒绝执行并报配置错误。与 U-10 的"模式切换前置引导"是同一族问题（配置-能力错配的用户可见性）。
-- **状态**：四模式基线如实测量（wiki-researcher 臂预期 EM≈0，此为根因）。
+- **状态**：**fork 已修（2026-09-15，复现→修→验，采取提示注入方案）**。修复：`agent_service.go CreateAgentEngine` 在全部注册完成后，若 registry 为空且 requested 非空（AllowedTools 或 DefaultAllowedTools 回退），`engine.SetNoToolsPrompt` 注入守卫段（点名缺失工具、禁止任何工具调用/函数调用标记、要求直答或声明能力不可用）+ WARN 日志（可观测）。修前实测：答案泄漏 `<｜｜DSML｜｜calls>…` 原文；修后同问题：模型明确声明"检索工具未提供，不做工具调用"，并基于参数知识直答（Paris）。注意：四模式基线中 wiki 臂 EM 5.0 的根因即此——修复后该臂预期转向参数记忆形态（类似 data-analyst），后续重测基线时数字会变。
 
 ### U-16 sandbox 镜像 :latest 与代码 exec 用户名错配——拉最新 tag 的部署全部 exec 失败
 
