@@ -26,6 +26,8 @@
 | U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记 |
 | U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故）；fork 已修 |
 | U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记 |
+| U-16 | P1 | Docker Hub `weknora-sandbox:latest`（08-05 构建）用户名为 `sandbox`，当前代码 exec 固定 `user` → 全部 exec 失败 | 发布缺陷 | ★★★ upstream 重打 :latest 即修 | 2026-09-15 沙箱实验室测登记 |
+| U-17 | P3 | skills/preloaded 预置技能在 QA 路径不可见（by design），无一键入 catalog 入口 | 特性缺口 | ★ 需讨论 | 2026-09-15 沙箱实验室测登记 |
 
 ---
 
@@ -84,6 +86,19 @@
 - **影响**：模式-语料错配时用户看到的是协议乱码而非可理解的错误或直答；评估侧 EM 归零。
 - **建议修法**（需讨论）：registerTools 后若工具集为空且原 allowed_tools 非空，应在系统提示注入"当前环境未提供 X 工具，请直接基于已有知识回答或说明无法检索"，或直接拒绝执行并报配置错误。与 U-10 的"模式切换前置引导"是同一族问题（配置-能力错配的用户可见性）。
 - **状态**：四模式基线如实测量（wiki-researcher 臂预期 EM≈0，此为根因）。
+
+### U-16 sandbox 镜像 :latest 与代码 exec 用户名错配——拉最新 tag 的部署全部 exec 失败
+
+- **证据**（2026-09-15，沙箱实验室测）：`docker_remote_client.go:811-830` exec 固定以 `DefaultSandboxExecUser`（"user"）执行；本地已拉的 `wechatopenai/weknora-sandbox:latest`（Docker Hub 08-05 构建，e16da97e）`/etc/passwd` 只有 `sandbox:x:1000`，`Config.User` 为空。任何 shell_exec/文件工具 exec 均报 `Error response from daemon: unable to find user user: no matching entries in passwd file`。同 tag `v0.8.0`（09-03 构建）passwd 含 `user:x:1000:1000::/home/user` 且 `Config.User=user`，一切正常（L1-L5 全链通过）。代码里 `docker_remote_client.go:271` 注释也写明"standard image ends with USER user"——即代码与 v0.8.0 镜像配套，`:latest` 落后于代码。
+- **影响**：任何按官方文档 `image: wechatopenai/weknora-sandbox:${WEKNORA_VERSION:-latest}` 且未显式钉版本的部署，只要代码较新而本地缓存的 `:latest` 较旧，沙箱功能性瘫痪且报错信息（"unable to find user"）毫无指向性。
+- **建议修法**：upstream 重打 `:latest`（=v0.8.0 内容）；或代码层兼容（exec 用户回退：user→sandbox→uid 1000），或启动时校验镜像用户并给清晰报错。
+- **状态**：本机实验配置已钉 `v0.8.0`（tenant 10011 配置行 a14e55a4）；租户 10000 的既有行 test_sandbox1 仍指 `:latest`，**需要用户决定是否同样改钉版本**。
+
+### U-17 skills/preloaded 预置技能对 agent 不可见，无一键注册入口
+
+- **证据**（2026-09-15）：`skills/preloaded/` 5 个技能（citation-generator/data-processor/doc-coauthoring/document-analyzer/openmaic-classroom）由 SkillService 惰性扫描，但 `agent_service.go:250-253` 注释明说 QA 路径不再填充 SkillDirs——agent 的技能只来自沙箱镜像内的 tenant_skills。实测 `skills_selection_mode=all` + 未安装技能时 read_skill 不注册，模型只能用 shell 翻 `/opt/weknora/tenant/skills`（空）。要消费预置技能必须手工 zip → `POST /skills/catalog`（multipart）→ `POST /skills/catalog/:id/install`。
+- **影响**：预置技能形同虚设（compose 还专门 bind-mount 了该目录）；新租户开箱无任何可用技能且无 UI 引导。
+- **建议修法**（需讨论）：启动时把 preloaded 目录自动 upsert 进各工作区 catalog（幂等，版本对齐 SKILL.md）；或 UI 提供"从预置目录导入"一键入口。
 
 ## P2（可选回馈 / 内部先修）
 

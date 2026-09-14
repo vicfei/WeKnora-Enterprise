@@ -16,6 +16,8 @@ PUBLISH_DIR = Path("/home/ubuntu/WeKnora/frontend/dist")
 
 # slug -> (title, source html in reports/, date, summary line)
 INDEX = [
+    ("sandbox-lab-v1", "沙箱/技能/搜索组合验证 v1（检查表式，L1-L5）", "sandbox-lab-v1.html",
+     "2026-09-15", "L1-L5 全通过（19/19）：Docker 沙箱按会话建容器、技能=镜像快照链（安装→commit→generation 1）、searxng 经新加坡 squid 隧道出站；排雷：沙箱 :latest 镜像用户名错配（U-16）、searxng keep_only 继承 disabled:true"),
     ("native-modes-v1-100", "四大原生模式基线 v1（100 题·池，U-14 修复后）", "native-modes-v1-100.html",
      "2026-09-10", "智能推理原生最强（EM 54.6/检索 top3 83.8）；维基问答 5 分源于 U-15 协议泄漏；数据分析师高分是参数记忆（0 工具调用）；U-14 修复经受真实负载"),
     ("agent-lab-v1-100", "智能推理模式标尺 v1：agent 基线 + RankingConfig/kb-routing 接入（100 题·池）", "agent-lab-v1-100.html",
