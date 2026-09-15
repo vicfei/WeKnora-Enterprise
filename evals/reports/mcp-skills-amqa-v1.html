@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>MCP 与技能体系实验 v1：从接入到 am-qa 全链演练（2026-09-15）</title>
+<style>
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#1f2328;line-height:1.65}
+h1{font-size:22px;border-bottom:2px solid #d0d7de;padding-bottom:8px}
+h2{font-size:17px;margin-top:28px;border-left:4px solid #0969da;padding-left:8px}
+h3{font-size:15px;margin-top:20px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid #d0d7de;padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#f6f8fa}
+.pass{color:#1a7f37;font-weight:600}.fail{color:#cf222e;font-weight:600}.note{color:#9a6700}
+code{background:#f6f8fa;padding:1px 5px;border-radius:4px;font-size:12.5px}
+pre{background:#f6f8fa;padding:10px;border-radius:6px;overflow-x:auto;font-size:12.5px}
+.meta{color:#57606a;font-size:13px}
+.chain{background:#f6f8fa;border-radius:6px;padding:8px 12px;font-size:13px;margin:8px 0}
+</style>
+</head>
+<body>
+<h1>MCP 与技能体系实验 v1 —— 从协议接入、技能矩阵到 am-qa 全链演练</h1>
+<p class="meta">2026-09-15 · 分支 feature/web-search-providers（自 agent-lab 栈）· 租户 10011（hotpot-eval-runner，admin）
++ 租户 10000 人工验证 · 评估方式：检查表式任务完成度（每项须容器/DB/日志/独立数据源侧证，不用 EM/F1）·
+前篇：<a href="report-sandbox-lab-v1.html">沙箱/技能/搜索组合验证 v1（L1-L5）</a>——本篇是其后续（L6/E 系列）</p>
+
+<h2>0. 摘要</h2>
+<p>一天内完成了 <b>MCP 协议接入</b>（含人工审批流）、<b>六技能矩阵</b>建设、<b>Privora 金融数据</b>接入、
+<b>am-qa 资管智能体原型全链演练</b>，以及 <b>三轮用户 UI 人工验证</b>。全部检查项通过；产出 3 个新上游问题
+候选（U-18/19/20）、2 条已验证的工程模式（技能 env secrets 分层、文件产物"写后读回"提示词纪律）。
+am-qa 原型 v0 成立：<b>取数 → 核对 → 核算 → 呈现 → 引用 → 成文</b> 六环全部实测且可独立复算。</p>
+
+<h2>1. MCP 接入与实验（L6 系列）</h2>
+
+<h3>1.1 接入路径（两次绕行）</h3>
+<table>
+<tr><th>尝试</th><th>结果</th><th>绕行</th></tr>
+<tr><td>魔搭广场"一键启动"托管 URL</td><td class="fail">✗ SPA 全遮蔽，端点无法程序化获取（mcp.modelscope.cn 域名不解析，文章所载格式过期）</td><td rowspan="2">改用 <b>官方 pip 包本地 SSE</b>：modelscope-mcp-server v0.2.1 以 <code>--transport sse --port 8765</code> 常驻，WeKnora 以 sse 型 mcp_services 行接入（id a539af53）。令牌只进本地进程环境，不落 DB</td></tr>
+<tr><td>官方包默认 stdio 传输</td><td class="fail">✗ WeKnora 代码级无条件禁用 stdio（安全设计，无开关）</td></tr>
+</table>
+<p>9 个工具下发：get_current_user / search_models / search_datasets / search_studios / search_papers /
+search_mcp_servers / get_mcp_server_detail / generate_image / get_environment_info。MCP 工具对 agent
+的命名规则：<code>mcp_&lt;服务名&gt;_&lt;工具名&gt;</code>。</p>
+
+<h3>1.2 L6b/c/d 实验结果</h3>
+<table>
+<tr><th>实验</th><th>任务</th><th>结果与证据</th></tr>
+<tr><td><b>L6b 单调用</b></td><td>查 deepseek 模型 top3</td><td class="pass">✓ 5.1s；防编造核验：会话记录中工具原始返回 downloads_count=5073151 与答案 5,073,151 逐字一致</td></tr>
+<tr><td><b>L6c 三合一</b></td><td>MCP 论文检索 × 技能处理 × 沙箱产出</td><td class="pass">✓ 30.7s 六类工具协同；魔搭论文接口无被引字段，agent 改用浏览量并显式声明替代（反幻觉）；一次沙箱 409 瞬时错误自愈；发现自己算术笔误主动用 edit 工具修正</td></tr>
+<tr><td><b>L6d 审批流</b></td><td>search_papers 设 require_approval，双路径</td><td class="pass">✓ 批准路径：tool_approval_required（参数明文）→ resolve → resolved → 工具执行 6.0s；重复 resolve 幂等 404。驳回路径（fail-close）：agent 换参重试 4 次全被拒 → 正确诊断"服务被拒"→ <b>拒绝凭印象编造论文标题</b></td></tr>
+</table>
+
+<h3>1.3 E1 AIGC 生图链（含基建排雷）</h3>
+<p><b>雷</b>：MCP 客户端 advanced_config.timeout <b>默认 30s</b>，而魔搭 AIGC 生图是提交-轮询模式（服务端单次
+257~302s）——首跑 9 次尝试全灭（报无指向性的 transport error）。<b>修复</b>：服务行 timeout 调 330s。
+重跑全链通：generate_image（Qwen-Image）→ OSS URL → agent 自行 curl 下载入沙箱 → file 验证
+（PNG 760×1280 / 662KB）→ 视觉模型独立核验内容与提示词一致（橘猫戴眼镜敲代码扁平插画）。</p>
+
+<h2>2. 技能矩阵（6 技能，全 ready）</h2>
+<table>
+<tr><th>技能</th><th>来源</th><th>试点验证</th></tr>
+<tr><td>数据处理器</td><td>本地预置 zip</td><td>L4/L6 主力（统计/格式转换）</td></tr>
+<tr><td>privora 金融数据平台</td><td>ClawHub privora-cn-quant v1.0.54</td><td>见 §3</td></tr>
+<tr><td>三单匹配核对</td><td>ClawHub three-way-match-free</td><td>预埋 2 处差异全抓到（数量差带原文行号）；<b>边界诚实</b>：免费档不做金额算术，agent 声明差异是自己复核的并补算两种口径</td></tr>
+<tr><td>text-to-infographic</td><td>ClawHub</td><td>单页静态自包含 HTML（无 script/外链）落 output/ → 工件自动收集</td></tr>
+<tr><td>引用生成器</td><td>本地预置 zip（纯提示词）</td><td>GB/T 7714-2015 + APA 7th 双格式，[EB/OL] 双日期、[S.l.] 出版地占位等著录细节到位</td></tr>
+<tr><td>论衡长文流水线</td><td>ClawHub lunheng v2.12.45（声明式）</td><td>烟雾测试：按字数分层选"精简档"、论点树含反方论证位（A′）、证据需求清单——与宿主编排兼容</td></tr>
+</table>
+<p class="note">选型方法：ClawHub API（clawhub.ai/api/v1/skills，上海直连）拉全量目录按下载量+场景筛选；
+本环境明确跳过搜索类（与 bocha/doubao/searxng 重叠）。</p>
+
+<h2>3. Privora 金融数据接入（E4）</h2>
+<div class="chain">接入链：令牌 introspect（active，读权限面覆盖 dataasset/investment/dashboard/schedule）→
+ClawHub 注册 → install（installer agent ~50s，快照入 g 代镜像）→ <b>技能层 env secrets</b>
+（PATCH /sandbox-configs/:id/skills/:skillId {"envs":{LG_AGENT_BASE_URL,LG_AGENT_TOKEN}}）→ agent 消费</div>
+<p><b>排雷（重要）</b>：技能声明 env 的正确配置位是技能行 envs（UI 的"设置→沙箱 secrets"），
+<b>沙箱 config.env_vars 不满足 execute_skill_script 的校验</b>（只对 shell_exec 生效）。分层序：
+管理员层 &lt; 用户 config 层 &lt; 用户技能层（mine beat workspace's），用户层可经 /me/env-vars 或
+shell_exec(skill_name, env) 自助写入。实验后已撤沙箱级 env_vars，令牌只走技能层（最小暴露面）。</p>
+<p><b>实测</b>（60.8s，6 步 API 调用）：贵州茅台 600519 收盘 1272.75/−0.41%（含 OHLC/成交额）、
+易方达蓝筹 005827 净值 1.4809/−0.6107%。<b>独立交叉验证</b>：腾讯行情接口（qt.gtimg.cn）同字段逐项一致；
+agent 另用 Privora 实时镜像端点自复核。订阅模型说明：marketplace 资产需 subscribe-and-read 预设 scope，
+默认 read-data 不含。</p>
+
+<h2>4. am-qa 全链演练 v1（E6 + 三轮人工验证）</h2>
+
+<h3>4.1 自动演练（T1/T2 + 意外断点恢复）</h3>
+<table>
+<tr><th>环节</th><th>结果</th></tr>
+<tr><td>T1 取数+核算（365s）</td><td class="pass">600519 近 30 交易日 CSV+metrics 落盘；<b>外部独立复算四指标逐位一致</b>：累计 −2.5795% / 日σ 0.0127885 / 年化 20.3010% / 最大回撤 −6.0902%</td></tr>
+<tr><td>T2 呈现+成文（123s）</td><td class="pass">脚本 bug 导致新会话=新容器 → <b>意外断点恢复测试通过</b>：agent 自主重取 55 交易日、重建窗口、<b>自发双源交叉验证（vs 腾讯前复权，30/30 日收盘逐日一致，偏差 0.00）</b>、重算指标后交付信息图+引用+论衡简报（268 字四段式，反方论证有实质内容）</td></tr>
+<tr><td>纠错回合</td><td class="pass">信息图虚指标记缺陷（见 §5）→ 补写 7,062B + 读回验证 + 工件收集</td></tr>
+</table>
+
+<h3>4.2 人工验证轮（UI 路径，三轮）</h3>
+<table>
+<tr><th>轮次</th><th>内容</th><th>结果</th></tr>
+<tr><td>技能+沙箱（10000）</td><td>hex 计算 / 文件 roundtrip</td><td class="pass">✓ 容器/文件/答案三侧证咬合（见前篇）</td></tr>
+<tr><td>am-qa 手工版（10011）</td><td>五粮液快查 35s；茅台全链 108s（12 步工具链）</td><td class="pass">✓ 五粮液 69.70/−0.21% 独立核对一致；茅台四指标与我方独立复算逐位一致；brief.html 13,614B 真实落盘+读回验证+4 工件收集——<b>提示词纪律生效，虚指标记缺陷未复现</b></td></tr>
+<tr><td>MCP 手工版（10011）</td><td>A 基本调用 / B 审批卡 / C 驳回</td><td class="pass">✓ A：4 次 mcp_modelscope_search_models，只命中 1 模型时如实报"不足前 3"；B：审批卡 8s 批准，<b>UI 卡支持批准时改参（modified_args，新发现能力）</b>；C：驳回（UI 理由"用户拒绝"留痕）→ agent 换参重试 → 二次卡批准 → 完成——与 L6d 预测一致</td></tr>
+</table>
+
+<h2>5. 发现与登记（本篇新增）</h2>
+<table>
+<tr><th>#</th><th>发现</th><th>处置</th></tr>
+<tr><td>U-18 候选</td><td>MCP advanced_config.timeout 默认 30s，长任务型工具（生图/批处理）必然超时且报错无指向性</td><td class="note">建议默认 120s+ 或报错提示可调；已临时调 330s</td></tr>
+<tr><td>U-19 候选</td><td>MCP 审批被拒后 agent 倾向换参重试（每次再过闸门），"拒绝"非强终止信号</td><td class="note">语义待讨论（重试亦有价值，但审批人应知情）</td></tr>
+<tr><td>U-20 候选</td><td>技能 SKILL.md 内的示例资源相对引用（./lg-data-demo.gif）泄漏进答案正文成裂图</td><td class="note">渲染层应过滤技能文档资源引用</td></tr>
+<tr><td>工程模式 1</td><td>技能 env secrets 三层配置（管理员/用户 config/用户技能），沙箱 env_vars 不被技能校验认可</td><td class="pass">已验证并固化用法</td></tr>
+<tr><td>工程模式 2</td><td>要求文件产物的提示词必须含"写完读回验证"；检查表必须含"文件存在于容器"硬校验（防"展示即以为已保存"）</td><td class="pass">人工验证轮证实防住缺陷</td></tr>
+</table>
+
+<h2>6. 运行态资产与复现</h2>
+<ul>
+<li><b>常驻进程</b>：modelscope MCP（127.0.0.1:8765，SSE /sse，重启：<code>MODELSCOPE_API_TOKEN=$(cat /tmp/modelscope_token) nohup ~/.local/bin/modelscope-mcp-server --transport sse --port 8765 &</code>）；SSH 搜索隧道（172.18.0.1:8889，见前篇）</li>
+<li><b>10011 资产</b>：mcp_services=modelscope（a539af53，timeout 330s）；沙箱 a14e55a4 六技能 ready（privora env secrets 已配）；agent sandbox-lab-agent（15dfe656，mcp_selection_mode=all）</li>
+<li><b>复现脚本</b>：/tmp/agent_lab/{l6d_approval.py,t1_amqa.py}；全量证据链 .context/mcp-lab-record-20260915.md（E4/E5/E6 节）</li>
+<li><b>安全</b>：两枚令牌（ModelScope / Privora lgatk_*,10-15 到期）曾入聊天记录，建议轮换；均已只存进程环境或技能层，不入 DB 明文</li>
+</ul>
+
+<h2>7. 结论</h2>
+<ul>
+<li>MCP 全生命周期（注册→工具下发→调用→审批批/驳/改参→审计）与技能全生命周期（目录→安装→快照→消费→工件）双双实测闭合；</li>
+<li>am-qa 原型 v0 成立：六技能覆盖取数→核对→核算→呈现→引用→成文，数据可独立复算（两轮外部复算+双源交叉），产物可下载；</li>
+<li>下一步：资管语料到位后把 KB 检索环替换进链路，即成 am-qa v1；评估标尺沿用本篇检查表方法。</li>
+</ul>
+<p class="meta">实验与验证记录：自动 8 轮（L6b/c/d、E1、E4、E5×4、E6×3）+ 人工 3 轮；
+全部会话/工件/日志证据留存于本机（会话 id 见正文）。</p>
+</body>
+</html>

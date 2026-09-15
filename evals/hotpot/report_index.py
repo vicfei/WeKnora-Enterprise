@@ -16,6 +16,8 @@ PUBLISH_DIR = Path("/home/ubuntu/WeKnora/frontend/dist")
 
 # slug -> (title, source html in reports/, date, summary line)
 INDEX = [
+    ("mcp-skills-amqa-v1", "MCP 与技能体系实验 v1：从接入到 am-qa 全链演练", "mcp-skills-amqa-v1.html",
+     "2026-09-15", "MCP 全生命周期（接入/审批批驳改参/审计）+六技能矩阵+Privora 金融数据（独立双源验证）+am-qa 原型全链（取数→核算→呈现→引用→成文，四指标外部复算逐位一致）；新增 U-18/19/20 候选与两条工程模式"),
     ("sandbox-lab-v1", "沙箱/技能/搜索组合验证 v1（检查表式，L1-L5）", "sandbox-lab-v1.html",
      "2026-09-15", "L1-L5 全通过（19/19）：Docker 沙箱按会话建容器、技能=镜像快照链（安装→commit→generation 1）、searxng 经新加坡 squid 隧道出站；排雷：沙箱 :latest 镜像用户名错配（U-16）、searxng keep_only 继承 disabled:true"),
     ("native-modes-v1-100", "四大原生模式基线 v1（100 题·池，U-14 修复后）", "native-modes-v1-100.html",
