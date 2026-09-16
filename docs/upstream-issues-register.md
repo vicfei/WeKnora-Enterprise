@@ -28,6 +28,8 @@
 | U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记；**fork 已修 2026-09-15** |
 | U-16 | P1 | Docker Hub `weknora-sandbox:latest`（08-05 构建）用户名为 `sandbox`，当前代码 exec 固定 `user` → 全部 exec 失败 | 发布缺陷 | ★★★ upstream 重打 :latest 即修 | 2026-09-15 沙箱实验室测登记 |
 | U-17 | P3 | skills/preloaded 预置技能在 QA 路径不可见（by design），无一键入 catalog 入口 | 特性缺口 | ★ 需讨论 | 2026-09-15 沙箱实验室测登记 |
+| U-20 | P3 | 技能 SKILL.md 内示例资源相对引用（./xxx.gif）泄漏进答案正文成裂图 | 前端渲染 | ★★ 渲染层过滤即可 | 2026-09-15 am-qa 演练登记 |
+| U-21 | P2 | 内置智能体 allowed_tools 在 provisioning 时固化，不随 DefaultAllowedTools 演进——新默认工具（search_conversations 等）对既有内置智能体不可用，且与 search_memory 的"开关注入"机制不一致，用户无从得知 | 设计不一致 | ★★ 需迁移或注入机制 | 2026-09-16 消息管理实测登记 |
 
 ---
 
@@ -100,6 +102,19 @@
 - **证据**（2026-09-15）：`skills/preloaded/` 5 个技能（citation-generator/data-processor/doc-coauthoring/document-analyzer/openmaic-classroom）由 SkillService 惰性扫描，但 `agent_service.go:250-253` 注释明说 QA 路径不再填充 SkillDirs——agent 的技能只来自沙箱镜像内的 tenant_skills。实测 `skills_selection_mode=all` + 未安装技能时 read_skill 不注册，模型只能用 shell 翻 `/opt/weknora/tenant/skills`（空）。要消费预置技能必须手工 zip → `POST /skills/catalog`（multipart）→ `POST /skills/catalog/:id/install`。
 - **影响**：预置技能形同虚设（compose 还专门 bind-mount 了该目录）；新租户开箱无任何可用技能且无 UI 引导。
 - **建议修法**（需讨论）：启动时把 preloaded 目录自动 upsert 进各工作区 catalog（幂等，版本对齐 SKILL.md）；或 UI 提供"从预置目录导入"一键入口。
+
+### U-20 技能文档示例资源引用泄漏进答案
+
+- **证据**（2026-09-15，am-qa 演练 E6）：privora 技能 SKILL.md 内的示例图片相对引用 `![数据平台演示](./lg-data-demo.gif)` 被 agent 原样抄进答案正文，聊天界面渲染为裂图（相对路径在消息上下文中无解析目标）。
+- **建议修法**：答案渲染层过滤无解析目标的相对资源引用；或技能文档装载时剥离资源行。
+- **状态**：候选，未修。
+
+### U-21 内置智能体工具清单固化，不随默认工具集演进
+
+- **证据**（2026-09-16，租户 10000 消息管理实测）：开启消息索引后用内置「智能推理」测试跨会话检索（A 会话给凭据、B 会话问），步骤树出现 `search_*` 工具但答案"未找到"。逐层排查：索引正常（A 的问答 12s 内入 `__chat_history__` 并回填 knowledge_id）、配置正常（enabled+模型齐）。根因：**内置智能体 DB 行的 allowed_tools 在 provisioning 时固化**（实测为 5 个 RAG 工具），而代码 `DefaultAllowedTools()`（definitions.go:119）已含 `search_conversations`（131 行）+ database_query + data_analysis 等——存量行永远拿不到新工具。叠加混淆因素：`search_memory` 是开关自动注入（agent_service.go:953 显式剥离重加），`search_conversations` 却走白名单——同一族"搜过去"的工具两套注册机制，模型只能用 memory 版查不到聊天档案。两个租户（10000/10011）的内置行同为旧清单。
+- **影响**：任何"新默认工具 + 存量内置智能体"组合都功能性静默缺失；用户视角是"功能开了但不生效"，且步骤树里两个同前缀工具难以分辨，排障成本高。
+- **建议修法**：内置智能体启动时对齐当前 preset（幂等合并默认工具）；或 search_conversations 改为与 search_memory 同款的开关注入（消息索引 enabled 即注册）。
+- **状态**：fork 侧已对租户 10000 的 builtin-smart-reasoning 行补工具（PUT allowed_tools += search_conversations），端到端验证 B 会话正确调用并命中；10011 未动（实验用 sandbox-lab-agent 自带该工具）。
 
 ## P2（可选回馈 / 内部先修）
 
