@@ -142,6 +142,12 @@ func (s *knowledgeBaseService) HybridSearch(ctx context.Context,
 	// handler/knowledgebase.go.
 	logger.Infof(ctx, "Hybrid search parameters, knowledge base IDs: %v, query text: %s",
 		searchKBIDs, secutils.SanitizeForLog(params.QueryText))
+	if params.TimeCondition != nil {
+		logger.Infof(ctx, "Hybrid search time condition received, field: %s, op: %s, start: %s, end: %s, strictness: %s",
+			params.TimeCondition.Field, params.TimeCondition.Op,
+			params.TimeCondition.Start.Format(time.RFC3339), params.TimeCondition.End.Format(time.RFC3339),
+			params.TimeCondition.Strictness)
+	}
 
 	tenantInfo, _ := types.TenantInfoFromContext(ctx)
 

@@ -111,9 +111,12 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 		userMsg.Images = chatManage.Images
 	}
 
-	maxTokens := 150
+	// 150 sufficed for the old three-field JSON; Task 4 (time_condition)
+	// grows the output and a mid-JSON truncation silently falls back to the
+	// raw query — the whole structured output is lost, not just the time.
+	maxTokens := 500
 	if useImages {
-		maxTokens = 500
+		maxTokens = 800
 	}
 
 	// --- Call model ---

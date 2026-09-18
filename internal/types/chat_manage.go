@@ -261,8 +261,13 @@ func (c *ChatManage) Clone() *ChatManage {
 			IntentPromptOverrides:    maps.Clone(c.IntentPromptOverrides),
 		},
 		PipelineState: PipelineState{
-			RewriteQuery:         c.RewriteQuery,
-			Intent:               c.Intent,
+			RewriteQuery: c.RewriteQuery,
+			Intent:       c.Intent,
+			// TimeCondition is shared by pointer: it is write-once in query
+			// understanding and read-only downstream, and search_parallel's
+			// clones must still see it or time-aware retrieval silently
+			// deactivates on the parallel path.
+			TimeCondition:        c.TimeCondition,
 			ImageDescription:     c.ImageDescription,
 			QuotedContext:        c.QuotedContext,
 			SystemPromptOverride: c.SystemPromptOverride,
