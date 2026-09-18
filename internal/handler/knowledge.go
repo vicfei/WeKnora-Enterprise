@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	goerrors "errors"
@@ -1678,11 +1679,13 @@ func (h *KnowledgeHandler) GetKnowledgeBatch(c *gin.Context) {
 }
 
 // UpdateKnowledgeRequest defines the partial-update body for PUT /knowledge/:id.
-// Omitted fields are left unchanged; an explicit empty description clears the summary.
+// Omitted fields are left unchanged; an explicit empty description clears the summary;
+// an explicit null business_date clears the business time (unknown ≠ any date).
 type UpdateKnowledgeRequest struct {
-	Title          *string         `json:"title"`
-	Description    *string         `json:"description"`
-	CustomMetadata json.RawMessage `json:"custom_metadata"`
+	Title          *string          `json:"title"`
+	Description    *string          `json:"description"`
+	CustomMetadata json.RawMessage  `json:"custom_metadata"`
+	BusinessDate   json.RawMessage  `json:"business_date"`
 }
 
 // UpdateKnowledge godoc
@@ -1727,6 +1730,18 @@ func (h *KnowledgeHandler) UpdateKnowledge(c *gin.Context) {
 	if req.Description != nil {
 		knowledge.Description = *req.Description
 		knowledge.DescriptionSpecified = true
+	}
+	if len(req.BusinessDate) > 0 {
+		knowledge.BusinessDateSpecified = true
+		trimmed := bytes.TrimSpace(req.BusinessDate)
+		if string(trimmed) != "null" {
+			parsed, err := time.Parse(time.RFC3339, string(trimmed))
+			if err != nil {
+				c.Error(errors.NewBadRequestError("business_date must be an RFC3339 timestamp or null"))
+				return
+			}
+			knowledge.BusinessDate = &parsed
+		}
 	}
 
 	if err := h.kgService.UpdateKnowledge(effCtx, &knowledge); err != nil {

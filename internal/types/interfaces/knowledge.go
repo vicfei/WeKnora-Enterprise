@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"mime/multipart"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/hibiken/asynq"
@@ -357,6 +358,10 @@ type KnowledgeRepository interface {
 	SearchKnowledgeInScopes(ctx context.Context, scopes []types.KnowledgeSearchScope, keyword string, offset, limit int, fileTypes []string) ([]*types.Knowledge, bool, int64, error)
 	// ListIDsByTagIDs returns all knowledge IDs that have any of the specified tag IDs (OR semantics).
 	ListIDsByTagIDs(ctx context.Context, tenantID uint64, kbID string, tagIDs []string) ([]string, error)
+	// ListIDsByTimeWindow returns knowledge IDs whose field (business_date or
+	// updated_at) falls inside [start, end]. A nil end means +inf. Rows with a
+	// NULL business_date never match — unknown business time is not a match.
+	ListIDsByTimeWindow(ctx context.Context, tenantID uint64, kbID, field string, start, end time.Time) ([]string, error)
 	// SetKnowledgeTags replaces all tags for a single knowledge entry (deletes old, inserts new).
 	SetKnowledgeTags(ctx context.Context, knowledgeID string, tagIDs []string) error
 	// AddKnowledgeTagRelations attaches tags without removing existing ones,

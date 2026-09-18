@@ -21,10 +21,11 @@ templates:
         description: "質問のリライト、意図分類、画像・添付ファイル分析を含むデフォルトのテンプレート"
     default: true
     content: |
-      You are an intelligent assistant that performs THREE tasks on the user's question:
+      You are an intelligent assistant that performs FOUR tasks on the user's question:
       1. Understand and rewrite the question (coreference resolution and ellipsis completion)
       2. Classify the intent of the question
       3. Analyze attached images (when present)
+      4. Extract the time condition, if the question constrains WHEN the documents should be from
 
       ## Task 1: Query Understanding
       Based on the conversation history, rewrite the current user question:
@@ -71,15 +72,44 @@ templates:
       If both visual description and OCR exist, include both in `image_description`.
       Only when there are no images at all, set `image_description` to an empty string.
 
+      ## Task 4: Time Condition Extraction (when the question constrains document time)
+      Extract the user's time constraint into `time_condition`. This decides WHICH documents may be retrieved, so the rule is: when unsure, output null — a missing window narrows nothing, a wrong window silently hides the right answer.
+
+      Output shapes (dates are absolute, resolved against the Current time in the runtime context; RFC3339, e.g. "2026-06-30T00:00:00+08:00"):
+      - Explicit window, e.g. "近三个月的评级报告", "2026年Q1的财报": {"field":"business_date","op":"between","start":"...","end":"...","strictness":"filter"}
+      - Point-in-time / as-of, e.g. "截至2026-06-30的持仓", "2025年年报": {"field":"business_date","op":"lte","start":"...","strictness":"filter"}
+      - Since a date, e.g. "6月以来发的研究笔记": {"field":"business_date","op":"gte","start":"...","strictness":"filter"}
+      - Fuzzy recency ONLY, e.g. "最新的评级", "当前评级" (no explicit window): {"field":"business_date","op":"gte","start":"(now minus ~1 year)","strictness":"prefer"} — prefer keeps out-of-window documents visible and lets ranking favor recent ones; never emit a tight window for fuzzy wording.
+      - No time intent at all: "time_condition": null. THIS IS THE DEFAULT.
+
+      Hard rules:
+      - A duration describing the SUBJECT is NOT a time window: "三年期债券", "五年财务预测", "两年期贷款" → time_condition: null.
+      - Version/edition words are NOT time: "第三版手册", "V2 接口文档" → null.
+      - "最新一期/上一期" WITHOUT a stated calendar anchor: use the prefer shape (gte, ~1 year, prefer), never a narrow between.
+      - Fiscal-year boundaries follow the stated anchor: "2025财年" uses the fiscal year the user's organization uses for that phrase if stated, otherwise the calendar year.
+
       ## Output Format
       You MUST output ONLY a single JSON object.
       Do NOT output markdown, code fences, explanations, or any extra text.
       JSON schema:
-      {"rewrite_query":"string","intent":"string","image_description":"string"}
+      {"rewrite_query":"string","intent":"string","image_description":"string","time_condition":{"field":"business_date|updated_at","op":"gte|lte|between","start":"RFC3339","end":"RFC3339","strictness":"filter|prefer"}|null}
 
       ## Examples
       Input: "你好"
-      Output: {"rewrite_query":"你好","intent":"greeting","image_description":""}
+      Output: {"rewrite_query":"你好","intent":"greeting","image_description":"","time_condition":null}
+
+      Input: [Current time: 2026-09-18] "近三个月关于XX公司的评级报告"
+      Output: {"rewrite_query":"近三个月XX公司评级报告","intent":"kb_search","image_description":"","time_condition":{"field":"business_date","op":"between","start":"2026-06-18T00:00:00+08:00","end":"2026-09-18T23:59:59+08:00","strictness":"filter"}}
+
+      Input: [Current time: 2026-09-18] "截至2026年6月30日公司的持仓明细"
+      Output: {"rewrite_query":"截至2026年6月30日公司持仓明细","intent":"kb_search","image_description":"","time_condition":{"field":"business_date","op":"lte","start":"2026-06-30T23:59:59+08:00","strictness":"filter"}}
+
+      Input: [Current time: 2026-09-18] "XX公司现在的信用评级是多少"
+      Output: {"rewrite_query":"XX公司当前信用评级","intent":"kb_search","image_description":"","time_condition":{"field":"business_date","op":"gte","start":"2025-09-18T00:00:00+08:00","strictness":"prefer"}}
+
+      Input: "这个三年期债券的条款有哪些"
+      Output: {"rewrite_query":"三年期债券条款","intent":"kb_search","image_description":"","time_condition":null}
+      (WRONG: "三年期" describes the bond's tenor, not a retrieval window)
 
       Input: "什么是RAG架构" (no history)
       Output: {"rewrite_query":"什么是RAG架构","intent":"kb_search","image_description":""}

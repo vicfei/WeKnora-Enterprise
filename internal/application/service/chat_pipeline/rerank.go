@@ -496,13 +496,23 @@ func weightedCompositeScore(sr *types.SearchResult, modelScore, baseScore, recen
 	return searchutil.CompositeScore(modelScore, baseScore, sourceWeight, recency, r)
 }
 
-// recencySignal maps a document's last-update timestamp to an exponential
-// decay signal in [0,1]: a document updated now scores 1, one half-life ago
-// scores 0.5, and so on. Missing or unparsable timestamps yield 0, which is
-// only meaningful when RecencyWeight > 0.
+// recencySignal maps a document's time axis to an exponential decay signal
+// in [0,1]: a document dated now scores 1, one half-life ago scores 0.5, and
+// so on. Missing or unparsable timestamps yield 0, which is only meaningful
+// when RecencyWeight > 0. Time-aware retrieval (设计 §4.5): the document's
+// business_date is the primary axis when present, updated_at the fallback —
+// the signal itself (RecencySignal) is unchanged, only its input is upgraded.
 func recencySignal(sr *types.SearchResult, halfLifeDays int, now time.Time) float64 {
 	if sr.Metadata == nil {
 		return 0
+	}
+	// A parseable business_date wins even when its decayed signal is ~0 —
+	// a 2020 rating being "old" is the business truth; only unparseable or
+	// missing values may fall back to the system timestamp.
+	if ts := sr.Metadata["knowledge_business_date"]; ts != "" {
+		if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+			return searchutil.RecencySignal(ts, halfLifeDays, now)
+		}
 	}
 	return searchutil.RecencySignal(sr.Metadata["knowledge_updated_at"], halfLifeDays, now)
 }

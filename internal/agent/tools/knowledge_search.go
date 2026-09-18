@@ -70,9 +70,14 @@ Avoid:
 - queries (required): 1–5 semantic questions or conceptual statements.
   These should reflect the meaning or topic you want embeddings to capture.
 - knowledge_base_ids (optional): limit the search scope.
+- time_min / time_max (optional): document business-date window as
+  YYYY-MM-DD. Pass BOTH when the user constrains WHEN documents should be
+  from (e.g. "since June", "as of 2026-06-30" → time_max); pass neither
+  when the user states no time constraint. Durations describing the
+  subject ("three-year bond") are NOT windows.
 
 ## Output
-Returns chunks ranked by semantic similarity, reranked when applicable.  
+Returns chunks ranked by semantic similarity, reranked when applicable.
 Each chunk has a short cN source ID and belongs to a dN document ID. Results represent conceptual relevance, not literal keyword overlap. Use dN for document-level follow-up tool calls.`,
 	schema: json.RawMessage(`{
   "type": "object",
@@ -94,6 +99,14 @@ Each chunk has a short cN source ID and belongs to a dN document ID. Results rep
       },
       "minItems": 0,
       "maxItems": 10
+    },
+    "time_min": {
+      "type": "string",
+      "description": "Optional: window start (inclusive), YYYY-MM-DD — the document's business date must be on/after this. Only pass when the user states a time constraint."
+    },
+    "time_max": {
+      "type": "string",
+      "description": "Optional: window end (inclusive), YYYY-MM-DD — the document's business date must be on/before this (as-of questions). Only pass when the user states a time constraint."
     }
   },
   "required": ["queries"]
@@ -104,6 +117,12 @@ Each chunk has a short cN source ID and belongs to a dN document ID. Results rep
 type KnowledgeSearchInput struct {
 	Queries          []string `json:"queries"`
 	KnowledgeBaseIDs []string `json:"knowledge_base_ids,omitempty"`
+	// TimeMin/TimeMax carry the document business-date window (YYYY-MM-DD)
+	// extracted from the user's phrasing. Both empty = no time constraint.
+	// The server resolves them through the same resolveDocumentTimeScope as
+	// the chat pipeline (single-path rule, design §4.6).
+	TimeMin string `json:"time_min,omitempty"`
+	TimeMax string `json:"time_max,omitempty"`
 }
 
 // searchResultWithMeta wraps search result with metadata about which query matched it
@@ -255,6 +274,11 @@ func (t *KnowledgeSearchTool) Execute(ctx context.Context, args json.RawMessage)
 
 	logger.Infof(ctx, "[Tool][KnowledgeSearch] Queries: %v", queries)
 
+	// Time-aware retrieval (design §4.6): the model supplies absolute dates;
+	// anything unparseable or inverted is ignored rather than guessed
+	// (same rather-no-time-than-wrong-time rule as the chat pipeline).
+	timeCondition := buildAgentTimeCondition(ctx, input.TimeMin, input.TimeMax)
+
 	// Search parameters: fall back to global config, then to hardcoded defaults.
 	// We used to read tenant.ConversationConfig here as the first source of
 	// truth, but that field was removed when the chat pipeline moved to
@@ -302,7 +326,7 @@ func (t *KnowledgeSearchTool) Execute(ctx context.Context, args json.RawMessage)
 	kbTypeMap := t.getKnowledgeBaseTypes(ctx, kbIDs)
 
 	allResults := t.concurrentSearchByTargets(ctx, queries, searchTargets,
-		topK, vectorThreshold, keywordThreshold, kbTypeMap)
+		topK, vectorThreshold, keywordThreshold, kbTypeMap, timeCondition)
 	logger.Infof(ctx, "[Tool][KnowledgeSearch] Concurrent search completed: %d raw results", len(allResults))
 
 	// Note: HybridSearch now uses RRF (Reciprocal Rank Fusion) which produces normalized scores
@@ -462,6 +486,7 @@ func (t *KnowledgeSearchTool) concurrentSearchByTargets(
 	topK int,
 	vectorThreshold, keywordThreshold float64,
 	kbTypeMap map[string]string,
+	timeCondition *types.SearchTimeCondition,
 ) []*searchResultWithMeta {
 	// Batch-fetch KB records for embedding model grouping
 	kbIDs := searchTargets.GetAllKnowledgeBaseIDs()
@@ -570,6 +595,7 @@ func (t *KnowledgeSearchTool) concurrentSearchByTargets(
 							MatchCount:       topK,
 							VectorThreshold:  vectorThreshold,
 							KeywordThreshold: keywordThreshold,
+							TimeCondition:    timeCondition,
 						}
 						kbResults, err := t.knowledgeBaseService.HybridSearch(ctx, fullKBIDs[0], searchParams)
 						if err != nil {
@@ -609,6 +635,7 @@ func (t *KnowledgeSearchTool) concurrentSearchByTargets(
 							KnowledgeIDs:     st.KnowledgeIDs,
 							TagIDs:           st.TagIDs,
 							ScopeTagIDs:      st.ScopeTagIDs,
+							TimeCondition:    timeCondition,
 						}
 						kbResults, err := t.knowledgeBaseService.HybridSearch(ctx, st.KnowledgeBaseID, searchParams)
 						if err != nil {
@@ -1264,9 +1291,21 @@ func (t *KnowledgeSearchTool) compositeScore(
 	recency := 0.0
 	ranking := t.effectiveRanking()
 	if ranking.RecencyWeight > 0 && result.Metadata != nil {
-		recency = searchutil.RecencySignal(
-			result.Metadata["knowledge_updated_at"],
-			ranking.RecencyHalfLifeDays, time.Now())
+		// Time-aware retrieval: business_date is the primary axis when
+		// parseable (even when its decayed signal is ~0 — old is the
+		// business truth); updated_at remains the fallback.
+		now := time.Now()
+		if ts := result.Metadata["knowledge_business_date"]; ts != "" {
+			if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+				recency = searchutil.RecencySignal(ts, ranking.RecencyHalfLifeDays, now)
+			} else {
+				recency = searchutil.RecencySignal(result.Metadata["knowledge_updated_at"], ranking.RecencyHalfLifeDays, now)
+			}
+		} else {
+			recency = searchutil.RecencySignal(
+				result.Metadata["knowledge_updated_at"],
+				ranking.RecencyHalfLifeDays, now)
+		}
 	}
 
 	// Composite formula: weighted combination of model score, base score,
@@ -1283,6 +1322,57 @@ func (t *KnowledgeSearchTool) compositeScore(
 	}
 
 	return composite
+}
+
+// buildAgentTimeCondition converts the model-supplied YYYY-MM-DD window into
+// a SearchTimeCondition for the same resolver the chat pipeline uses.
+// Unparseable dates, or a window whose end precedes its start, yield nil —
+// no time condition rather than a wrong one. A single bound produces an
+// open-ended window (gte or lte).
+func buildAgentTimeCondition(ctx context.Context, timeMin, timeMax string) *types.SearchTimeCondition {
+	parseDay := func(s string) (time.Time, bool) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return time.Time{}, false
+		}
+		// Accept YYYY-MM-DD (schema contract); tolerate a full RFC3339 value.
+		if len(s) == 10 {
+			t, err := time.ParseInLocation("2006-01-02", s, time.Local)
+			return t, err == nil
+		}
+		t, err := time.Parse(time.RFC3339, s)
+		return t, err == nil
+	}
+	minT, hasMin := parseDay(timeMin)
+	maxT, hasMax := parseDay(timeMax)
+	if !hasMin && !hasMax {
+		return nil
+	}
+	// Inclusive end: move a bare day boundary to its last instant.
+	if hasMax {
+		maxT = maxT.Add(24*time.Hour - time.Second)
+	}
+	if hasMin && hasMax && maxT.Before(minT) {
+		logger.Warnf(ctx, "[Tool][KnowledgeSearch] ignoring inverted time window [%s, %s]", timeMin, timeMax)
+		return nil
+	}
+	tc := &types.SearchTimeCondition{
+		Field:      types.SearchTimeFieldBusinessDate,
+		Op:         types.SearchTimeOpBetween,
+		Start:      minT,
+		End:        maxT,
+		Strictness: types.SearchTimeStrictnessFilter,
+	}
+	switch {
+	case !hasMax:
+		tc.Op = types.SearchTimeOpGte
+		tc.End = time.Time{}
+	case !hasMin:
+		tc.Op = types.SearchTimeOpLte
+		tc.Start = tc.End
+		tc.End = time.Time{}
+	}
+	return tc
 }
 
 // clampFloat clamps a float value to the specified range

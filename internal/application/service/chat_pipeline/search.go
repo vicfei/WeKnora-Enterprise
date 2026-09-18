@@ -475,6 +475,7 @@ func (p *PluginSearch) searchByTargets(
 						MatchCount:            chatManage.EmbeddingTopK,
 						SkipContextEnrichment: true,
 						DisableVectorMatch:    disableVector,
+						TimeCondition:         chatManage.TimeCondition,
 					}
 					res, err := p.knowledgeBaseService.HybridSearch(ctx, fullKBIDs[0], params)
 					if err != nil {
@@ -554,6 +555,7 @@ func (p *PluginSearch) searchSingleTarget(
 		ScopeTagIDs:           t.ScopeTagIDs,
 		SkipContextEnrichment: true,
 		DisableVectorMatch:    disableVector,
+		TimeCondition:         chatManage.TimeCondition,
 	}
 	if t.Type == types.SearchTargetTypeKnowledge {
 		params.KnowledgeIDs = t.KnowledgeIDs

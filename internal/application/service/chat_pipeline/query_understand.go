@@ -26,9 +26,10 @@ type PluginQueryUnderstand struct {
 var rewriteImageSepPattern = regexp.MustCompile(`(?s)^(.*?)\s*\n?---\n(.*)$`)
 
 type queryUnderstandOutput struct {
-	RewriteQuery     string            `json:"rewrite_query"`
-	Intent           types.QueryIntent `json:"intent"`
-	ImageDescription string            `json:"image_description"`
+	RewriteQuery     string                       `json:"rewrite_query"`
+	Intent           types.QueryIntent            `json:"intent"`
+	ImageDescription string                       `json:"image_description"`
+	TimeCondition    *types.SearchTimeCondition   `json:"time_condition,omitempty"`
 }
 
 // NewPluginQueryUnderstand creates a new query-understanding plugin instance
@@ -110,9 +111,12 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 		userMsg.Images = chatManage.Images
 	}
 
-	maxTokens := 150
+	// 150 sufficed for the old three-field JSON; Task 4 (time_condition)
+	// grows the output and a mid-JSON truncation silently falls back to the
+	// raw query — the whole structured output is lost, not just the time.
+	maxTokens := 500
 	if useImages {
-		maxTokens = 500
+		maxTokens = 800
 	}
 
 	// --- Call model ---
@@ -389,6 +393,7 @@ func (p *PluginQueryUnderstand) parseOutput(chatManage *types.ChatManage, raw st
 		}
 		chatManage.Intent = output.Intent
 		chatManage.ImageDescription = strings.TrimSpace(output.ImageDescription)
+		chatManage.TimeCondition = output.TimeCondition
 		return
 	}
 
@@ -443,7 +448,47 @@ func parseStructuredQueryOutputJSON(content string) (queryUnderstandOutput, bool
 		out.ImageDescription = combined
 	}
 
+	out.TimeCondition = parseTimeConditionField(obj)
+
 	return out, true
+}
+
+// parseTimeConditionField validates and materializes the time_condition
+// object. The rule is "rather no time than a wrong time" (design §4.3):
+// anything ambiguous — unknown op, unparseable dates, an inverted window —
+// is dropped entirely, leaving retrieval untouched.
+func parseTimeConditionField(obj map[string]json.RawMessage) *types.SearchTimeCondition {
+	raw, ok := obj["time_condition"]
+	if !ok || len(raw) == 0 || strings.TrimSpace(string(raw)) == "null" {
+		return nil
+	}
+	var tc types.SearchTimeCondition
+	if err := json.Unmarshal(raw, &tc); err != nil {
+		return nil
+	}
+	switch tc.Op {
+	case types.SearchTimeOpGte, types.SearchTimeOpLte, types.SearchTimeOpBetween:
+	default:
+		return nil
+	}
+	if tc.Start.IsZero() {
+		return nil
+	}
+	if tc.Op == types.SearchTimeOpBetween && tc.End.IsZero() {
+		return nil
+	}
+	if tc.Op == types.SearchTimeOpBetween && tc.End.Before(tc.Start) {
+		return nil
+	}
+	if tc.Field != types.SearchTimeFieldUpdatedAt {
+		// Default axis; anything else the resolver does not understand
+		// collapses to business_date.
+		tc.Field = types.SearchTimeFieldBusinessDate
+	}
+	if tc.Strictness != types.SearchTimeStrictnessPrefer {
+		tc.Strictness = types.SearchTimeStrictnessFilter
+	}
+	return &tc
 }
 
 func firstStringField(obj map[string]json.RawMessage, keys ...string) string {
