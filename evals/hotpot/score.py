@@ -12,6 +12,15 @@ from collections import Counter
 from pathlib import Path
 
 
+# Inline citation contract emitted by modelcontext.ExpandText; rendered as
+# clickable chips by the frontend but pure noise for text scoring.
+CITATION_TAG_RE = re.compile(r"<(?:kb|web)\b[^>]*/>")
+
+
+def strip_citation_tags(s: str) -> str:
+    return CITATION_TAG_RE.sub("", s)
+
+
 def normalize_answer(s: str) -> str:
     """HotpotQA official normalization (squad-style)."""
 
@@ -73,12 +82,12 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
             errors += 1
             continue
         scored += 1
-        num_same, n_pred, n_gold = f1_score(rec["answer"], q["answer"])
+        num_same, n_pred, n_gold = f1_score(strip_citation_tags(rec["answer"]), q["answer"])
         prec = num_same / n_pred if n_pred else 0
         rec_ = num_same / n_gold if n_gold else 0
         f1 = 2 * prec * rec_ / (prec + rec_) if (prec + rec_) else 0.0
         f1_sum += f1
-        if normalize_answer(rec["answer"]) == normalize_answer(q["answer"]):
+        if normalize_answer(strip_citation_tags(rec["answer"])) == normalize_answer(q["answer"]):
             em_hit += 1
         if rec.get("ref_titles") is None:
             continue  # 引用未采集(SSE 中断),只计入 EM/F1
