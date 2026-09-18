@@ -35,13 +35,20 @@ def token() -> str:
     return r.json()["data"]["token"]
 
 
-def ask(h, kb_id, question, enable_rewrite):
+def ask(h, kb_id, question, enable_rewrite, ranking=None):
     sid = requests.post(f"{BASE}/api/v1/sessions", headers=h, timeout=30,
                         json={"title": "tar-eval", "knowledge_base_ids": [kb_id]}).json()["data"]["id"]
     answer, cited = "", []
+    body = {"query": question, "knowledge_base_ids": [kb_id],
+           "enable_rewrite": enable_rewrite, "disable_title": True}
+    if ranking:
+        body["enable_weighted_ranking"] = True
+        # The recency signal lives in the rerank composite; the chat pipeline
+        # skips rerank entirely without an explicit model.
+        body["rerank_model_id"] = ranking.get("_rerank_model_id", "auto")
+        body["ranking"] = ranking
     with requests.post(f"{BASE}/api/v1/knowledge-chat/{sid}", headers=h, stream=True, timeout=240,
-                       json={"query": question, "knowledge_base_ids": [kb_id],
-                             "enable_rewrite": enable_rewrite, "disable_title": True}) as r:
+                       json=body) as r:
         for raw in r.iter_lines(decode_unicode=True):
             if not (raw and raw.startswith("data:")):
                 continue
@@ -62,12 +69,12 @@ def ask(h, kb_id, question, enable_rewrite):
     return TAG_RE.sub("", answer).strip(), cited or inline
 
 
-def run_arm(h, kb_id, arm, questions, out_path):
+def run_arm(h, kb_id, arm, questions, out_path, ranking=None):
     enable_rewrite = arm == "on"
     with open(out_path, "w", encoding="utf-8") as out:
         for i, q in enumerate(questions):
             t0 = time.time()
-            answer, cited = ask(h, kb_id, q["question"], enable_rewrite)
+            answer, cited = ask(h, kb_id, q["question"], enable_rewrite, ranking)
             rec = {"qid": q["qid"], "type": q["type"], "answer": answer,
                    "cited_docs": sorted(set(cited)), "secs": round(time.time() - t0, 1)}
             out.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -79,6 +86,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--arm", default="both", choices=["on", "off", "both"])
     ap.add_argument("--out", default="runs")
+    ap.add_argument("--ranking", default="", help="JSON object: request-level ranking overrides, e.g. '{\"recency_weight\": 0.05}'")
+    ap.add_argument("--label", default="")
     args = ap.parse_args()
 
     kb_id = open("kb.txt").read().strip()
@@ -87,9 +96,11 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(exist_ok=True)
 
+    ranking = json.loads(args.ranking) if args.ranking else None
+    label = args.label or ("" if not ranking else "-rw%g" % ranking.get("recency_weight", 0))
     arms = ["on", "off"] if args.arm == "both" else [args.arm]
     for arm in arms:
-        run_arm(h, kb_id, arm, questions, out / f"tar-{arm}.jsonl")
+        run_arm(h, kb_id, arm, questions, out / f"tar-{arm}{label}.jsonl", ranking)
 
 
 if __name__ == "__main__":

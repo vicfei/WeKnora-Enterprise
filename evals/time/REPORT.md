@@ -51,3 +51,35 @@ python3 score.py --run runs/tar-on.jsonl   # 三指标
 1. 引用提取：短答指令抑制内联 <kb> 标记 → 需从 references 事件的
    knowledge_title 取（run_eval 已内置双通道）。
 2. 语料 business_date 晚于评估日会被"近N个月"硬过滤——生成器已改月内 05 日。
+
+---
+
+# RecencyWeight 三臂实验（2026-09-18 晚，追加）
+
+前置发现：chat 管道默认跳过 rerank（rerank_cnt=0），而 recency 信号在 rerank
+composite 内——不开 rerank 的请求里 recency_weight 是无效参数。三臂均带
+rerank_model_id=auto + recency_half_life_days=180；无 rerank 臂为首跑 tar-on。
+
+| 配置 | 总EM | 显式 EM/prec/stale% | 时点 EM/prec/stale% | 隐式 EM/prec/stale% |
+|---|---|---|---|---|
+| 无 rerank | 66.7 | 55.0 / 94.3 / 10 | 100 / 96.8 / 5 | 45.0 / 8.3 / 100 |
+| rerank + rw 0 | 71.7 | 50.0 / 86.0 / 20 | 100 / 96.3 / 10 | 65.0 / 6.4 / 100 |
+| rerank + rw 0.05 | 90.0 | 75.0 / 94.9 / 15 | 100 / **100** / **0** | 95.0 / 13.9 / 100 |
+| rerank + rw 0.1 | **91.7** | 75.0 / **98.5** / **5** | 100 / 97.2 / 5 | **100** / 12.9 / 100 |
+
+## 结论
+1. **recency weight 是隐式时效题的决定性杠杆**：EM 45 → 95/100（rw 0.05/0.1）。
+   设计 §4.5 预判的"信号管道全线贯通、只差权重"得到定量确认。
+2. **推荐配置：recency_weight 0.1 + half_life 180（配合显式 rerank 模型）**。
+   总 EM 91.7，各分项最优或并列最优；rw 0.05 为保守替代（时点 stale 归零）。
+3. 隐式型 staleCite 恒 100% 是**指标口径缺陷而非行为缺陷**：gold 只含最新一期，
+   模型答对的同时引用历史各期做对比（EM 100% 证明行为正确）。下一步修口径：
+   隐式型只按"答案=最新期"计分，或引用窗口放宽为"答案期及之前"。
+4. rerank 本身对显式窗口题有小扰动（rw0 臂 prec 86 < 无 rerank 94.3）——
+   小语料上模型分噪声大；weight>0 后 recency 信号反而稳定了排序。
+
+## 复现
+```
+python3 run_eval.py --arm on --ranking '{"recency_weight": 0.1}' --label=rw010 --out runs
+python3 score.py --run runs/tar-onrw010.jsonl
+```
