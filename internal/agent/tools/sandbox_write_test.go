@@ -84,7 +84,6 @@ func TestWriteSandboxFileWritesTextUnderOutput(t *testing.T) {
 	assert.Equal(t, 0, result.Data["removed_lines"])
 	assert.Contains(t, result.Output, formatSandboxDiffStat(CountContentLines(script), 0))
 	assert.NotContains(t, result.Output, script)
-	assert.Contains(t, result.Output, "execute_skill_script")
 	assert.Contains(t, result.Output, "/workspace/output/generate_ppt.py")
 	_, hasContent := result.Data["content"]
 	assert.False(t, hasContent)
@@ -135,7 +134,7 @@ func TestWriteSandboxFileRefusesSessionInput(t *testing.T) {
 
 func TestWriteSandboxFileRefusesDirectoryPaths(t *testing.T) {
 	sink := &fakeSandboxFileSink{}
-	for _, p := range []string{"/workspace", "/workspace/output", "/workspace/input"} {
+	for _, p := range []string{"/", "/workspace", "/workspace/output", "/workspace/input"} {
 		result, err := NewWriteSandboxFileTool(sink, 0).Execute(
 			sandboxFileTestContext(),
 			mustWriteSandboxArgs(p, "nope"),
@@ -144,6 +143,34 @@ func TestWriteSandboxFileRefusesDirectoryPaths(t *testing.T) {
 		require.False(t, result.Success, p)
 	}
 	assert.Zero(t, sink.calls)
+}
+
+func TestSandboxWriteAppendAndEditTemporaryFiles(t *testing.T) {
+	sink := &fakeSandboxFileSink{}
+	writer := NewWriteSandboxFileTool(sink, 0)
+	for _, tc := range []struct{ mode, content string }{
+		{"overwrite", "hello"},
+		{"append", " world"},
+	} {
+		args, err := json.Marshal(WriteSandboxFileInput{
+			Path: "../tmp/task/check.txt", Content: tc.content, Mode: tc.mode,
+		})
+		require.NoError(t, err)
+		result, err := writer.Execute(sandboxFileTestContext(), args)
+		require.NoError(t, err)
+		require.True(t, result.Success, result.Error)
+		require.Equal(t, "/tmp/task/check.txt", sink.path)
+		require.Equal(t, "/", result.Data["root"])
+		require.Empty(t, result.OutputFiles, "temporary files are not downloadable artifacts")
+	}
+	require.Equal(t, "hello world", string(sink.files["/tmp/task/check.txt"]))
+	editor := &fakeSandboxFileEditor{files: sink.files}
+	result, err := NewEditSandboxFileTool(editor).Execute(sandboxFileTestContext(),
+		json.RawMessage(`{"path":"/tmp/task/check.txt","edits":[{"old_string":"world","new_string":"sandbox"}]}`))
+	require.NoError(t, err)
+	require.True(t, result.Success, result.Error)
+	require.Equal(t, "hello sandbox", string(editor.files["/tmp/task/check.txt"]))
+	require.Empty(t, result.OutputFiles)
 }
 
 func TestWriteSandboxFileRefusesBinaryAndOversize(t *testing.T) {
@@ -324,9 +351,9 @@ func TestWriteSandboxFileRegistryHintsWhenPathMissing(t *testing.T) {
 // be registered anyway.
 func TestSandboxCapabilityToolsAreNotToolListCheckboxes(t *testing.T) {
 	for _, name := range []string{
-		ToolListSandboxFiles, ToolReadSandboxFile,
+		ToolListSandboxFiles, LegacyToolReadSandboxFile,
 		ToolWriteSandboxFile, ToolEditSandboxFile, ToolShellExec,
-		ToolReadSkill, ToolExecuteSkillScript,
+		LegacyToolReadSkill, LegacyToolExecuteSkillScript,
 	} {
 		require.NotContains(t, DefaultAllowedTools(), name)
 		for _, definition := range AvailableToolDefinitions() {

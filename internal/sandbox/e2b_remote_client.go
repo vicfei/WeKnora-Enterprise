@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/gorilla/websocket"
 	e2b "github.com/matiasinsaurralde/go-e2b"
 
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -25,6 +26,16 @@ import (
 type E2BRemoteClient struct {
 	client        *e2b.Client
 	inboundTokens *InboundTokenRegistry
+
+	// wsDialer reaches non-envd data-plane ports (the desktop's websockify
+	// on 6080). It is nil on the non-pool construction paths, which is what
+	// DialDesktop reports as unsupported.
+	wsDialer *WebsocketDialer
+
+	// desktopEnabled mirrors Config.DesktopEnabled so template building can
+	// pick buildDesktopTemplate without re-reading a config the client
+	// otherwise does not keep.
+	desktopEnabled bool
 
 	templateID string
 	timeout    time.Duration
@@ -47,9 +58,9 @@ func NewE2BRemoteClientWithTransport(
 	transport *http.Transport,
 ) (*E2BRemoteClient, error) {
 	if transport == nil {
-		return newE2BRemoteClient(cfg, nil, NewInboundTokenRegistry())
+		return newE2BRemoteClient(cfg, nil, NewInboundTokenRegistry(), nil)
 	}
-	return newE2BRemoteClient(cfg, transport, NewInboundTokenRegistry())
+	return newE2BRemoteClient(cfg, transport, NewInboundTokenRegistry(), nil)
 }
 
 // NewE2BRemoteClientWithPool builds the client on top of the shared gateway
@@ -62,15 +73,17 @@ func NewE2BRemoteClientWithPool(
 	pool *SandboxGatewayTransportPool,
 ) (*E2BRemoteClient, error) {
 	if pool == nil {
-		return newE2BRemoteClient(cfg, nil, NewInboundTokenRegistry())
+		return newE2BRemoteClient(cfg, nil, NewInboundTokenRegistry(), nil)
 	}
-	return newE2BRemoteClient(cfg, pool.RoundTripperFor(cfg), pool.InboundTokens())
+	return newE2BRemoteClient(cfg, pool.RoundTripperFor(cfg), pool.InboundTokens(),
+		pool.WebsocketDialerFor(cfg))
 }
 
 func newE2BRemoteClient(
 	cfg *Config,
 	transport http.RoundTripper,
 	inboundTokens *InboundTokenRegistry,
+	wsDialer *WebsocketDialer,
 ) (*E2BRemoteClient, error) {
 	if cfg == nil {
 		return nil, errors.New("e2b remote client config is required")
@@ -92,8 +105,12 @@ func newE2BRemoteClient(
 	// or not a gateway is configured: the two details it rewrites belong to the
 	// envd protocol itself, not to any one deployment. See envd_compat_transport.go.
 	httpClient := &http.Client{
-		Timeout:   timeout,
-		Transport: NewEnvdCompatTransport(transport, DefaultSandboxExecUser),
+		// Command streams share this client with control-plane requests. A
+		// client-wide timeout would override even a longer WithTimeout on Run.
+		Transport: &e2bRPCTimeoutTransport{
+			next:    NewEnvdCompatTransport(transport, DefaultSandboxExecUser),
+			timeout: timeout,
+		},
 	}
 	client, err := e2b.NewClient(e2b.ClientConfig{
 		APIKey:        cfg.E2BAPIKey,
@@ -110,10 +127,12 @@ func newE2BRemoteClient(
 		ttl = DefaultE2BSandboxTTL
 	}
 	return &E2BRemoteClient{
-		client:        client,
-		inboundTokens: inboundTokens,
-		templateID:    strings.TrimSpace(cfg.E2BTemplate),
-		timeout:       ttl,
+		client:         client,
+		inboundTokens:  inboundTokens,
+		wsDialer:       wsDialer,
+		desktopEnabled: cfg.DesktopEnabled,
+		templateID:     strings.TrimSpace(cfg.E2BTemplate),
+		timeout:        ttl,
 	}, nil
 }
 
@@ -168,6 +187,11 @@ func (c *E2BRemoteClient) Capabilities() RemoteSandboxCapabilities {
 		// E2B has no named-volume mount API that WeKnora can use; advertising
 		// it would let a workspace configure a mount that never appears.
 		SupportsVolumes: false,
+		// envd exposes an interactive PTY service that go-e2b wraps.
+		SupportsTerminals: true,
+		// The gateway routes any {port}-{id}.{domain} authority, so 6080
+		// (websockify) is reachable with the same inbound token as envd.
+		SupportsDesktop: true,
 	}
 }
 
@@ -199,11 +223,15 @@ func (c *E2BRemoteClient) ListTemplates(ctx context.Context) ([]RemoteTemplate, 
 		} else if len(item.Aliases) > 0 && strings.TrimSpace(item.Aliases[0]) != "" {
 			name = strings.TrimSpace(item.Aliases[0])
 		}
-		standard := isStandardTemplate(name)
+		standard, desktop := classifyWeKnoraTemplate(name, "")
 		for _, candidate := range append(append([]string(nil), item.Aliases...), item.Names...) {
-			if isStandardTemplate(candidate) {
-				standard = true
+			s, d := classifyWeKnoraTemplate(candidate, "")
+			if d {
+				standard, desktop = false, true
 				break
+			}
+			if s {
+				standard = true
 			}
 		}
 		status := normalizeE2BTemplateBuildStatus(item.BuildStatus)
@@ -213,7 +241,7 @@ func (c *E2BRemoteClient) ListTemplates(ctx context.Context) ([]RemoteTemplate, 
 		// forever. Limit these extra requests to the standard template; polling
 		// every public template would turn one catalog refresh into an
 		// unbounded N+1 request pattern.
-		if standard && isE2BTemplateBuildPending(status) {
+		if (standard || desktop) && isE2BTemplateBuildPending(status) {
 			if reconciled := c.reconcileE2BTemplateStatus(ctx, item); reconciled != "" {
 				status = reconciled
 			}
@@ -222,10 +250,11 @@ func (c *E2BRemoteClient) ListTemplates(ctx context.Context) ([]RemoteTemplate, 
 			ID:        item.TemplateID,
 			Name:      name,
 			Status:    status,
-			Version:   item.EnvdVersion,
+			Version:   item.BuildID,
 			CreatedAt: item.CreatedAt,
 			UpdatedAt: item.UpdatedAt,
 			Standard:  standard,
+			Desktop:   desktop,
 		})
 	}
 	return result, nil
@@ -365,6 +394,53 @@ func (c *E2BRemoteClient) ReplaceStandardTemplate(ctx context.Context) (*RemoteT
 	return c.buildStandardTemplate(ctx)
 }
 
+// EnsureDesktopTemplate returns the cluster's WeKnora desktop template,
+// building it when absent. It is a sibling of EnsureStandardTemplate: a
+// cluster may hold both, and the admin picks which ID a config boots.
+func (c *E2BRemoteClient) EnsureDesktopTemplate(ctx context.Context) (*RemoteTemplate, error) {
+	items, err := c.ListTemplates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if items[i].Desktop && !IsTemplateBuildFailed(items[i].Status) {
+			return &items[i], nil
+		}
+	}
+	return c.buildDesktopTemplate(ctx)
+}
+
+// ReplaceDesktopTemplate starts a new desktop-template build from the current
+// spec. Same persist-then-delete contract as ReplaceStandardTemplate.
+func (c *E2BRemoteClient) ReplaceDesktopTemplate(ctx context.Context) (*RemoteTemplate, error) {
+	return c.buildDesktopTemplate(ctx)
+}
+
+// DeleteSupersededDesktopTemplates drops desktop templates other than keepID.
+func (c *E2BRemoteClient) DeleteSupersededDesktopTemplates(ctx context.Context, keepID string) error {
+	keepID = strings.TrimSpace(keepID)
+	if keepID == "" {
+		return e2bInvalidRequest("DeleteSupersededDesktopTemplates", "template ID is required", nil)
+	}
+	items, err := c.ListTemplates(ctx)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if !item.Desktop || strings.TrimSpace(item.ID) == "" || item.ID == keepID {
+			continue
+		}
+		logger.Infof(ctx, "e2b deleting superseded desktop template %s", item.ID)
+		if err := c.client.DeleteTemplate(ctx, item.ID); err != nil {
+			var notFound *e2b.TemplateNotFoundError
+			if !errors.As(err, &notFound) {
+				logger.Warnf(ctx, "e2b delete of replaced desktop template %s failed: %v", item.ID, err)
+			}
+		}
+	}
+	return nil
+}
+
 // DeleteSupersededStandardTemplates drops WeKnora templates other than keepID.
 func (c *E2BRemoteClient) DeleteSupersededStandardTemplates(ctx context.Context, keepID string) error {
 	keepID = strings.TrimSpace(keepID)
@@ -390,8 +466,17 @@ func (c *E2BRemoteClient) DeleteSupersededStandardTemplates(ctx context.Context,
 	return nil
 }
 
+// e2bPtyPromptOverrideCmd re-sources the image prompt after E2B's
+// template provisioner appends `PS1='\w $ '` to bashrc. Harmless if the
+// image already sources /etc/weknora/pty-prompt.sh (PROMPT_COMMAND wins
+// either way); required when rebuilding from an older image that does not.
+const e2bPtyPromptOverrideCmd = `. /etc/weknora/pty-prompt.sh 2>/dev/null; ` +
+	`for f in /root/.bashrc /home/user/.bashrc /etc/profile.d/zz-weknora-prompt.sh; do ` +
+	`grep -q /etc/weknora/pty-prompt.sh "$f" 2>/dev/null || echo '. /etc/weknora/pty-prompt.sh' >> "$f"; ` +
+	`done`
+
 func (c *E2BRemoteClient) buildStandardTemplate(ctx context.Context) (*RemoteTemplate, error) {
-	builder := e2b.NewTemplate().FromImage(DefaultDockerImage)
+	builder := e2b.NewTemplate().FromImage(DefaultDockerImage).RunCmd(e2bPtyPromptOverrideCmd)
 	build, err := builder.BuildInBackground(ctx, c.client, e2b.BuildConfig{
 		Name: StandardTemplateName,
 		// Creating a sandbox from a plain template name or ID resolves the
@@ -412,6 +497,51 @@ func (c *E2BRemoteClient) buildStandardTemplate(ctx context.Context) (*RemoteTem
 		Status:   "building",
 		Image:    DefaultDockerImage,
 		Standard: true,
+	}, nil
+}
+
+// desktopReadyCmd is the replacement for e2b.WaitForPort(6080).
+//
+// The SDK helper generates `while ! ss -tln | grep -q ':6080 '; ...`
+// (template_builder.go:183-186), and ss comes from iproute2, which
+// python slim does not ship and Dockerfile.sandbox does not install.
+// ss then exits 127 — non-zero — so the loop never terminates and the ready
+// probe hangs instead of failing.
+//
+// This is deliberately the same probe as port_open() in
+// docker/scripts/start-desktop.sh: one implementation, so the script and the
+// template can never disagree about what "ready" means. Do not "improve" it
+// back to the SDK helper.
+const desktopReadyCmd = `while ! python3 -c "import socket,sys;s=socket.socket();` +
+	`s.settimeout(1);sys.exit(0 if s.connect_ex(('127.0.0.1',6080))==0 else 1)"; ` +
+	`do sleep 0.2; done`
+
+// buildDesktopTemplate builds the XFCE/x11vnc/websockify template. It is a
+// sibling of buildStandardTemplate, never a mode of it.
+//
+// No SetStartCmd: the desktop is lazily started on first connect, because
+// E2B runs envd as init and never executes the image CMD. desktopReadyCmd is kept for the day that decision
+// is revisited.
+func (c *E2BRemoteClient) buildDesktopTemplate(ctx context.Context) (*RemoteTemplate, error) {
+	builder := e2b.NewTemplate().
+		FromImage(DefaultDesktopDockerImage).
+		RunCmd(e2bPtyPromptOverrideCmd)
+	build, err := builder.BuildInBackground(ctx, c.client, e2b.BuildConfig{
+		Name: DesktopTemplateName,
+		Tags: []string{DefaultE2BTemplateTag},
+		// XFCE plus a framebuffer needs more than the standard 2 / 2048.
+		CPUCount: 4,
+		MemoryMB: 4096,
+	})
+	if err != nil {
+		return nil, normalizeE2BError("EnsureDesktopTemplate", err)
+	}
+	return &RemoteTemplate{
+		ID:      build.TemplateID,
+		Name:    DesktopTemplateName,
+		Status:  "building",
+		Image:   DefaultDesktopDockerImage,
+		Desktop: true,
 	}, nil
 }
 
@@ -537,18 +667,28 @@ func (c *E2BRemoteClient) Connect(
 	return &e2bRemoteHandle{sandbox: sandbox}, nil
 }
 
-// Get returns a single sandbox summary by ID. E2B's control plane exposes no
-// read-only "fetch sandbox by ID" endpoint, so Get reattaches to the sandbox
-// via Connect and reads its full metadata through the per-sandbox info
-// endpoint (GET /sandboxes/{id}). This mirrors the Cube adapter's
-// Connect+GetInfo shape and yields a strongly-consistent, O(1) lookup with a
-// clean NotFound, instead of scanning the whole account-wide sandbox list
-// (which is O(N) and can return a stale NotFound for a just-created sandbox).
-//
-// Get's only caller is the lifecycle coordinator's connectBinding pre-check,
-// which Connects — and therefore wakes — the sandbox immediately afterwards.
-// Resuming a paused sandbox here is thus the intended behaviour, not a side
-// effect to avoid.
+// ConnectSession reuses the connected SDK handle for the lifecycle probe.
+func (c *E2BRemoteClient) ConnectSession(ctx context.Context, req RemoteConnectRequest) (RemoteSandboxHandle, error) {
+	handle, err := c.Connect(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	info, err := handle.(*e2bRemoteHandle).sandbox.InfoWithContext(ctx)
+	if err != nil {
+		return nil, normalizeE2BError("ConnectSession", err)
+	}
+	if info == nil {
+		return nil, NewRemoteError(SandboxTypeE2B, "ConnectSession", RemoteErrorKindNotFound, "sandbox not found", nil)
+	}
+	summary := e2bRemoteSummary(*info)
+	if err := validateSessionSummary(c.Provider(), req.SandboxID, &summary); err != nil {
+		return nil, err
+	}
+	return handle, nil
+}
+
+// Get returns a single sandbox summary through Connect and the info endpoint.
+// Session execution uses ConnectSession to retain that handle after probing.
 func (c *E2BRemoteClient) Get(
 	ctx context.Context,
 	sandboxID string,
@@ -772,6 +912,9 @@ func (c *E2BRemoteClient) Exec(
 	if request.Timeout < 0 {
 		return nil, e2bInvalidRequest("Exec", "execution timeout cannot be negative", nil)
 	}
+	if request.User == "" {
+		request.User = DefaultSandboxExecUser
+	}
 
 	// The SDK runs every command through `/bin/bash -l -c <cmd>`, so argv mode
 	// is lowered to a quoted shell line and stdin (when present) is piped in
@@ -794,6 +937,10 @@ func (c *E2BRemoteClient) Exec(
 
 	start := time.Now()
 	options := []e2b.RunOption{}
+	if request.OnOutput != nil {
+		options = append(options, e2b.WithOnStdout(func(p []byte) { request.OnOutput("stdout", p) }),
+			e2b.WithOnStderr(func(p []byte) { request.OnOutput("stderr", p) }))
+	}
 	if request.WorkDir != "" {
 		options = append(options, e2b.WithCwd(request.WorkDir))
 	}
@@ -857,10 +1004,12 @@ func (c *E2BRemoteClient) Exec(
 }
 
 // Filesystem operations name DefaultSandboxExecUser explicitly rather than
-// relying on the daemon's default account. It keeps ownership aligned with the
-// account scripts run as, and it is required for interoperability: E2B Cloud
-// falls back to "user" when the request omits it, while other E2B-compatible
-// control planes reject the call outright.
+// relying on the daemon's default account. Naming the user is required for
+// interoperability: E2B Cloud falls back to "user" when the request omits it,
+// while other E2B-compatible control planes reject the call outright. The
+// default account is root, which matches what scripts run as; under
+// one-session-one-sandbox there is no shared volume here to defend with
+// file-mode ownership.
 func (c *E2BRemoteClient) WriteFile(
 	ctx context.Context,
 	handle RemoteSandboxHandle,
@@ -874,7 +1023,7 @@ func (c *E2BRemoteClient) WriteFile(
 	if strings.TrimSpace(path) == "" {
 		return e2bInvalidRequest("WriteFile", "path is required", nil)
 	}
-	if _, err := sandbox.Filesystem.WriteBytes(ctx, path, content, e2b.WithFileUser(DefaultSandboxExecUser)); err != nil {
+	if _, err := sandbox.Filesystem.WriteBytes(ctx, path, content, e2b.WithFileUser(remoteFileUser(ctx))); err != nil {
 		return normalizeE2BError("WriteFile", err)
 	}
 	return nil
@@ -892,7 +1041,7 @@ func (c *E2BRemoteClient) ReadFile(
 	if strings.TrimSpace(path) == "" {
 		return nil, e2bInvalidRequest("ReadFile", "path is required", nil)
 	}
-	content, err := sandbox.Filesystem.ReadBytes(ctx, path, e2b.WithFileUser(DefaultSandboxExecUser))
+	content, err := sandbox.Filesystem.ReadBytes(ctx, path, e2b.WithFileUser(remoteFileUser(ctx)))
 	if err != nil {
 		return nil, normalizeE2BError("ReadFile", err)
 	}
@@ -911,7 +1060,7 @@ func (c *E2BRemoteClient) ListDir(
 	if strings.TrimSpace(path) == "" {
 		return nil, e2bInvalidRequest("ListDir", "path is required", nil)
 	}
-	entries, err := sandbox.Filesystem.List(ctx, path, e2b.WithFileUser(DefaultSandboxExecUser))
+	entries, err := sandbox.Filesystem.List(ctx, path, e2b.WithFileUser(remoteFileUser(ctx)))
 	if err != nil {
 		return nil, normalizeE2BError("ListDir", err)
 	}
@@ -931,19 +1080,18 @@ func (c *E2BRemoteClient) ListDir(
 func (c *E2BRemoteClient) MakeDir(
 	ctx context.Context,
 	handle RemoteSandboxHandle,
-	path string,
+	dir string,
 ) error {
 	sandbox, err := e2bHandleSandbox("MakeDir", handle)
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(path) == "" {
+	if strings.TrimSpace(dir) == "" {
 		return e2bInvalidRequest("MakeDir", "path is required", nil)
 	}
-	if err := sandbox.Filesystem.MakeDir(ctx, path, e2b.WithFileUser(DefaultSandboxExecUser)); err != nil {
-		return ignoreExistingDir(normalizeE2BError("MakeDir", err))
-	}
-	return nil
+	return makeDirTree(dir, func(component string) error {
+		return normalizeE2BError("MakeDir", sandbox.Filesystem.MakeDir(ctx, component, e2b.WithFileUser(remoteFileUser(ctx))))
+	})
 }
 
 func (c *E2BRemoteClient) Remove(
@@ -958,7 +1106,7 @@ func (c *E2BRemoteClient) Remove(
 	if strings.TrimSpace(path) == "" {
 		return e2bInvalidRequest("Remove", "path is required", nil)
 	}
-	if err := sandbox.Filesystem.Remove(ctx, path, e2b.WithFileUser(DefaultSandboxExecUser)); err != nil {
+	if err := sandbox.Filesystem.Remove(ctx, path, e2b.WithFileUser(remoteFileUser(ctx))); err != nil {
 		return normalizeE2BError("Remove", err)
 	}
 	return nil
@@ -976,7 +1124,7 @@ func (c *E2BRemoteClient) Stat(
 	if strings.TrimSpace(path) == "" {
 		return nil, e2bInvalidRequest("Stat", "path is required", nil)
 	}
-	info, err := sandbox.Filesystem.Stat(ctx, path, e2b.WithFileUser(DefaultSandboxExecUser))
+	info, err := sandbox.Filesystem.Stat(ctx, path, e2b.WithFileUser(remoteFileUser(ctx)))
 	if err != nil {
 		return nil, normalizeE2BError("Stat", err)
 	}
@@ -1328,10 +1476,61 @@ func e2bRemoteEntryType(fileType string) RemoteDirEntryType {
 	}
 }
 
+// DialDesktop opens a WebSocket to websockify inside the sandbox.
+//
+// It goes through the pool-owned dialer rather than building a URL here, so
+// the inbound-token registry, the gateway target, and the SSRF guard all come
+// from the one place that knows which pool this client belongs to.
+func (c *E2BRemoteClient) DialDesktop(
+	ctx context.Context,
+	handle RemoteSandboxHandle,
+	opts RemoteDesktopOptions,
+) (*websocket.Conn, error) {
+	if c == nil || c.wsDialer == nil {
+		return nil, &RemoteError{
+			Kind:     RemoteErrorKindUnsupported,
+			Provider: SandboxTypeE2B,
+			Op:       "DialDesktop",
+			Message:  "client was built without a gateway pool",
+		}
+	}
+	conn, err := dialSandboxDesktop(ctx, SandboxTypeE2B, c.wsDialer, handle, opts)
+	if err != nil {
+		return nil, err
+	}
+	return conn, nil
+}
+
+// StartDesktopTTLRefresh extends the E2B sandbox idle timeout while the
+// desktop relay is open. ctx must be the relay lifetime (WithoutCancel), not
+// DialDesktop's request context.
+func (c *E2BRemoteClient) StartDesktopTTLRefresh(ctx context.Context, handle RemoteSandboxHandle) {
+	if c == nil {
+		return
+	}
+	sbx, err := e2bHandleSandbox("StartDesktopTTLRefresh", handle)
+	if err != nil {
+		return
+	}
+	timeoutSeconds, terr := e2bTimeoutSeconds(
+		RemoteTimeoutPolicy{Mode: RemoteTimeoutServerDefault},
+		c.timeout,
+	)
+	if terr != nil || timeoutSeconds <= 0 {
+		return
+	}
+	startTerminalTTLRefresh(ctx, nil, c.timeout, func(rctx context.Context) error {
+		return sbx.SetTimeoutWithContext(rctx, timeoutSeconds)
+	})
+}
+
 var (
-	_ RemoteSandboxClient       = (*E2BRemoteClient)(nil)
-	_ RemoteSnapshotManager     = (*E2BRemoteClient)(nil)
-	_ RemoteTemplateCatalog     = (*E2BRemoteClient)(nil)
-	_ RemoteSandboxHandle       = (*e2bRemoteHandle)(nil)
-	_ RemoteInboundTokenCarrier = (*e2bRemoteHandle)(nil)
+	_ RemoteSandboxClient          = (*E2BRemoteClient)(nil)
+	_ RemoteSnapshotManager        = (*E2BRemoteClient)(nil)
+	_ RemoteTemplateCatalog        = (*E2BRemoteClient)(nil)
+	_ RemoteDesktopTemplateCatalog = (*E2BRemoteClient)(nil)
+	_ RemoteDesktopManager         = (*E2BRemoteClient)(nil)
+	_ RemoteDesktopTTLRefresher    = (*E2BRemoteClient)(nil)
+	_ RemoteSandboxHandle          = (*e2bRemoteHandle)(nil)
+	_ RemoteInboundTokenCarrier    = (*e2bRemoteHandle)(nil)
 )

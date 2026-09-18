@@ -169,9 +169,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 192, 95, 0.1);
+  background: color-mix(in srgb, var(--td-brand-color) 10%, transparent);
   color: var(--td-brand-color);
-  font-size: 16px;
+  font-size: var(--app-text-xl);
 }
 
 .chat-attachment-drawer-header-text {
@@ -180,7 +180,7 @@ onUnmounted(() => {
 }
 
 .chat-attachment-drawer-header-title {
-  font-size: 15px;
+  font-size: var(--app-text-lg);
   font-weight: 600;
   line-height: 1.4;
   color: var(--td-text-color-primary);
@@ -222,7 +222,7 @@ onUnmounted(() => {
   border-radius: 1px;
   background: var(--td-component-border);
   opacity: 0.55;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition: opacity var(--app-motion-fast) ease, background var(--app-motion-fast) ease;
 }
 
 .chat-attachment-drawer-resize-handle:hover .chat-attachment-drawer-resize-line,

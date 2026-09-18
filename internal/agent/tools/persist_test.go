@@ -19,6 +19,24 @@ func TestShouldOmitRawToolOutput(t *testing.T) {
 	}
 }
 
+func TestBrowserScreenshotStorageKeepsOneImageWithoutMutatingLiveResult(t *testing.T) {
+	result := &types.ToolResult{
+		Success: true, Output: `{"width":1}`,
+		Data:   map[string]interface{}{"image_base64": "YQ==", "format": "png"},
+		Images: []string{"data:image/png;base64,YQ=="},
+	}
+	steps := []types.AgentStep{{ToolCalls: []types.ToolCall{{Name: "local_browser", Result: result}}}}
+	stored := SanitizeAgentStepsForStorage(steps)[0].ToolCalls[0].Result
+	if len(stored.Images) != 0 || stored.Data["image_base64"] != "YQ==" || len(result.Images) != 1 {
+		t.Fatalf("screenshot storage must retain card data and preserve live model images: %#v", stored)
+	}
+	client := SanitizeToolResultForClient("local_browser", stored)
+	if client["image_base64"] != "YQ==" ||
+		strings.Contains(CompactToolOutputForHistory("local_browser", stored), "YQ==") {
+		t.Fatal("history must show the image in the card without sending base64 as model text")
+	}
+}
+
 func TestSanitizeToolDataForPersist_knowledgeChunksList(t *testing.T) {
 	data := map[string]interface{}{
 		"display_type":    "knowledge_chunks_list",
@@ -235,7 +253,7 @@ func TestCompactToolOutputForHistory_failedSkillScriptKeepsStdout(t *testing.T) 
 	stdout := `{"chart":{"success":false,"error":{"error":"X轴字段不存在：工作项目","available":["name","value"]}}}`
 	output := "=== Script Execution: smart-charts/scripts/cli.py ===\n\n**Exit Code**: 1\n\n## Standard Output\n\n```\n" + stdout + "\n```\n"
 	errMsg := "Script exited with code 1\n\n[Analyze the error above and try a different approach.]"
-	history := CompactToolOutputForHistory(ToolExecuteSkillScript, &types.ToolResult{
+	history := CompactToolOutputForHistory(LegacyToolExecuteSkillScript, &types.ToolResult{
 		Success: false,
 		Output:  output,
 		Error:   errMsg,
@@ -259,7 +277,7 @@ func TestSanitizeAgentStepsForStorage_skillScriptKeepsStreamsOnFailure(t *testin
 	output := "=== Script Execution: smart-charts/scripts/cli.py ===\n\n" + stdout
 	steps := []types.AgentStep{{
 		ToolCalls: []types.ToolCall{{
-			Name: ToolExecuteSkillScript,
+			Name: LegacyToolExecuteSkillScript,
 			Result: &types.ToolResult{
 				Success: false,
 				Output:  output,

@@ -501,6 +501,7 @@ func (s *sessionService) buildSearchTargets(
 	knowledgeIDs []string,
 	tagScopes []types.TagScope,
 ) (types.SearchTargets, error) {
+	caller := types.CallerFromContext(ctx)
 	var targets types.SearchTargets
 	tagIDsByKB := mergeTagScopesByKB(tagScopes)
 
@@ -511,7 +512,7 @@ func (s *sessionService) buildSearchTargets(
 	fullKBSet := make(map[string]bool)
 
 	// First pass: batch-fetch KBs, then resolve tenant per ID (tenant scope already set by caller)
-	callerTenantRole := types.TenantRoleFromContext(ctx)
+	permissions := kbReadPermissions(ctx, s.kbShareService)
 	kbIDsToFetch := append([]string(nil), knowledgeBaseIDs...)
 	for kbID := range tagIDsByKB {
 		kbIDsToFetch = append(kbIDsToFetch, kbID)
@@ -530,25 +531,17 @@ func (s *sessionService) buildSearchTargets(
 			}
 		}
 	}
-	userID, _ := types.UserIDFromContext(ctx)
 	resolveKBTenant := func(kbID string) uint64 {
 		if kbTenantMap[kbID] != 0 {
 			return kbTenantMap[kbID]
 		}
 		kb := kbByID[kbID]
-		if kb == nil {
-			kbTenantMap[kbID] = tenantID
-		} else if kb.TenantID == tenantID {
-			kbTenantMap[kbID] = tenantID
-		} else if s.kbShareService != nil && userID != "" {
-			hasAccess, _ := s.kbShareService.HasTenantKBPermission(ctx, kbID, tenantID, callerTenantRole, types.OrgRoleViewer)
-			if hasAccess {
+		kbTenantMap[kbID] = caller.TenantID
+		if kb != nil {
+			kbTenantMap[kbID] = 0
+			if allowed, err := permissions.Check(kbID, kb.TenantID, types.OrgRoleViewer); err == nil && allowed {
 				kbTenantMap[kbID] = kb.TenantID
-			} else {
-				kbTenantMap[kbID] = tenantID
 			}
-		} else {
-			kbTenantMap[kbID] = tenantID
 		}
 		return kbTenantMap[kbID]
 	}
@@ -557,6 +550,9 @@ func (s *sessionService) buildSearchTargets(
 		for _, kbID := range knowledgeBaseIDs {
 			fullKBSet[kbID] = true
 			kbTenant := resolveKBTenant(kbID)
+			if kbTenant == 0 {
+				continue
+			}
 			if len(tagIDsByKB[kbID]) > 0 {
 				continue
 			}
@@ -619,6 +615,9 @@ func (s *sessionService) buildSearchTargets(
 			continue
 		}
 		kbTenant := resolveKBTenant(kbID)
+		if kbTenant == 0 {
+			continue
+		}
 		kb := kbByID[kbID]
 		explicitKnowledgeIDs := uniqueNonEmptyStrings(kbToKnowledgeIDs[kbID])
 
@@ -1041,6 +1040,10 @@ func (s *sessionService) handleModelFallback(ctx context.Context, chatManage *ty
 
 	// Start streaming response
 	fallbackMessages, modelContext := prepareFallbackMessages(chatManage, promptContent)
+	if leaks := modelContext.LeakedIdentifiers(fallbackMessages); len(leaks) > 0 {
+		logger.Warnf(ctx, "[Fallback][ModelContext] %d message field(s) carry raw identifiers after encoding: %s",
+			len(leaks), modelcontext.SummarizeLeaks(leaks))
+	}
 	responseChan, err := chatModel.ChatStream(ctx, fallbackMessages, opt)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to start streaming fallback response: %v, falling back to fixed response", err)
@@ -1084,7 +1087,11 @@ func buildFallbackMessages(chatManage *types.ChatManage, promptContent string) [
 	// forbids prior knowledge ("reply ONLY based on retrieved information"),
 	// which directly contradicts the fallback's purpose.
 	if strings.TrimSpace(promptContent) != "" {
-		messages = append(messages, chat.Message{Role: "system", Content: promptContent})
+		messages = append(messages, chat.Message{
+			Role: "system",
+			Content: promptContent + "\n\n" + types.SourceDataBoundaryPrompt +
+				"\n\n" + types.SourcedAnswerOutputPrompt,
+		})
 	}
 
 	messages = chatpipeline.AppendHistoryMessages(messages, chatManage.History)

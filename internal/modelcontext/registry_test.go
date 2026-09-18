@@ -46,6 +46,42 @@ func TestRegistryProtocolOwnsResourceHandleRules(t *testing.T) {
 	require.Contains(t, prompt, "res://NNNN")
 }
 
+func TestOutputFilesAreRenderedOnlyForLiveModelResults(t *testing.T) {
+	result := &types.ToolResult{Success: true, Output: "generated", OutputFiles: []string{"sandbox:比赛信息.pptx"}}
+	registry := NewRegistry(true)
+	require.Equal(t, "generated\nOutput files: `sandbox:比赛信息.pptx`", registry.ModelToolResultForTool("shell_exec", result))
+	require.Equal(t, "generated", result.Output)
+	encoded, err := json.Marshal(result)
+	require.NoError(t, err)
+	var restored types.ToolResult
+	require.NoError(t, json.Unmarshal(encoded, &restored))
+	require.Equal(t, "generated", registry.ModelToolResultForTool("shell_exec", &restored))
+	result.Success = false
+	result.Error = "timeout"
+	require.Contains(t, registry.ModelToolResultForTool("shell_exec", result), "sandbox:比赛信息.pptx")
+}
+
+func TestEmptyOutputInspectionIsExplicitOnlyInLiveModelResults(t *testing.T) {
+	for _, registry := range []*Registry{NewRegistry(true), nil} {
+		result := &types.ToolResult{Success: true, Output: "page-1.png", OutputFiles: []string{}}
+		modelOutput := registry.ModelToolResultForTool("shell_exec", result)
+		require.Equal(t, "page-1.png\nOutput files: none identified by this call.", modelOutput)
+		require.NotContains(t, modelOutput, "sandbox:page-1.png")
+		encoded, err := json.Marshal(result)
+		require.NoError(t, err)
+		var restored types.ToolResult
+		require.NoError(t, json.Unmarshal(encoded, &restored))
+		require.Equal(t, "page-1.png", registry.ModelToolResultForTool("shell_exec", &restored))
+		result.Success = false
+		result.Error = "command timed out"
+		modelOutput = registry.ModelToolResultForTool("shell_exec", result)
+		require.Contains(t, modelOutput, "command timed out")
+		require.Contains(t, modelOutput, "Output files: none identified by this call.")
+		result.OutputFiles = nil
+		require.NotContains(t, registry.ModelToolResultForTool("shell_exec", result), "Output files:")
+	}
+}
+
 func TestRegistryAuditsUnresolvedAndPartiallyResolvedToolHandles(t *testing.T) {
 	registry := NewRegistry(true)
 	registry.RegisterKnowledgeBase("kb-real")
@@ -328,10 +364,14 @@ func TestRegistryDecodesCanonicalArgumentsForEveryBuiltInReferenceTool(t *testin
 		{"list chunk", "list_knowledge_chunks", `{"chunk_id":"c1"}`, `{"chunk_id":"chunk-real"}`},
 		{"document info", "get_document_info", `{"knowledge_ids":["d1"],"faq_ids":["c1"]}`, `{"knowledge_ids":["doc-real"],"faq_ids":["chunk-real"]}`},
 		{"knowledge graph", "query_knowledge_graph", `{"knowledge_base_ids":["b1"],"query":"topic"}`, `{"knowledge_base_ids":["kb-real"],"query":"topic"}`},
-		{"data analysis SQL", "data_analysis", `{"knowledge_id":"d1","sql":"SELECT * FROM 'd1'"}`, `{"knowledge_id":"doc-real","sql":"SELECT * FROM 'doc-real'"}`},
+		{
+			"data analysis SQL", "data_analysis",
+			`{"knowledge_id":"d1","sql":"SELECT COUNT(*) FROM dataset WHERE label = 'd1'"}`,
+			`{"knowledge_id":"doc-real","sql":"SELECT COUNT(*) FROM dataset WHERE label = 'd1'"}`,
+		},
 		{"data schema", "data_schema", `{"knowledge_id":"d1"}`, `{"knowledge_id":"doc-real"}`},
 		{"database SQL", "database_query", `{"sql":"SELECT * FROM chunks WHERE knowledge_base_id='b1'"}`, `{"sql":"SELECT * FROM chunks WHERE knowledge_base_id='kb-real'"}`},
-		{"web fetch", "web_fetch", `{"items":[{"url":"w1","prompt":"read"}]}`, `{"items":[{"url":"https://example.com/page","prompt":"read"}]}`},
+		{"web fetch", "web_fetch", `{"items":[{"url":"w1"}]}`, `{"items":[{"url":"https://example.com/page"}]}`},
 		{"wiki source", "wiki_read_source_doc", `{"knowledge_id":"d1"}`, `{"knowledge_id":"doc-real"}`},
 		{"wiki source refs", "wiki_write_page", `{"slug":"res://0001","source_refs":["d1"]}`, `{"slug":"summary/00000000-0000-0000-0000-000000000001","source_refs":["doc-real"]}`},
 		{"wiki suspected refs", "wiki_flag_issue", `{"slug":"concept/a","suspected_knowledge_ids":["d1"]}`, `{"slug":"concept/a","suspected_knowledge_ids":["doc-real"]}`},
@@ -429,4 +469,32 @@ func mustNotResolve(t *testing.T, table *HandleTable, handle string) string {
 	value, ok := table.Resolve(handle)
 	require.False(t, ok)
 	return value
+}
+
+func TestMCPBridgeKeepsExternalSchemasAndArgumentsOpaque(t *testing.T) {
+	registry := NewRegistry(true)
+	for _, name := range []string{"discover_mcp_tools", "call_mcp_tool"} {
+		require.True(t, HasToolPolicy(name))
+		raw := `{"arguments":{"knowledge_id":"d1","issue_id":"i1","url":"w1"},"tool_ref":"mcpt_abc"}`
+		calls := []types.LLMToolCall{{Function: types.FunctionCall{Name: name, Arguments: raw}}}
+		registry.DecodeToolCalls(calls)
+		require.JSONEq(t, raw, calls[0].Function.Arguments)
+		require.Empty(t, calls[0].UnresolvedHandles)
+		schema := `{"input_schema":{"properties":{"knowledge_id":{"const":"d1"}}}}`
+		require.Equal(
+			t,
+			schema,
+			registry.ModelToolResultForTool(name, &types.ToolResult{Success: true, Output: schema}),
+		)
+	}
+}
+
+func TestCitationPolicyDoesNotSuppressRequestedResourcesOrBreakOutputFormat(t *testing.T) {
+	disabled := NewRegistry(false).ProtocolPrompt()
+	require.Contains(t, disabled, "Source citations are disabled")
+	require.Contains(t, disabled, "a URL explicitly requested by the user")
+	require.Contains(t, disabled, "downloadable deliverables")
+	require.NotContains(t, disabled, "Do not output <ref>, <kb>, <web>, raw source URLs")
+	enabled := NewRegistry(true).ProtocolPrompt()
+	require.Contains(t, enabled, "do not break a required schema")
 }

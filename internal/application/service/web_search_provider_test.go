@@ -104,3 +104,17 @@ func TestValidateProviderParametersDoubao(t *testing.T) {
 		t.Fatal("Doubao provider type is not accepted")
 	}
 }
+
+func TestValidateProviderParametersSerply(t *testing.T) {
+	valid := types.WebSearchProviderParameters{APIKey: "serply-test"}
+	if err := validateProviderParameters(types.WebSearchProviderTypeSerply, valid); err != nil {
+		t.Fatalf("valid Serply parameters rejected: %v", err)
+	}
+	if !isValidProviderType(types.WebSearchProviderTypeSerply) {
+		t.Fatal("Serply provider type is not accepted")
+	}
+	blank := types.WebSearchProviderParameters{APIKey: "   "}
+	if err := validateProviderParameters(types.WebSearchProviderTypeSerply, blank); err == nil {
+		t.Fatal("blank Serply API key was accepted")
+	}
+}

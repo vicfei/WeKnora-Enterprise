@@ -35,7 +35,29 @@ func TestCubeRemoteClientProviderAndCapabilities(t *testing.T) {
 		SupportsTimeoutRefresh:        true,
 		SupportsFilesystemEnumeration: true,
 		SupportsSnapshots:             true,
+		SupportsTerminals:             true,
+		SupportsDesktop:               true,
 	}, client.Capabilities())
+}
+
+func TestCubeCommandTimeoutIsIndependentOfHTTPTimeout(t *testing.T) {
+	mock := newCubeMockServer(t)
+	mock.executor = func(string, string, []string) (string, string, int) {
+		time.Sleep(300 * time.Millisecond)
+		return "finished", "", 0
+	}
+	cfg := testConfig(t, mock)
+	cfg.CubeHTTPTimeout = 100 * time.Millisecond
+	client, err := NewCubeRemoteClient(cfg)
+	require.NoError(t, err)
+	handle, err := client.Create(context.Background(), RemoteCreateRequest{TemplateID: "template-a"})
+	require.NoError(t, err)
+	result, err := client.Exec(context.Background(), handle, RemoteExecRequest{
+		Command: "slow command", Shell: true, Timeout: 2 * time.Second,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "finished", result.Stdout)
+	require.False(t, result.Killed)
 }
 
 func TestCubeRemoteClientCreateSnapshot(t *testing.T) {
@@ -630,6 +652,11 @@ func TestNormalizeCubeError(t *testing.T) {
 			StatusCode: http.StatusBadRequest,
 			Message:    "cannot delete template x because there are paused sandboxes using it",
 		}, RemoteErrorKindConflict},
+		{"delete snapshot runtime refs", "DeleteSnapshot", &cubesandbox.APIError{
+			StatusCode: http.StatusInternalServerError,
+			Message: "CubeMaster returned error code 130409: template attempt is already in progress: " +
+				"snapshot snap-x still has 2 active runtime ref(s): a@host, b@host",
+		}, RemoteErrorKindConflict},
 		{"delete snapshot bad id", "DeleteSnapshot", &cubesandbox.APIError{
 			StatusCode: http.StatusBadRequest,
 			Message:    "invalid snapshot id",
@@ -646,4 +673,38 @@ func TestNormalizeCubeError(t *testing.T) {
 			require.ErrorIs(t, err, tt.err)
 		})
 	}
+}
+
+func TestCubeDesktopTemplateSpecDoesNotNatWebsockify(t *testing.T) {
+	spec := cubeDesktopTemplateSpec(nil)
+
+	require.Equal(t, DefaultCubeDesktopTemplateImage, spec["image"])
+	require.Equal(t, DesktopTemplateName, spec["name"])
+	// envd stays in exposedPorts so the template probe can reach :49983.
+	// 6080 must not: Cube NATs that list onto the host NIC and bypasses
+	// CubeProxy. The desktop relay dials 6080 through CubeProxy instead.
+	require.Equal(t, []uint16{CubeEnvdPort}, spec["exposedPorts"])
+	require.Equal(t, uint16(CubeEnvdPort), spec["probePort"])
+	require.Equal(t, CubeEnvdHealthPath, spec["probePath"])
+	// 1G (the standard value) is too small once XFCE is installed.
+	require.Equal(t, "8G", spec["writableLayerSize"])
+	require.Equal(t, true, spec["allowInternetAccess"])
+	require.Equal(t, []string{"/usr/bin/envd"}, spec["command"])
+	require.Equal(t, []string{"-port", "49983", "-isnotfc"}, spec["args"])
+}
+
+func TestCubeStandardTemplateSpecStillExposesOnlyEnvd(t *testing.T) {
+	// Host ports are a finite resource (CubeVS allocates 20000-29999). Neither
+	// the CLI nor the desktop template may NAT extra guest ports onto the host.
+	spec := cubeStandardTemplateSpec(nil)
+	require.Equal(t, []uint16{CubeEnvdPort}, spec["exposedPorts"])
+}
+
+func TestDesktopReadyCmdDoesNotUseSS(t *testing.T) {
+	// e2b.WaitForPort generates `ss -tln`, and iproute2 is not in the image:
+	// ss exits 127, the loop never terminates, and the template build hangs
+	// instead of failing. Keep the python3 probe.
+	require.NotContains(t, desktopReadyCmd, "ss ")
+	require.Contains(t, desktopReadyCmd, "python3")
+	require.Contains(t, desktopReadyCmd, "6080")
 }

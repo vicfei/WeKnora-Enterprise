@@ -744,6 +744,12 @@ func (h *InitializationHandler) processInitializationModels(
 
 	for _, descriptor := range descriptors {
 		model := descriptor.toModel()
+		// Stamp the KB's tenant before insert: toModel() carries no tenant and
+		// modelRepository.GetByID filters on (tenant_id = ? OR is_builtin), so
+		// an unstamped row lands at tenant_id = 0 where no tenant — not even
+		// the one that just configured the KB — can ever read it back
+		// (issue #3333).
+		model.TenantID = kb.TenantID
 		existingModelID := h.findExistingModelID(kb, descriptor.modelType)
 
 		var existingModel *types.Model
@@ -1648,16 +1654,20 @@ type ModelTestRequest struct {
 
 // fillSecretsFromStoredModel mutates req in place: if req.ModelID is set
 // and a secret field on the request is empty, the corresponding value from
-// the stored (and decrypted) model is copied in. Non-empty request values
-// are always preferred — they represent the user actively typing a new key
-// they want to verify. Missing or inaccessible model is treated as a no-op
-// (the connection test will fail downstream with a clearer "missing apiKey"
-// error than we could produce here).
+// the stored (and decrypted) model is copied in. The stored ExtraConfig is
+// filled in as well when the request does not carry one — provider-specific
+// settings (thinking_control, api_version, remote_model_name, ...) must
+// apply to the connection test exactly as they apply to real traffic, and
+// the frontend only sends extraConfig when the user actively edits it.
+// Non-empty request values are always preferred — they represent the user
+// actively typing a new key they want to verify. Missing or inaccessible
+// model is treated as a no-op (the connection test will fail downstream
+// with a clearer "missing apiKey" error than we could produce here).
 func (h *InitializationHandler) fillSecretsFromStoredModel(ctx context.Context, req *ModelTestRequest) {
 	if req == nil || req.ModelID == "" {
 		return
 	}
-	if req.APIKey != "" && req.AppSecret != "" {
+	if req.APIKey != "" && req.AppSecret != "" && req.ExtraConfig != nil {
 		return
 	}
 	stored, err := h.modelService.GetModelByID(ctx, req.ModelID)
@@ -1671,6 +1681,9 @@ func (h *InitializationHandler) fillSecretsFromStoredModel(ctx context.Context, 
 	}
 	if req.AppSecret == "" {
 		req.AppSecret = stored.Parameters.AppSecret
+	}
+	if req.ExtraConfig == nil {
+		req.ExtraConfig = stored.Parameters.ExtraConfig
 	}
 }
 

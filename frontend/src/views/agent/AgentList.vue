@@ -42,7 +42,7 @@
 
         <!-- 骨架屏占位 -->
         <div v-if="loading && agents.length === 0" class="agent-card-wrap">
-          <div v-for="n in 6" :key="'skel-' + n" class="agent-card agent-card-skeleton">
+          <div v-for="n in 6" :key="'skel-' + n" class="agent-card agent-card-skeleton is-skeleton">
             <div class="card-header">
               <div class="card-header-left">
                 <t-skeleton animation="gradient"
@@ -637,11 +637,9 @@
         </div>
 
         <!-- 空状态：全部（保留创建 CTA） -->
-        <div v-if="spaceSelection === 'all' && filteredAgents.length === 0 && !loading" class="empty-state">
-          <img class="empty-img" src="@/assets/img/upload.svg" alt="">
-          <span class="empty-txt">{{ $t('agent.empty.title') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.description') }}</span>
-          <t-button v-if="authStore.hasRole('contributor')" class="agent-create-btn empty-state-btn"
+        <EmptyState v-if="spaceSelection === 'all' && filteredAgents.length === 0 && !loading" icon="chat-bubble-1" :title="$t('agent.empty.title')"
+          :description="$t('agent.empty.description')">
+          <t-button v-if="authStore.hasRole('contributor')" theme="primary" class="agent-create-btn"
             data-guide="agent-list-create" @click="handleCreateAgent">
             <template #icon>
               <span class="btn-icon-wrapper">
@@ -664,25 +662,17 @@
             </template>
             <span>{{ $t('agent.createAgent') }}</span>
           </t-button>
-        </div>
+        </EmptyState>
 
         <!-- 空状态：收藏 / 最近 — 不放创建按钮，参见 KnowledgeBaseList 的同处理由 -->
-        <div v-if="spaceSelection === 'favorites' && filteredAgents.length === 0 && !loading" class="empty-state">
-          <t-icon name="star" size="48px" class="empty-icon" />
-          <span class="empty-txt">{{ $t('agent.empty.favoritesTitle') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.favoritesDescription') }}</span>
-        </div>
-        <div v-if="spaceSelection === 'recents' && filteredAgents.length === 0 && !loading" class="empty-state">
-          <t-icon name="history" size="48px" class="empty-icon" />
-          <span class="empty-txt">{{ $t('agent.empty.recentsTitle') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.recentsDescription') }}</span>
-        </div>
+        <EmptyState v-if="spaceSelection === 'favorites' && filteredAgents.length === 0 && !loading" icon="star" :title="$t('agent.empty.favoritesTitle')"
+          :description="$t('agent.empty.favoritesDescription')" />
+        <EmptyState v-if="spaceSelection === 'recents' && filteredAgents.length === 0 && !loading" icon="history" :title="$t('agent.empty.recentsTitle')"
+          :description="$t('agent.empty.recentsDescription')" />
         <!-- 空状态：我的 -->
-        <div v-if="spaceSelection === 'mine' && agents.length === 0 && !loading" class="empty-state">
-          <img class="empty-img" src="@/assets/img/upload.svg" alt="">
-          <span class="empty-txt">{{ $t('agent.empty.title') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.description') }}</span>
-          <t-button v-if="authStore.hasRole('contributor')" class="agent-create-btn empty-state-btn"
+        <EmptyState v-if="spaceSelection === 'mine' && agents.length === 0 && !loading" icon="chat-bubble-1" :title="$t('agent.empty.title')"
+          :description="$t('agent.empty.description')">
+          <t-button v-if="authStore.hasRole('contributor')" theme="primary" class="agent-create-btn"
             @click="handleCreateAgent">
             <template #icon>
               <span class="btn-icon-wrapper">
@@ -705,33 +695,12 @@
             </template>
             <span>{{ $t('agent.createAgent') }}</span>
           </t-button>
-        </div>
+        </EmptyState>
         <!-- 空状态：空间下 -->
-        <div v-if="spaceSelectionOrgId && !spaceAgentsLoading && spaceAgentsList.length === 0" class="empty-state">
-          <img class="empty-img" src="@/assets/img/upload.svg" alt="">
-          <span class="empty-txt">{{ $t('agent.empty.sharedTitle') }}</span>
-          <span class="empty-desc">{{ $t('agent.empty.sharedDescription') }}</span>
-        </div>
+        <EmptyState v-if="spaceSelectionOrgId && !spaceAgentsLoading && spaceAgentsList.length === 0" icon="chat-bubble-1" :title="$t('agent.empty.sharedTitle')"
+          :description="$t('agent.empty.sharedDescription')" />
       </div>
     </div>
-
-    <!-- 删除确认对话框 -->
-    <t-dialog v-model:visible="deleteVisible" dialogClassName="del-agent-dialog" :closeBtn="false" :cancelBtn="null"
-      :confirmBtn="null">
-      <div class="circle-wrap">
-        <div class="dialog-header">
-          <img class="circle-img" src="@/assets/img/circle.png" alt="">
-          <span class="circle-title">{{ $t('agent.delete.confirmTitle') }}</span>
-        </div>
-        <span class="del-circle-txt">
-          {{ $t('agent.delete.confirmMessage', { name: deletingAgent?.name ?? '' }) }}
-        </span>
-        <div class="circle-btn">
-          <span class="circle-btn-txt" @click="deleteVisible = false">{{ $t('common.cancel') }}</span>
-          <span class="circle-btn-txt confirm" @click="confirmDelete">{{ $t('agent.delete.confirmButton') }}</span>
-        </div>
-      </div>
-    </t-dialog>
 
     <!-- 共享智能体详情侧边栏 -->
     <Transition name="shared-detail-drawer">
@@ -815,6 +784,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessagePlugin, Icon as TIcon } from 'tdesign-vue-next'
+import EmptyState from '@/components/EmptyState.vue'
+import { useConfirmDelete } from '@/components/settings/useConfirmDelete'
 import { deleteAgent, copyAgent, type CustomAgent } from '@/api/agent'
 import { useChatResourcesStore } from '@/stores/chatResources'
 import { formatStringDate } from '@/utils/index'
@@ -1054,8 +1025,7 @@ const sortedSpaceAgentsList = computed(() => {
   })
 })
 const loading = ref(false)
-const deleteVisible = ref(false)
-const deletingAgent = ref<AgentWithUI | null>(null)
+const confirmDelete = useConfirmDelete()
 const sharedDetailVisible = ref(false)
 const currentSharedAgent = ref<SharedAgentInfo | null>(null)
 const sharedAgentUsesKb = computed(() => {
@@ -1487,8 +1457,23 @@ const spaceAgentSectionCounts = computed<Record<AgentSectionKey, number>>(() => 
 
 const handleDelete = (agent: AgentWithUI) => {
   openMoreAgentId.value = null
-  deletingAgent.value = agent
-  deleteVisible.value = true
+  confirmDelete({
+    title: t('agent.delete.confirmTitle'),
+    body: t('agent.delete.confirmMessage', { name: agent.name }),
+    onConfirm: async () => {
+      try {
+        const res: any = await deleteAgent(agent.id)
+        if (res.success) {
+          MessagePlugin.success(t('agent.messages.deleted'))
+          fetchList(true)
+        } else {
+          MessagePlugin.error(res.message || t('agent.messages.deleteFailed'))
+        }
+      } catch (e: any) {
+        MessagePlugin.error(e?.message || t('agent.messages.deleteFailed'))
+      }
+    },
+  })
 }
 
 const handleCopy = (agent: AgentWithUI) => {
@@ -1554,23 +1539,6 @@ const handleToggleSharedDisabledFromShared = (shared: SharedAgentInfo) => {
   })
 }
 
-const confirmDelete = () => {
-  if (!deletingAgent.value) return
-
-  deleteAgent(deletingAgent.value.id).then((res: any) => {
-    if (res.success) {
-      MessagePlugin.success(t('agent.messages.deleted'))
-      deleteVisible.value = false
-      deletingAgent.value = null
-      fetchList(true)
-    } else {
-      MessagePlugin.error(res.message || t('agent.messages.deleteFailed'))
-    }
-  }).catch((e: any) => {
-    MessagePlugin.error(e?.message || t('agent.messages.deleteFailed'))
-  })
-}
-
 const handleEditorSuccess = (agent?: CustomAgent) => {
   if (agent) {
     editingAgent.value = agent
@@ -1610,6 +1578,8 @@ defineExpose({
 </script>
 
 <style scoped lang="less">
+@import (reference) '@/components/css/resource-card.less';
+
 .agent-list-container {
   margin: 0;
   height: 100%;
@@ -1653,9 +1623,9 @@ defineExpose({
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
-  background: rgba(7, 192, 95, 0.1);
-  border-radius: 4px;
-  font-size: 12px;
+  background: color-mix(in srgb, var(--td-brand-color) 10%, transparent);
+  border-radius: var(--app-radius-xs);
+  font-size: var(--app-text-sm);
   color: var(--td-brand-color);
   margin-left: 6px;
 }
@@ -1683,77 +1653,9 @@ defineExpose({
     margin: 0;
     color: var(--td-text-color-primary);
     font-family: var(--app-font-family);
-    font-size: 24px;
+    font-size: var(--app-text-4xl);
     font-weight: 600;
     line-height: 32px;
-  }
-}
-
-:deep(.agent-create-btn) {
-  --ripple-color: rgba(118, 75, 162, 0.3) !important;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  border: none !important;
-  color: var(--td-text-color-anti) !important;
-  position: relative;
-  overflow: hidden;
-
-  &:hover,
-  &:active,
-  &:focus,
-  &.t-is-active,
-  &[data-state="active"] {
-    background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%) !important;
-    border: none !important;
-    color: var(--td-text-color-anti) !important;
-  }
-
-  --td-button-primary-bg-color: #667eea !important;
-  --td-button-primary-border-color: #667eea !important;
-  --td-button-primary-active-bg-color: #5a6fd6 !important;
-  --td-button-primary-active-border-color: #5a6fd6 !important;
-
-  .btn-icon-wrapper {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .sparkles-icon {
-    animation: twinkle 2s ease-in-out infinite;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(45deg,
-        transparent 30%,
-        rgba(255, 255, 255, 0.1) 50%,
-        transparent 70%);
-    transform: translateX(-100%);
-    transition: transform 0.6s ease;
-    z-index: 0;
-  }
-
-  &:hover::before {
-    transform: translateX(100%);
-  }
-}
-
-@keyframes twinkle {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.8;
-    transform: scale(0.95);
   }
 }
 
@@ -1761,30 +1663,30 @@ defineExpose({
   margin: 0;
   color: var(--td-text-color-placeholder);
   font-family: var(--app-font-family);
-  font-size: 14px;
+  font-size: var(--app-text-base);
   font-weight: 400;
   line-height: 20px;
 }
 
 .header-action-btn {
-  padding: 0 !important;
-  min-width: 28px !important;
-  width: 28px !important;
-  height: 28px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  background: var(--td-bg-color-secondarycontainer) !important;
-  border: 1px solid var(--td-component-stroke) !important;
-  border-radius: 6px !important;
+  padding: 0;
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--td-bg-color-secondarycontainer);
+  border: 1px solid var(--td-component-stroke);
+  border-radius: var(--app-radius-sm);
   color: var(--td-text-color-secondary);
   cursor: pointer;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--td-bg-color-container) 72%, transparent);
-  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  transition: background var(--app-motion-base), border-color var(--app-motion-base), color var(--app-motion-base);
 
   &:hover {
-    background: var(--td-bg-color-secondarycontainer) !important;
-    border-color: var(--td-component-stroke) !important;
+    background: var(--td-bg-color-secondarycontainer);
+    border-color: var(--td-component-stroke);
     color: var(--td-text-color-primary);
   }
 
@@ -1817,9 +1719,9 @@ defineExpose({
     cursor: pointer;
     color: var(--td-text-color-secondary);
     font-family: var(--app-font-family);
-    font-size: 14px;
+    font-size: var(--app-text-base);
     font-weight: 400;
-    transition: color 0.2s;
+    transition: color var(--app-motion-base);
 
     &:hover {
       color: var(--td-text-color-primary);
@@ -1843,7 +1745,7 @@ defineExpose({
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-lg);
   background: var(--td-bg-color-container-hover);
   flex-shrink: 0;
 }
@@ -1857,7 +1759,7 @@ defineExpose({
 .org-source-text {
   color: var(--td-text-color-secondary);
   font-family: var(--app-font-family);
-  font-size: 11px;
+  font-size: var(--app-text-xs);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -1867,11 +1769,11 @@ defineExpose({
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-lg);
   background: var(--td-bg-color-container-hover);
   color: var(--td-text-color-secondary);
   font-family: var(--app-font-family);
-  font-size: 11px;
+  font-size: var(--app-text-xs);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -1899,7 +1801,7 @@ defineExpose({
   padding: 6px 4px 6px 0;
   color: var(--td-text-color-secondary);
   font-family: var(--app-font-family);
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 600;
   line-height: 20px;
   cursor: pointer;
@@ -1911,7 +1813,7 @@ defineExpose({
   }
 
   &:focus-visible {
-    box-shadow: 0 0 0 2px var(--td-brand-color-focus, rgba(0, 82, 217, 0.2));
+    box-shadow: 0 0 0 2px var(--td-brand-color-focus);
   }
 
   .t-icon {
@@ -1921,7 +1823,7 @@ defineExpose({
   .agent-section-toggle {
     margin-left: 4px;
     opacity: 0.7;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--app-motion-fast) ease;
   }
 
   // 共享给我的两个子分组：主图标 usergroup-add 表达"共享"语义，
@@ -1935,10 +1837,10 @@ defineExpose({
   .agent-section-count {
     margin-left: 2px;
     padding: 0 6px;
-    border-radius: 8px;
+    border-radius: var(--app-radius-md);
     background: var(--td-bg-color-secondarycontainer);
     color: var(--td-text-color-secondary);
-    font-size: 11px;
+    font-size: var(--app-text-xs);
     line-height: 16px;
     font-weight: 500;
   }
@@ -1962,49 +1864,12 @@ defineExpose({
 }
 
 .agent-card-wrap {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr;
-  animation: contentFadeIn 0.32s ease-out;
-}
-
-.agent-card-skeleton {
-  cursor: default;
-
-  .card-header {
-    margin-bottom: 12px;
-  }
-
-  .card-content {
-    flex: 1;
-  }
-
-  .card-bottom {
-    margin-top: auto;
-  }
+  .resource-card-grid();
 }
 
 /* 与知识库列表卡片统一尺寸：紧凑行高、148px 卡片高 */
 .agent-card {
-  border: 1px solid var(--td-component-stroke);
-  border-radius: 8px;
-  overflow: hidden;
-  box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  background: var(--td-bg-color-container);
-  position: relative;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  height: 136px;
-  min-height: 136px;
-
-  &:hover {
-    border-color: var(--td-brand-color);
-    box-shadow: 0 4px 12px rgba(7, 192, 95, 0.12);
-  }
+  .resource-card();
 
   .agent-favorite-star {
     // 浮在卡片右上角顶角。卡片自身有 padding，"更多"按钮在 header flex
@@ -2020,20 +1885,20 @@ defineExpose({
     justify-content: center;
     background: transparent;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     color: var(--td-text-color-secondary);
     cursor: pointer;
     opacity: 0;
-    transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+    transition: opacity var(--app-motion-fast) ease, background var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
 
     &:hover {
       background: var(--td-bg-color-secondarycontainer);
-      color: var(--td-warning-color, #e37318);
+      color: var(--td-warning-color);
     }
 
     &.is-favorited {
       opacity: 1;
-      color: var(--td-warning-color, #e37318);
+      color: var(--td-warning-color);
     }
   }
 
@@ -2043,91 +1908,51 @@ defineExpose({
 
   // 普通模式样式
   &.agent-mode-normal {
-    background: linear-gradient(135deg, var(--td-bg-color-container) 0%, rgba(7, 192, 95, 0.04) 100%);
+    background: linear-gradient(135deg, var(--td-bg-color-container) 0%, color-mix(in srgb, var(--td-brand-color) 4%, transparent) 100%);
 
     &:hover {
       border-color: var(--td-brand-color);
-      background: linear-gradient(135deg, var(--td-bg-color-container) 0%, rgba(7, 192, 95, 0.08) 100%);
+      background: linear-gradient(135deg, var(--td-bg-color-container) 0%, color-mix(in srgb, var(--td-brand-color) 8%, transparent) 100%);
     }
 
     .card-decoration {
-      color: rgba(7, 192, 95, 0.35);
+      color: color-mix(in srgb, var(--td-brand-color) 35%, transparent);
     }
 
     &:hover .card-decoration {
-      color: rgba(7, 192, 95, 0.5);
+      color: color-mix(in srgb, var(--td-brand-color) 50%, transparent);
     }
   }
 
   // Agent 模式样式
   &.agent-mode-agent {
-    background: linear-gradient(135deg, var(--td-bg-color-container) 0%, rgba(124, 77, 255, 0.04) 100%);
+    background: linear-gradient(135deg, var(--td-bg-color-container) 0%, color-mix(in srgb, var(--app-accent-purple) 4%, transparent) 100%);
 
     &:hover {
       border-color: var(--td-brand-color);
-      box-shadow: 0 4px 12px rgba(124, 77, 255, 0.12);
-      background: linear-gradient(135deg, var(--td-bg-color-container) 0%, rgba(124, 77, 255, 0.08) 100%);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--app-accent-purple) 12%, transparent);
+      background: linear-gradient(135deg, var(--td-bg-color-container) 0%, color-mix(in srgb, var(--app-accent-purple) 8%, transparent) 100%);
     }
 
     .card-decoration {
-      color: rgba(124, 77, 255, 0.35);
+      color: color-mix(in srgb, var(--app-accent-purple) 35%, transparent);
     }
 
     &:hover .card-decoration {
-      color: rgba(124, 77, 255, 0.5);
-    }
-  }
-
-  // 确保内容在装饰之上
-  .card-header,
-  .card-content,
-  .card-bottom {
-    position: relative;
-    z-index: 1;
-  }
-
-  .card-header {
-    margin-bottom: 6px;
-  }
-
-  .card-title {
-    font-size: 15px;
-    line-height: 22px;
-  }
-
-  .card-content {
-    margin-bottom: 6px;
-  }
-
-  .card-description {
-    font-size: 12px;
-    line-height: 17px;
-  }
-
-  .card-bottom {
-    padding-top: 6px;
-  }
-
-  .more-wrap {
-    width: 28px;
-    height: 28px;
-
-    .more-icon {
-      width: 16px;
-      height: 16px;
+      color: color-mix(in srgb, var(--app-accent-purple) 50%, transparent);
     }
   }
 
   .builtin-avatar {
     width: 32px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: var(--app-radius-md);
   }
 
   .edit-btn {
     width: 32px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: var(--app-radius-md);
   }
 }
 
@@ -2152,46 +1977,16 @@ defineExpose({
   }
 }
 
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.card-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-}
-
-.card-title {
-  color: var(--td-text-color-primary);
-  font-family: var(--app-font-family);
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 22px;
-  letter-spacing: 0.01em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-}
-
 .builtin-badge {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--app-radius-lg);
   background: var(--td-bg-color-container-hover);
   color: var(--td-text-color-secondary);
   font-family: var(--app-font-family);
-  font-size: 11px;
+  font-size: var(--app-text-xs);
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -2202,22 +1997,22 @@ defineExpose({
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   flex-shrink: 0;
 
   &.agent-emoji {
-    font-size: 18px;
+    font-size: var(--app-text-2xl);
     line-height: 1;
     background: var(--td-bg-color-container-hover);
   }
 
   &.normal {
-    background: linear-gradient(135deg, rgba(7, 192, 95, 0.15) 0%, rgba(7, 192, 95, 0.08) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--td-brand-color) 15%, transparent) 0%, color-mix(in srgb, var(--td-brand-color) 8%, transparent) 100%);
     color: var(--td-brand-color-active);
   }
 
   &.agent {
-    background: linear-gradient(135deg, rgba(124, 77, 255, 0.15) 0%, rgba(124, 77, 255, 0.08) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--app-accent-purple) 15%, transparent) 0%, color-mix(in srgb, var(--app-accent-purple) 8%, transparent) 100%);
     color: var(--td-brand-color);
   }
 }
@@ -2228,10 +2023,10 @@ defineExpose({
   height: 32px;
   justify-content: center;
   align-items: center;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: all var(--app-motion-base) ease;
   color: var(--td-text-color-disabled);
 
   &:hover {
@@ -2240,190 +2035,69 @@ defineExpose({
   }
 }
 
-.more-wrap {
-  display: flex;
-  width: 28px;
-  height: 28px;
-  justify-content: center;
-  align-items: center;
-  border-radius: 8px;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
-  opacity: 0;
-
-  .agent-card:hover & {
-    opacity: 0.6;
-  }
-
-  &:hover {
-    background: var(--td-bg-color-container-hover);
-    opacity: 1 !important;
-  }
-
-  &.active-more {
-    background: var(--td-bg-color-container-hover);
-    opacity: 1 !important;
-  }
-
-  .more-icon {
-    width: 16px;
-    height: 16px;
-  }
-}
-
 /* 与知识库卡片内容区一致 */
-.card-content {
-  flex: 1;
-  min-height: 0;
-  margin-bottom: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 /* 三个列表卡片统一：描述字体 */
-.card-description {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  color: var(--td-text-color-secondary);
-  font-family: var(--app-font-family);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-}
-
-.card-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: auto;
-  padding-top: 8px;
-  border-top: .5px solid var(--td-component-stroke);
-}
-
 .bottom-left {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.feature-badges {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .feature-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  cursor: default;
-  transition: background 0.2s ease;
+  .resource-feature-badge();
 
   &.mode-normal {
-    background: rgba(7, 192, 95, 0.08);
+    background: color-mix(in srgb, var(--td-brand-color) 8%, transparent);
     color: var(--td-brand-color-active);
 
     &:hover {
-      background: rgba(7, 192, 95, 0.12);
+      background: color-mix(in srgb, var(--td-brand-color) 12%, transparent);
     }
   }
 
   &.mode-agent {
-    background: rgba(124, 77, 255, 0.08);
+    background: color-mix(in srgb, var(--app-accent-purple) 8%, transparent);
     color: var(--td-brand-color);
 
     &:hover {
-      background: rgba(124, 77, 255, 0.12);
+      background: color-mix(in srgb, var(--app-accent-purple) 12%, transparent);
     }
   }
 
   &.web-search {
-    background: rgba(255, 152, 0, 0.08);
+    background: color-mix(in srgb, var(--td-warning-color) 8%, transparent);
     color: var(--td-warning-color);
 
     &:hover {
-      background: rgba(255, 152, 0, 0.12);
+      background: color-mix(in srgb, var(--td-warning-color) 12%, transparent);
     }
   }
 
   &.knowledge {
-    background: rgba(7, 192, 95, 0.08);
+    background: color-mix(in srgb, var(--td-brand-color) 8%, transparent);
     color: var(--td-brand-color-active);
 
     &:hover {
-      background: rgba(7, 192, 95, 0.12);
+      background: color-mix(in srgb, var(--td-brand-color) 12%, transparent);
     }
   }
 
   &.mcp {
-    background: rgba(236, 72, 153, 0.08);
+    background: color-mix(in srgb, var(--td-error-color) 8%, transparent);
     color: var(--td-error-color);
 
     &:hover {
-      background: rgba(236, 72, 153, 0.12);
+      background: color-mix(in srgb, var(--td-error-color) 12%, transparent);
     }
   }
 
   &.multi-turn {
-    background: rgba(59, 130, 246, 0.08);
+    background: color-mix(in srgb, var(--td-brand-color) 8%, transparent);
     color: var(--td-brand-color);
 
     &:hover {
-      background: rgba(59, 130, 246, 0.12);
+      background: color-mix(in srgb, var(--td-brand-color) 12%, transparent);
     }
-  }
-}
-
-.card-time {
-  color: var(--td-text-color-placeholder);
-  font-family: var(--app-font-family);
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 60px 20px;
-
-  .empty-img {
-    width: 162px;
-    height: 162px;
-    margin-bottom: 20px;
-  }
-
-  .empty-txt {
-    color: var(--td-text-color-placeholder);
-    font-family: var(--app-font-family);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 26px;
-    margin-bottom: 8px;
-  }
-
-  .empty-desc {
-    color: var(--td-text-color-disabled);
-    font-family: var(--app-font-family);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 22px;
-    margin-bottom: 0;
-  }
-
-  .empty-state-btn {
-    margin-top: 20px;
   }
 }
 
@@ -2459,88 +2133,10 @@ defineExpose({
 }
 
 // 删除确认对话框样式
-:deep(.del-agent-dialog) {
-  padding: 0px !important;
-  border-radius: 6px !important;
-
-  .t-dialog__header {
-    display: none;
-  }
-
-  .t-dialog__body {
-    padding: 16px;
-  }
-
-  .t-dialog__footer {
-    padding: 0;
-  }
-}
-
 :deep(.t-dialog__position.t-dialog--top) {
   padding-top: 40vh !important;
 }
 
-.circle-wrap {
-  .dialog-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-  .circle-img {
-    width: 20px;
-    height: 20px;
-    margin-right: 8px;
-  }
-
-  .circle-title {
-    color: var(--td-text-color-primary);
-    font-family: var(--app-font-family);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 24px;
-  }
-
-  .del-circle-txt {
-    color: var(--td-text-color-placeholder);
-    font-family: var(--app-font-family);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 22px;
-    display: inline-block;
-    margin-left: 29px;
-    margin-bottom: 21px;
-  }
-
-  .circle-btn {
-    height: 22px;
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .circle-btn-txt {
-    color: var(--td-text-color-primary);
-    font-family: var(--app-font-family);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 22px;
-    cursor: pointer;
-
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-
-  .confirm {
-    color: var(--td-error-color);
-    margin-left: 40px;
-
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-}
 </style>
 
 <style lang="less">
@@ -2581,7 +2177,7 @@ defineExpose({
 
 .shared-detail-drawer-title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--app-text-2xl);
   font-weight: 600;
   color: var(--td-text-color-primary);
 }
@@ -2590,14 +2186,14 @@ defineExpose({
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--app-radius-sm);
   background: var(--td-bg-color-secondarycontainer);
   color: var(--td-text-color-secondary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background var(--app-motion-base) ease, color var(--app-motion-base) ease;
 
   &:hover {
     background: var(--td-bg-color-secondarycontainer);
@@ -2621,7 +2217,7 @@ defineExpose({
 }
 
 .shared-detail-drawer-body .shared-detail-section-title {
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 600;
   color: var(--td-text-color-primary);
   margin: 20px 0 12px 0;
@@ -2630,13 +2226,13 @@ defineExpose({
 }
 
 .shared-detail-drawer-body .shared-detail-label {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   color: var(--td-text-color-secondary);
   line-height: 1.4;
 }
 
 .shared-detail-drawer-body .shared-detail-value {
-  font-size: 14px;
+  font-size: var(--app-text-base);
   color: var(--td-text-color-primary);
   line-height: 1.5;
   word-break: break-word;

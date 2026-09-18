@@ -107,6 +107,23 @@ type Session struct {
 	// permanent would make "no session references this config" never true.
 	SandboxConfigID string `json:"sandbox_config_id,omitempty" gorm:"type:varchar(36)"`
 
+	// ParentSessionID names the session this one was forked from. Empty for
+	// ordinary sessions. Deliberately not a foreign key: the parent may be
+	// deleted while the branch lives on, and a branch must not cascade away
+	// with it. A dangling value simply renders as an ordinary session.
+	ParentSessionID string `json:"parent_session_id,omitempty" gorm:"type:varchar(36);index"`
+
+	// ForkedFromMessageID is the user or assistant message, IN THE PARENT
+	// SESSION, that the fork branched at. For a user point, messages strictly
+	// before it were copied here. For an assistant point, that answer is
+	// included so the branch continues after it.
+	ForkedFromMessageID string `json:"forked_from_message_id,omitempty" gorm:"type:varchar(36)"`
+
+	// ForkBootstrap holds the one-shot sandbox provisioning instructions for a
+	// forked session. Nil for ordinary sessions and for forks that have
+	// already provisioned. See types.ForkBootstrap.
+	ForkBootstrap *ForkBootstrap `json:"-" gorm:"type:jsonb;column:fork_bootstrap"`
+
 	// // Strategy configuration
 	// KnowledgeBaseID   string              `json:"knowledge_base_id"`                    // 关联的知识库ID
 	// MaxRounds         int                 `json:"max_rounds"`                           // 多轮保持轮数
@@ -277,16 +294,17 @@ func (c *SummaryConfig) Scan(value interface{}) error {
 // to the frontend by GetSession so the chat input can restore the same agent,
 // model, KB scope, etc. the user had selected last time.
 type SessionLastRequestState struct {
-	AgentID          string         `json:"agent_id,omitempty"`
-	AgentEnabled     bool           `json:"agent_enabled"`
-	ModelID          string         `json:"model_id,omitempty"`
-	KnowledgeBaseIDs []string       `json:"knowledge_base_ids,omitempty"`
-	KnowledgeIDs     []string       `json:"knowledge_ids,omitempty"`
-	TagIDs           []string       `json:"tag_ids,omitempty"`
-	MCPServiceIDs    []string       `json:"mcp_service_ids,omitempty"`
-	SkillNames       []string       `json:"skill_names,omitempty"`
-	MentionedItems   MentionedItems `json:"mentioned_items,omitempty"`
-	WebSearchEnabled bool           `json:"web_search_enabled"`
+	AgentID             string         `json:"agent_id,omitempty"`
+	AgentEnabled        bool           `json:"agent_enabled"`
+	ModelID             string         `json:"model_id,omitempty"`
+	KnowledgeBaseIDs    []string       `json:"knowledge_base_ids,omitempty"`
+	KnowledgeIDs        []string       `json:"knowledge_ids,omitempty"`
+	TagIDs              []string       `json:"tag_ids,omitempty"`
+	MCPServiceIDs       []string       `json:"mcp_service_ids,omitempty"`
+	SkillNames          []string       `json:"skill_names,omitempty"`
+	MentionedItems      MentionedItems `json:"mentioned_items,omitempty"`
+	LocalBrowserEnabled bool           `json:"local_browser_enabled"`
+	WebSearchEnabled    bool           `json:"web_search_enabled"`
 	// 二开特性：自动选库开关随会话快照持久（与联网搜索同机制）
 	KbRoutingEnabled bool `json:"kb_routing_enabled,omitempty"`
 	// 二开特性：精准排序（rerank）开关随会话快照持久

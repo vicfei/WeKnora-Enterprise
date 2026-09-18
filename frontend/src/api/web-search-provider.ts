@@ -5,11 +5,7 @@ export interface WebSearchProviderEntity {
   id?: string
   tenant_id?: number
   name: string
-  // Mirrors the Go-side WebSearchProviderType constants. 'brave' exists on
-  // newer upstream bases (engine + type added there); this fork line has no
-  // brave engine implementation, so it stays out of the union until the
-  // upstream stack is pulled in wholesale.
-  provider: 'bing' | 'google' | 'duckduckgo' | 'tavily' | 'ollama' | 'baidu' | 'searxng' | 'keenable' | 'zhipu' | 'metaso' | 'exa' | 'bocha' | 'doubao'
+  provider: 'brave' | 'bing' | 'google' | 'duckduckgo' | 'tavily' | 'ollama' | 'baidu' | 'searxng' | 'keenable' | 'zhipu' | 'metaso' | 'exa' | 'bocha' | 'doubao' | 'serply'
   description?: string
   parameters: {
     // api_key is never returned by the server in this shape; it lives behind

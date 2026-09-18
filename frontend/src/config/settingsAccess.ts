@@ -24,13 +24,15 @@ export const SETTINGS_SECTION_MIN_ROLE: Record<string, SettingsRoleKey> = {
   mcp: 'admin',
   system: 'viewer',
   userprofile: 'viewer',
+  browserconnection: 'viewer',
   tenant: 'viewer',
   members: 'viewer',
   mymemory: 'viewer',
   memory: 'admin',
   // Every member fills in their own environment variables; the workspace-wide
   // values stay on the Admin+ skills page.
-  envvars: 'viewer',}
+  envvars: 'viewer',
+}
 
 /**
  * A management-labelled avatar shortcut has a stricter threshold than the

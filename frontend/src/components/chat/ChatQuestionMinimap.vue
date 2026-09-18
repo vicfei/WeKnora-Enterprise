@@ -23,10 +23,10 @@
         v-for="tick in ticks"
         :key="tick.id"
         class="question-minimap__tick"
-        :class="{ 'question-minimap__tick--active': tick.id === peakId }"
+        :class="{ 'question-minimap__tick--active': highlightedIds.has(tick.id) }"
         :style="{
           top: `${tick.yPx}px`,
-          transform: `translateY(-50%) scaleX(${tickDisplayScale(tick.yPx, mountainPointerY, tick.id === peakId)})`,
+          transform: `translateY(-50%) scaleX(${tickDisplayScale(tick.yPx, mountainPointerY, highlightedIds.has(tick.id))})`,
         }"
       />
     </button>
@@ -65,7 +65,7 @@ import {
   questionDisplayText,
   tickDisplayScale,
   type ChatMessageLike,
-  type UserQuestion,
+  type OutlineMessage,
 } from '@/utils/chatQuestionMinimap'
 
 const CLOSE_DELAY_MS = 150
@@ -94,6 +94,7 @@ const {
   questions,
   ticks,
   activeId,
+  visibleIds,
   anchoredIds,
   trackHeight,
 } = useChatQuestionMinimap({
@@ -114,6 +115,11 @@ const peakId = computed(() => {
 const peakTurn = computed(() => (
   questions.value.find((question) => question.id === peakId.value) ?? null
 ))
+const highlightedIds = computed(() => {
+  const ids = new Set(visibleIds.value)
+  if ((hoveredId.value || keyboardIndex.value >= 0) && peakId.value) ids.add(peakId.value)
+  return ids
+})
 const peakYPx = computed(() => {
   const tick = ticks.value.find((item) => item.id === peakId.value)
   return tick?.yPx ?? 0
@@ -125,11 +131,13 @@ const mountainPointerY = computed(() => {
 
 let closeTimer: number | null = null
 
-const questionText = (question: UserQuestion) => (
-  questionDisplayText(question.content, t('chat.questionMinimapAttachmentPlaceholder'))
+const questionText = (question: OutlineMessage) => (
+  question.role === 'assistant'
+    ? answerPreviewText(question.content) || t('chat.thinking')
+    : questionDisplayText(question.content, t('chat.questionMinimapAttachmentPlaceholder'))
 )
 
-const answerText = (question: UserQuestion) => (
+const answerText = (question: OutlineMessage) => (
   answerPreviewText(question.answerContent)
 )
 
@@ -296,7 +304,7 @@ onBeforeUnmount(() => {
   align-items: stretch;
   transform: translateY(-50%);
   pointer-events: none;
-  font-size: 13px;
+  font-size: var(--app-text-md);
   line-height: 1.45;
 }
 
@@ -332,7 +340,7 @@ onBeforeUnmount(() => {
   opacity: 0.4;
   transform: translateY(-50%);
   transform-origin: left center;
-  transition: transform 120ms ease-out, background 120ms ease-out, opacity 120ms ease-out;
+  transition: transform var(--app-motion-instant) ease-out, background var(--app-motion-instant) ease-out, opacity var(--app-motion-instant) ease-out;
 }
 
 .question-minimap__tick--active {
@@ -353,7 +361,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   scrollbar-width: none;
   border: 1px solid var(--td-component-stroke);
-  border-radius: 6px;
+  border-radius: var(--app-radius-sm);
   background: var(--td-bg-color-container);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   transform: translateY(-50%);
@@ -367,7 +375,7 @@ onBeforeUnmount(() => {
 .question-minimap__question,
 .question-minimap__answer {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 400;
   line-height: 1.45;
 }

@@ -280,7 +280,7 @@ const handleKBEditorSuccess = (kbId: string) => {
         height: 32px;
         justify-content: center;
         align-items: center;
-        border-radius: 6px;
+        border-radius: var(--app-radius-sm);
         background: var(--td-bg-color-container);
         box-shadow: var(--td-shadow-1);
         margin-right: 12px;
@@ -320,7 +320,7 @@ const handleKBEditorSuccess = (kbId: string) => {
 }
 
 .sq-slide-fade-leave-active {
-    transition: opacity 0.15s cubic-bezier(0.4, 0, 1, 1),
+    transition: opacity var(--app-motion-fast) cubic-bezier(0.4, 0, 1, 1),
         transform 0.15s cubic-bezier(0.4, 0, 1, 1);
 }
 
@@ -360,46 +360,6 @@ const handleKBEditorSuccess = (kbId: string) => {
 
     &.sq-card-visible:active {
         transform: scale(0.98);
-    }
-}
-
-@media (max-width: 1250px) and (min-width: 1045px) {
-    .answers-input {
-        transform: translateX(-329px);
-    }
-
-    :deep(.t-textarea__inner) {
-        width: 654px !important;
-    }
-}
-
-@media (max-width: 1045px) {
-    .answers-input {
-        transform: translateX(-250px);
-    }
-
-    :deep(.t-textarea__inner) {
-        width: 500px !important;
-    }
-}
-
-@media (max-width: 750px) {
-    .answers-input {
-        transform: translateX(-250px);
-    }
-
-    :deep(.t-textarea__inner) {
-        width: 340px !important;
-    }
-}
-
-@media (max-width: 600px) {
-    .answers-input {
-        transform: translateX(-250px);
-    }
-
-    :deep(.t-textarea__inner) {
-        width: 300px !important;
     }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootElement" class="agent-stream-display" :class="{ 'is-embedded': embeddedMode, 'is-rag-mode': ragMode }">
+  <div ref="rootElement" class="agent-stream-display" :class="{ 'is-embedded': embeddedMode, 'is-rag-mode': ragMode, 'is-steer-prefix': session?.steerForked }">
 
     <!-- Collapsed intermediate steps (tree root) -->
     <div v-if="shouldShowCollapsedSteps" class="tree-container">
@@ -28,7 +28,7 @@
         />
         <template v-for="(event, index) in visibleIntermediateEvents" :key="getEventKey(event, index)">
           <div v-if="event && event.type" class="tree-child"
-            :class="{ 'tree-child-last': !isConversationDone && index === visibleIntermediateEvents.length - 1 }">
+            :class="{ 'tree-child-last': !isSegmentDone && index === visibleIntermediateEvents.length - 1 }">
             <div class="tree-branch"></div>
             <div class="tree-child-content">
               <!-- Plan Task Change Event -->
@@ -146,7 +146,8 @@
                   <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                     :class="{ 'no-results': !hasActionResult(event) }">
                     <div class="action-title">
-                      <t-icon v-if="event.tool_name" class="action-title-icon"
+                      <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
+                      <t-icon v-else-if="event.tool_name" class="action-title-icon"
                         :name="getToolIconName(event.tool_name)" />
                       <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                         :content="t('agent.updatePlan')" placement="top">
@@ -203,6 +204,11 @@
                     <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                   </div>
 
+                  <SandboxCommandProgress
+                    v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                    :progress="event.command_output"
+                  />
+
                   <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                     class="search-results-summary-fixed attachment-parsing-summary">
                     <div class="results-summary-text" v-html="getAttachmentParsingSummary(event)"></div>
@@ -210,9 +216,10 @@
 
                     <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                     class="action-details">
-                    <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                    <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
+                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                       <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
-                        :output="event.output" :arguments="event.arguments" />
+                        :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                     </div>
                     <div v-else-if="event.output" class="tool-output-wrapper">
                       <div class="fallback-header">
@@ -246,9 +253,9 @@
     </div>
 
     <!-- Event Stream (non-tree mode: before answer starts, or answer events) -->
-    <div v-if="!ragMode || displayEvents.length > 0 || showAgentActivityIndicator" ref="streamingStepsContainer"
+    <div v-if="displayEvents.length > 0 || showMemoryRow || showAgentActivityIndicator" ref="streamingStepsContainer"
       class="streaming-steps-container" :class="{
-        'streaming-steps-constrained': !answerEverStarted && !isConversationDone,
+        'streaming-steps-constrained': !answerEverStarted && !isSegmentDone,
         'is-streaming-timeline': showStreamingTimeline
       }">
       <!-- Recalled memory leads the timeline: it is what the turn knew before it
@@ -377,6 +384,11 @@
               </div>
               <div v-if="answerFullyRendered && event.done && event.content && event.content.trim() && !embeddedMode"
                 class="answer-toolbar">
+                <t-tooltip v-if="canFork" :content="forkTooltip">
+                  <t-button size="small" variant="outline" shape="round" @click.stop="emitFork">
+                    <t-icon name="git-branch" />
+                  </t-button>
+                </t-tooltip>
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleCopyAnswer(event)"
                   :title="$t('agent.copy')">
                   <t-icon name="copy" />
@@ -434,7 +446,8 @@
                 <div class="action-header" @click.stop="handleActionHeaderClick(event)"
                   :class="{ 'no-results': !hasActionResult(event) }">
                   <div class="action-title">
-                    <t-icon v-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
+                    <BrowserIcon v-if="event.tool_name === 'local_browser'" class="action-title-icon browser-tool-icon" />
+                    <t-icon v-else-if="event.tool_name" class="action-title-icon" :name="getToolIconName(event.tool_name)" />
                     <t-tooltip v-if="event.tool_name === 'todo_write' && event.tool_data?.steps"
                       :content="t('agent.updatePlan')" placement="top">
                       <span class="action-name">
@@ -492,6 +505,11 @@
                   <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                 </div>
 
+                <SandboxCommandProgress
+                  v-if="event.tool_name === 'shell_exec' && event.pending && event.command_output && !event.command_output.done"
+                  :progress="event.command_output"
+                />
+
                 <div v-if="!event.pending && event.tool_name === 'attachment_parsing'"
                   class="search-results-summary-fixed attachment-parsing-summary">
                   <div class="results-summary-text" v-html="getAttachmentParsingSummary(event)"></div>
@@ -499,9 +517,10 @@
 
                 <div v-if="isEventExpanded(event.tool_call_id) && !event.pending && hasExpandableResults(event)"
                   class="action-details">
-                  <div v-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
+                  <BrowserToolDetails v-if="event.tool_name === 'local_browser'" :event="event" />
+                    <div v-else-if="resolveToolDisplayType(event)" class="tool-result-wrapper">
                     <ToolResultRenderer :display-type="resolveToolDisplayType(event)" :tool-data="event.tool_data"
-                      :output="event.output" :arguments="event.arguments" />
+                      :output="mcpToolResultOutput(event)" :arguments="event.arguments" :success="event.success" />
                   </div>
 
                   <div v-else-if="event.output" class="tool-output-wrapper">
@@ -546,7 +565,8 @@
   <picturePreview :reviewImg="imagePreviewVisible" :reviewUrl="imagePreviewUrl" @closePreImg="closeImagePreview" />
 
   <!-- Wiki Page Detail Drawer -->
-  <t-drawer v-model:visible="wikiDrawerVisible" :header="wikiDrawerPage?.title || ''" size="480px" :footer="false"
+  <!-- Mount on demand: a hidden TDesign drawer steals focus when each response mounts. -->
+  <t-drawer v-if="wikiDrawerVisible" v-model:visible="wikiDrawerVisible" :header="wikiDrawerPage?.title || ''" size="480px" :footer="false"
     placement="right" attach="body" :show-overlay="true" :close-btn="true" :close-on-overlay-click="true"
     class="wiki-graph-drawer">
     <template v-if="wikiDrawerPage">
@@ -577,7 +597,7 @@
     </template>
   </t-drawer>
   <ChatArtifactsDrawer
-    v-if="hasArtifacts && sessionIdForArtifacts && messageIdForArtifacts"
+    v-if="hasArtifacts && embeddedMode && sessionIdForArtifacts && messageIdForArtifacts"
     v-model:visible="showArtifactDrawer"
     :session-id="sessionIdForArtifacts"
     :message-id="messageIdForArtifacts"
@@ -587,10 +607,12 @@
 </template>
 
 <script setup lang="ts">
+import { isAssistantTurnComplete } from '@/utils/steerStreamFork';
 import { ref, computed, watch, onMounted, onBeforeUnmount, onUpdated, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { marked } from 'marked';
 import 'katex/dist/katex.min.css';
+import SandboxCommandProgress from '@/components/SandboxCommandProgress.vue';
 import ToolResultRenderer from './ToolResultRenderer.vue';
 import ToolApprovalCard from './ToolApprovalCard.vue';
 import McpOAuthCard from './McpOAuthCard.vue';
@@ -599,7 +621,10 @@ import ChatCitationFloat from '@/components/ChatCitationFloat.vue';
 import picturePreview from '@/components/picture-preview.vue';
 import ChatArtifactsDrawer from './ChatArtifactsDrawer.vue';
 import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
-import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';import ChatMemoryStep from './ChatMemoryStep.vue';
+import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';
+import { useChatSandboxPanel } from '@/composables/useChatSandboxPanel';
+import { persistedAssistantId } from '@/utils/steerStreamFork';
+import ChatMemoryStep from './ChatMemoryStep.vue';
 import { useChatMemoryRow, type UsedMemory } from '@/composables/useChatMemoryRow';
 import { countGrepDocuments, groupGrepChunkResults } from '@/utils/grepResultsGroup';
 import { getKnowledgeChunksSummaryHtml } from '@/utils/knowledgeChunksDisplay';
@@ -624,6 +649,7 @@ import {
 import type { ProtectedFileAccessContext } from '@/utils/protectedFileAccess';
 import { unwrapFinalAnswerWrappers, thinkingEqualsAnswer } from '@/utils/finalAnswer';
 import { getAgentToolIconName } from '@/utils/agent-tool-icons';
+import { getMcpToolDisplayType, getMcpToolTitle, mcpToolResultOutput } from '@/utils/mcpToolDisplay';
 import { getQueryText, getWikiPageText } from '@/utils/agent-tool-display';
 import {
   formatToolTitleWithDetail,
@@ -663,6 +689,9 @@ import { attachMarkdownEnhancementListeners, refreshMarkdownEnhancements } from 
 import { useTypewriter } from '@/composables/useTypewriter';
 import { vStableHtml } from '@/directives/stableHtml';
 
+import BrowserToolDetails from './BrowserToolDetails.vue';
+import { browserToolTitle } from '@/utils/browserToolDisplay';
+import BrowserIcon from '@/components/icons/BrowserIcon.vue';
 const getToolIconName = getAgentToolIconName;
 
 const router = useRouter();
@@ -675,6 +704,8 @@ const { t } = useI18n();
 ensureMermaidInitialized();
 
 const TOOL_NAME_KEYS: Record<string, string> = {
+  discover_mcp_tools: 'agentStream.mcp.discoverTools',
+  call_mcp_tool: 'agentStream.mcp.callTool',
   search_knowledge: 'agentStream.tools.searchKnowledge',
   knowledge_search: 'agentStream.tools.searchKnowledge',
   grep_chunks: 'agentStream.tools.grepChunks',
@@ -702,12 +733,14 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   query_understand: 'agentStream.tools.queryUnderstand',
   query_knowledge_graph: 'agentStream.tools.queryKnowledgeGraph',
   read_skill: 'agentStream.tools.readSkill',
+  read_file: 'agentStream.tools.readFile',
   execute_skill_script: 'agentStream.tools.executeSkillScript',
   list_sandbox_files: 'agentStream.tools.listSandboxFiles',
   read_sandbox_file: 'agentStream.tools.readSandboxFile',
   write_sandbox_file: 'agentStream.tools.writeSandboxFile',
   edit_sandbox_file: 'agentStream.tools.editSandboxFile',
   shell_exec: 'agentStream.tools.shellExec',
+  local_browser: 'localBrowser.local',
   data_analysis: 'agentStream.tools.dataAnalysis',
   data_schema: 'agentStream.tools.dataSchema',
   database_query: 'agentStream.tools.databaseQuery',
@@ -933,11 +966,20 @@ const props = defineProps<{
   embedVisitorId?: string;
   ragMode?: boolean;
   followUpLoading?: boolean;
+  canFork?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'render-complete-change', ready: boolean): void;
+  (event: 'fork', messageId: string): void;
 }>();
+
+const canFork = computed(() => props.canFork === true && !props.embeddedMode)
+const forkTooltip = '从这条回答继续分叉'
+const emitFork = () => {
+  const messageId = persistedAssistantId(props.session) || String(props.session?.id || '')
+  if (messageId) emit('fork', messageId)
+}
 
 const embedAuthProps = computed(() => ({
   embeddedMode: props.embeddedMode,
@@ -1002,11 +1044,10 @@ watch(
 // Skill artifact download drawer (Agent path)
 // -----------------------------------------------------------------------------
 // Same contract as botmsg.vue: only render the button when the persisted
-// assistant message actually recorded files, then let ChatArtifactsDrawer
-// resolve names/sizes/mtimes and stream downloads via the /artifacts
-// endpoint. Agent mode is the primary path for skills, so this button will
-// appear more often here than in the RAG path.
+// assistant message actually recorded files, then open the sandbox panel's
+// artifacts tab (or ChatArtifactsDrawer in embedded mode).
 const showArtifactDrawer = ref(false);
+const sandboxPanel = useChatSandboxPanel();
 const artifactList = computed(() => {
   const list = ((props.session?.artifacts as any[]) || []);
   return list.map((a, i) => ({ index: i, ...a }));
@@ -1018,13 +1059,24 @@ const artifactsCollecting = computed(() => isCollectingSkillArtifacts(props.sess
 const artifactButtonCollecting = computed(() => artifactsCollecting.value && !hasArtifacts.value);
 const sessionIdForArtifacts = computed(() => props.sessionId ?? '');
 const messageIdForArtifacts = computed(() =>
-  String(props.session?.id || props.session?.request_id || ''),
+  persistedAssistantId(props.session) || String(props.session?.request_id || ''),
 );
 // Set when the drawer is opened from an inline artifact card in the answer, so
 // it lands on that file's preview instead of the list.
 const artifactPreviewIndex = ref<number | null>(null);
 function openArtifactDrawer(previewIndex: number | null = null) {
   if (!hasArtifacts.value) return;
+  if (sandboxPanel && !props.embeddedMode) {
+    if (previewIndex == null) {
+      sandboxPanel.toggleArtifacts(messageIdForArtifacts.value);
+    } else {
+      sandboxPanel.open('artifacts', {
+        messageId: messageIdForArtifacts.value,
+        previewIndex,
+      });
+    }
+    return;
+  }
   artifactPreviewIndex.value = previewIndex;
   showArtifactDrawer.value = true;
 }
@@ -1148,6 +1200,8 @@ const formatToolResultContent = (value: unknown): string => {
 const isMcpTool = (toolName?: string | null): boolean => String(toolName || '').startsWith('mcp_');
 
 const resolveToolDisplayType = (event: any): DisplayType | undefined => {
+  const mcpType = getMcpToolDisplayType(event?.tool_name)
+  if (mcpType) return mcpType
   if (event?.display_type) return event.display_type as DisplayType
   if (event?.tool_name === 'shell_exec' || event?.tool_name === 'execute_skill_script') {
     return 'shell_exec'
@@ -1306,7 +1360,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
   if (toolName === 'web_fetch') {
     const results = Array.isArray(toolData.results) ? toolData.results : [];
     return results
-      .filter((item: any) => item?.url)
+      .filter((item: any) => item?.url && (!item.status || item.status === 'success'))
       .map((item: any, index: number) => ({
         id: item.url,
         chunk_type: 'web_search',
@@ -1533,35 +1587,9 @@ watch(eventStream, (stream) => {
 }, { deep: true, immediate: true });
 
 
-// Check if conversation is done (based on answer event with done=true or stop event)
-const isConversationDone = computed(() => {
-  const stream = eventStream.value;
-  if (!stream || stream.length === 0) {
-    console.log('[Collapse] No stream or empty stream');
-    return false;
-  }
-
-  // Check for stop event (user cancelled)
-  const stopEvent = stream.find((e: any) => e.type === 'stop');
-  if (stopEvent) {
-    console.log('[Collapse] Found stop event, conversation done');
-    return true;
-  }
-
-  const completeEvent = stream.find((e: any) => e.type === 'agent_complete');
-  if (completeEvent) {
-    console.log('[Collapse] Found complete event, conversation done');
-    return true;
-  }
-
-  // Check for answer event with done=true. Exclude superseded preambles: a
-  // retracted tool-round preamble is also closed with done=true, but the agent
-  // keeps running, so it must not mark the whole conversation as finished.
-  const answerEvents = stream.filter((e: any) => e.type === 'answer' && !e.superseded);
-  const doneAnswer = answerEvents.find((e: any) => e.done === true);
-
-  return !!doneAnswer;
-});
+// A steer boundary stops local animation without completing or folding the task.
+const isConversationDone = computed(() => isAssistantTurnComplete(props.session));
+const isSegmentDone = computed(() => Boolean(props.session?.steerForked) || isConversationDone.value);
 
 const streamingMermaidSvgCache = ref<string[]>([]);
 let streamingMermaidRenderTask: Promise<void> | null = null;
@@ -1588,7 +1616,7 @@ const activeAnswerEventRef = computed(() => {
 // full instead of replaying.
 const { displayed: typedAnswer } = useTypewriter(
   () => activeAnswerMarkdown.value,
-  () => isConversationDone.value,
+  () => isSegmentDone.value,
 );
 
 const cacheStreamingMermaidSvg = async () => {
@@ -1614,7 +1642,7 @@ const cacheStreamingMermaidSvg = async () => {
   }
 };
 
-watch(isConversationDone, (done) => {
+watch(isSegmentDone, (done) => {
   if (!done) {
     streamingMermaidSvgCache.value = [];
     streamingMermaidRenderTask = null;
@@ -1639,7 +1667,10 @@ watch(activeAnswerMarkdown, () => {
 // yet. Hydrating too early would find nothing and leave a permanent placeholder
 // (until a manual reload). Waiting for full reveal guarantees the image exists.
 const answerFullyRendered = computed(
-  () => isConversationDone.value && typedAnswer.value.length >= activeAnswerMarkdown.value.length,
+  () =>
+    !props.session?.steerForked &&
+    isSegmentDone.value &&
+    typedAnswer.value.length >= activeAnswerMarkdown.value.length,
 );
 watch(answerFullyRendered, (ready) => {
   emit('render-complete-change', ready);
@@ -1678,7 +1709,7 @@ const hasPendingStreamingActivity = computed(() => {
 // feedback-less timeline. Once a real pending step exists it carries its own
 // shimmer, and once answer text starts the stream itself is enough feedback.
 const showAgentActivityIndicator = computed(() => {
-  if (isConversationDone.value) return false;
+  if (isSegmentDone.value) return false;
   if (props.ragMode || hasAnswerStarted.value) return false;
   return !hasPendingStreamingActivity.value;
 });
@@ -1716,7 +1747,7 @@ const finalContent = computed(() => {
     return null;
   }
 
-  if (!isConversationDone.value) {
+  if (!isSegmentDone.value) {
     return null;
   }
 
@@ -1761,7 +1792,7 @@ const finalContent = computed(() => {
 
 // Count intermediate steps (after merging consecutive thinking events, matching what user sees in tree)
 const intermediateStepsCount = computed(() => {
-  if (!hasAnswerStarted.value && !isConversationDone.value) return 0;
+  if (!hasAnswerStarted.value && !isSegmentDone.value) return 0;
   // Count only thinking and tool_call events (exclude plan_task_change, etc.)
   return intermediateEvents.value.filter(
     (e: any) => e.type === 'thinking' || e.type === 'tool_call'
@@ -1773,12 +1804,12 @@ const intermediateStepsCount = computed(() => {
 // over-counts what the user perceives as agent loops (a single loop emits one
 // thinking card plus its tool calls).
 const reasoningRoundsCount = computed(() => {
-  if (!hasAnswerStarted.value && !isConversationDone.value) return 0;
+  if (!hasAnswerStarted.value && !isSegmentDone.value) return 0;
   return intermediateEvents.value.filter((e: any) => e.type === 'thinking').length;
 });
 
 const toolCallsCount = computed(() => {
-  if (!hasAnswerStarted.value && !isConversationDone.value) return 0;
+  if (!hasAnswerStarted.value && !isSegmentDone.value) return 0;
   return intermediateEvents.value.filter((e: any) => e.type === 'tool_call').length;
 });
 
@@ -2041,6 +2072,10 @@ const intermediateEvents = computed(() => {
   const hidden = hiddenThinkingEventIds.value;
   return result.filter((e: any) => {
     if (e.type === 'answer' || e.type === 'agent_complete') return false;
+    // Mid-run injected user messages render as normal user bubbles in the
+    // message list, not inside the steps tree — the tree template has no
+    // branch for this type and would otherwise emit an empty node.
+    if (e.type === 'user_message_injected') return false;
     if (e.type === 'thinking' && e.event_id && hidden.has(e.event_id)) return false;
     return true;
   });
@@ -2058,7 +2093,12 @@ const displayEvents = computed(() => {
     return [];
   }
 
-  const result = buildFullEventList(stream);
+  const result = buildFullEventList(stream).filter(
+    // Injected user messages render as normal user bubbles in the message
+    // list — never inside the agent timeline (the template has no branch for
+    // the type and would render an empty card).
+    (e: any) => e.type !== 'user_message_injected',
+  );
 
   // Quick-answer RAG: pipeline steps (including attachment prep) live in
   // RagPipelineProgress; this component only renders the answer stream.
@@ -2518,7 +2558,7 @@ agentRenderer.image = function agentImageRenderer(token) {
     artifacts: artifactList.value,
     labels: artifactRefLabels.value,
     context: artifactRefContext.value,
-    streaming: !isConversationDone.value,
+    streaming: !isSegmentDone.value,
   });
   if (artifactHtml !== null) return artifactHtml;
   return defaultImageRenderer.call(this, token);
@@ -2534,7 +2574,7 @@ const prepareAgentMarkdown = (markdown: string, cachedSvgHtml?: CachedMermaidSvg
   const cache = cachedSvgHtml ?? streamingMermaidSvgCache.value;
   // Keep masking after the turn ends when SVG is already cached so v-html /
   // v-stable-html cannot replace a painted diagram with mermaid source.
-  const mermaidSafe = !isConversationDone.value || hasCachedMermaidSvg(cache)
+  const mermaidSafe = !isSegmentDone.value || hasCachedMermaidSvg(cache)
     ? prepareStreamingMermaidMarkdown(markdown, cache)
     : replaceIncompleteMermaidWithPlaceholder(markdown);
   return mermaidSafe.replace(/<(?:kb|web)\b[^>]*$/i, '');
@@ -2551,7 +2591,7 @@ const renderAgentMarkdown = (
     renderer: agentRenderer,
     escapeMarkdown,
     sanitizeHtml: sanitizeMarkdownHTML,
-    streaming: !isConversationDone.value,
+    streaming: !isSegmentDone.value,
     knowledgeReferences: getReferencesForDrawer(),
     cachedMermaidSvgHtml: streamingMermaidSvgCache.value,
     prepareMarkdown: prepareAgentMarkdown,
@@ -2793,6 +2833,9 @@ const getAttachmentParsingSummary = (event: any): string => {
 
 // Get tool title - prefer summary over description, add query for search tools
 const getToolTitle = (event: any): string => {
+  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
+  const mcpTitle = getMcpToolTitle(t, event)
+  if (mcpTitle) return mcpTitle
   if (event.pending) {
     if (event.tool_name === 'image_analysis') {
       return t('agentStream.toolStatus.imageAnalyzing');
@@ -2811,7 +2854,7 @@ const getToolTitle = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
     }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
+    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
     }
@@ -2917,7 +2960,7 @@ const getToolTitle = (event: any): string => {
     return formatToolTitleWithDetail(getToolDescription(event), getReadSkillTarget(event));
   }
 
-  if (toolName === 'list_sandbox_files' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
+  if (toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
     return formatToolTitleWithDetail(getToolDescription(event), getSandboxToolPath(event));
   }
 
@@ -2954,6 +2997,7 @@ const skillScriptCommandLabel = (event: any): string => {
 
 // Tool description
 const getToolDescription = (event: any): string => {
+  if (event.tool_name === 'local_browser') return browserToolTitle(t, event);
   if (event.pending) {
     if (event.tool_name === 'image_analysis') {
       return t('agentStream.toolStatus.imageAnalyzing');
@@ -2972,7 +3016,7 @@ const getToolDescription = (event: any): string => {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getEventSkillName(event))}...`;
     }
-    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
+    if (event.tool_name === 'list_sandbox_files' || event.tool_name === 'read_file' || event.tool_name === 'read_sandbox_file' || event.tool_name === 'write_sandbox_file' || event.tool_name === 'edit_sandbox_file') {
       const name = getLocalizedToolName(event.tool_name);
       return `${formatToolTitleWithDetail(name, getSandboxToolPath(event))}...`;
     }
@@ -3009,7 +3053,7 @@ const getToolDescription = (event: any): string => {
     return success ? t('agentStream.toolStatus.attachmentParsingDone') : t('agentStream.toolStatus.attachmentParsingFailed');
   } else if (toolName === 'query_understand') {
     return success ? t('agentStream.toolStatus.queryUnderstandDone') : t('agentStream.toolStatus.calledFailed', { name: getLocalizedToolName(toolName) });
-  } else if (toolName === 'shell_exec' || toolName === 'execute_skill_script' || toolName === 'read_skill' || toolName === 'list_sandbox_files' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
+  } else if (toolName === 'shell_exec' || toolName === 'execute_skill_script' || toolName === 'read_skill' || toolName === 'list_sandbox_files' || toolName === 'read_file' || toolName === 'read_sandbox_file' || toolName === 'write_sandbox_file' || toolName === 'edit_sandbox_file') {
     const localizedName = getLocalizedToolName(toolName);
     return success ? localizedName : t('agentStream.toolStatus.calledFailed', { name: localizedName });
   } else {
@@ -3127,6 +3171,11 @@ const handleAddToKnowledge = (answerEvent: any) => {
   --stream-brand-12: color-mix(in srgb, var(--td-brand-color) 12%, transparent);
   --stream-brand-15: color-mix(in srgb, var(--td-brand-color) 15%, transparent);
   --stream-brand-20: color-mix(in srgb, var(--td-brand-color) 20%, transparent);
+
+  &.is-steer-prefix {
+    margin-bottom: 0;
+    .tree-container { margin-bottom: 0; }
+  }
 
   &.is-rag-mode {
     margin-top: 0;
@@ -3324,7 +3373,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
     border-left: 0;
     overflow: visible;
     position: relative;
-    transition: border-color 0.2s ease;
+    transition: border-color var(--app-motion-base) ease;
     box-shadow: none;
 
     >* {
@@ -3360,7 +3409,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
   .tool-summary {
     padding: 6px 12px;
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     color: var(--td-text-color-primary);
     background: var(--td-bg-color-container);
     border-top: 1px solid var(--td-component-stroke);
@@ -3390,7 +3439,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
         background: var(--td-bg-color-secondarycontainer);
         padding: 2px 5px;
         border-radius: 3px;
-        font-size: 11px;
+        font-size: var(--app-text-xs);
         color: var(--td-brand-color);
         font-weight: 500;
       }
@@ -3412,7 +3461,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
   min-height: 24px;
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--app-motion-fast) ease;
 
   &:hover {
     background-color: transparent;
@@ -3437,6 +3486,8 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
   .action-title-icon {
     flex-shrink: 0;
+
+    &.browser-tool-icon { width: 18px; height: 18px; color: var(--agent-step-icon-color); }
 
     &.t-icon {
       width: 18px;
@@ -3482,7 +3533,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
     border-radius: 9px;
     background: var(--stream-brand-10);
     color: color-mix(in srgb, var(--td-brand-color) 80%, var(--td-text-color-secondary));
-    font-size: 11px;
+    font-size: var(--app-text-xs);
     font-weight: 500;
     white-space: nowrap;
     flex-shrink: 0;
@@ -3511,18 +3562,6 @@ const handleAddToKnowledge = (answerEvent: any) => {
   }
 }
 
-@keyframes slideInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -3532,71 +3571,6 @@ const handleAddToKnowledge = (answerEvent: any) => {
   to {
     opacity: 1;
     transform: translateX(0);
-  }
-}
-
-@keyframes pulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-
-  50% {
-    transform: scale(1.5);
-    opacity: 0.3;
-  }
-}
-
-@keyframes pulseBorder {
-
-  0%,
-  100% {
-    border-left-color: var(--td-brand-color);
-    box-shadow: 0 1px 3px var(--stream-brand-6);
-  }
-
-  50% {
-    border-left-color: var(--td-brand-color);
-    box-shadow: 0 1px 4px var(--stream-brand-12);
-  }
-}
-
-@keyframes shakeError {
-
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-
-  10%,
-  30%,
-  50%,
-  70%,
-  90% {
-    transform: translateX(-2px);
-  }
-
-  20%,
-  40%,
-  60%,
-  80% {
-    transform: translateX(2px);
-  }
-}
-
-@keyframes actionPendingShimmer {
-  0% {
-    transform: translateX(-90%);
-  }
-
-  50% {
-    transform: translateX(-5%);
-  }
-
-  100% {
-    transform: translateX(90%);
   }
 }
 
@@ -3618,7 +3592,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
   gap: 6px;
   margin-left: 4px;
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   font-weight: 600;
   flex-shrink: 0;
   letter-spacing: 0.02em;
@@ -3636,11 +3610,11 @@ const handleAddToKnowledge = (answerEvent: any) => {
   margin: 6px 0 0;
   padding: 8px 10px;
   font-family: var(--app-font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1.5;
   color: var(--td-text-color-secondary);
   background: var(--td-bg-color-secondarycontainer);
-  border-radius: 6px;
+  border-radius: var(--app-radius-sm);
 
   pre {
     margin: 0;
@@ -3653,12 +3627,12 @@ const handleAddToKnowledge = (answerEvent: any) => {
 
 .sandbox-file-preview-more {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   color: var(--td-text-color-placeholder);
 }
 
 .action-show-icon {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   padding: 0 2px;
   color: var(--td-text-color-placeholder);
   flex-shrink: 0;
@@ -3714,7 +3688,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
     flex-wrap: wrap;
 
     .status-icon {
-      font-size: 14px;
+      font-size: var(--app-text-base);
       flex-shrink: 0;
 
       &.in-progress {
@@ -3740,16 +3714,6 @@ const handleAddToKnowledge = (answerEvent: any) => {
       align-items: center;
       gap: 4px;
     }
-  }
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -3786,7 +3750,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
     padding: 0 4px;
 
     .fallback-label {
-      font-size: 11px;
+      font-size: var(--app-text-xs);
       color: var(--td-text-color-secondary);
       font-weight: 500;
       line-height: 1.5;
@@ -3797,14 +3761,14 @@ const handleAddToKnowledge = (answerEvent: any) => {
     position: relative;
     background: var(--td-bg-color-secondarycontainer);
     border: 1px solid var(--td-component-stroke);
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     overflow: hidden;
     margin: 0;
     padding: 0;
 
     .detail-output {
       font-family: var(--app-font-family-mono);
-      font-size: 11px;
+      font-size: var(--app-text-xs);
       color: var(--td-text-color-primary);
       padding: 12px;
       margin: 0;
@@ -3848,7 +3812,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
     margin-bottom: 6px;
 
     .arguments-label {
-      font-size: 12px;
+      font-size: var(--app-text-sm);
       font-weight: 600;
       color: var(--td-text-color-secondary);
       text-transform: uppercase;
@@ -3857,10 +3821,10 @@ const handleAddToKnowledge = (answerEvent: any) => {
   }
 
   .detail-code {
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     background: var(--td-bg-color-container);
     padding: 10px;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     font-family: var(--app-font-family-mono);
     color: var(--td-text-color-primary);
     margin: 0;
@@ -4007,7 +3971,7 @@ const handleAddToKnowledge = (answerEvent: any) => {
   }
 
   .tree-root .action-name {
-    font-size: 14px;
+    font-size: var(--app-text-base);
     color: var(--td-text-color-secondary);
   }
 
@@ -4027,204 +3991,4 @@ const handleAddToKnowledge = (answerEvent: any) => {
 }
 </style>
 
-<style lang="less">
-/* Global styles for teleported components */
-
-.wiki-graph-drawer {
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
-
-  .wiki-reader-meta {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .wiki-reader-meta-text {
-    font-size: 13px;
-    color: var(--td-text-color-placeholder);
-  }
-
-  // Wiki drawer is a non-chat reader surface. Chat answer Markdown styles are
-  // centralized in chat-markdown.less; do not copy these rules into chat message components.
-  .wiki-reader-body {
-    line-height: 1.6;
-    font-size: 14px;
-    color: var(--td-text-color-primary);
-
-    h1 {
-      font-size: 24px;
-      margin: 28px 0 16px;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-
-    h2 {
-      font-size: 18px;
-      margin: 24px 0 12px;
-      font-weight: 600;
-      line-height: 1.4;
-    }
-
-    h3 {
-      font-size: 16px;
-      margin: 20px 0 10px;
-      font-weight: 600;
-      line-height: 1.5;
-    }
-
-    h4,
-    h5,
-    h6 {
-      font-size: 14px;
-      margin: 16px 0 8px;
-      font-weight: 600;
-      line-height: 1.5;
-    }
-
-    p {
-      margin: 0 0 14px;
-    }
-
-    ul,
-    ol {
-      margin: 0 0 14px;
-      padding-left: 24px;
-    }
-
-    li {
-      margin-bottom: 6px;
-      line-height: 1.6;
-    }
-
-    li>p {
-      margin-bottom: 6px;
-    }
-
-    blockquote {
-      margin: 0 0 14px;
-      padding: 10px 16px;
-      background: var(--td-bg-color-secondarycontainer);
-      border-left: 4px solid var(--td-component-border);
-      border-radius: 0 4px 4px 0;
-      color: var(--td-text-color-secondary);
-    }
-
-    code {
-      font-family: var(--app-font-family-mono);
-      font-size: 13px;
-      padding: 2px 4px;
-      background: var(--td-bg-color-secondarycontainer);
-      border-radius: 4px;
-      color: var(--td-brand-color);
-    }
-
-    pre {
-      margin: 0 0 14px;
-      padding: 12px 16px;
-      background: var(--td-bg-color-secondarycontainer);
-      border-radius: 6px;
-      overflow-x: auto;
-
-      code {
-        padding: 0;
-        background: transparent;
-        color: inherit;
-      }
-    }
-
-    p:has(img) {
-      text-align: center;
-      color: var(--td-text-color-secondary);
-      font-size: 13px;
-      margin-top: 16px;
-      margin-bottom: 24px;
-
-      img {
-        max-width: 100%;
-        max-height: 400px;
-        object-fit: contain;
-        border-radius: 6px;
-        display: block;
-        margin: 0 auto 8px;
-        cursor: zoom-in;
-        transition: opacity 0.2s;
-
-        &:hover {
-          opacity: 0.9;
-        }
-      }
-    }
-
-    a.wiki-content-link {
-      color: var(--td-brand-color);
-      text-decoration: none;
-      border-bottom: 1px dashed var(--td-brand-color);
-      cursor: pointer;
-      font-weight: 500;
-
-      &:hover {
-        border-bottom-style: solid;
-        text-decoration: none !important;
-      }
-    }
-
-    .chat-markdown-table {
-      width: fit-content;
-      max-width: 100%;
-      overflow-x: auto;
-      margin: 0 0 16px;
-      background: var(--td-bg-color-container);
-      border: 1px solid var(--td-component-stroke);
-      border-radius: 6px;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    table {
-      display: table;
-      width: max-content;
-      min-width: 0;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: 13px;
-      line-height: 1.55;
-    }
-
-    table thead {
-      background: var(--td-bg-color-secondarycontainer);
-    }
-
-    table th,
-    table td {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--td-component-stroke);
-      border-right: 1px solid var(--td-component-stroke);
-      text-align: left;
-      vertical-align: top;
-      word-break: break-word;
-    }
-
-    table th {
-      font-weight: 600;
-      color: var(--td-text-color-primary);
-      white-space: nowrap;
-    }
-
-    table th:last-child,
-    table td:last-child {
-      border-right: none;
-    }
-
-    table tbody tr:last-child td {
-      border-bottom: none;
-    }
-
-    table tbody tr:hover {
-      background: var(--td-bg-color-secondarycontainer);
-    }
-
-    table code {
-      font-size: 12px;
-    }
-  }
-}
-</style>
+<style lang="less" src="@/components/css/wiki-graph-drawer.less"></style>

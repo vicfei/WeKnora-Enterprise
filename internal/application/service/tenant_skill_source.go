@@ -853,11 +853,6 @@ func getSkillURL(
 	return body, resp.Header.Get("Content-Type"), nil
 }
 
-func normalizeFetchedSkillArchive(body []byte, contentType, subdir string) ([]byte, error) {
-	_, archive, err := normalizeFetchedSkill(body, contentType, subdir)
-	return archive, err
-}
-
 func normalizeFetchedSkill(body []byte, contentType, subdir string) (*SkillBundle, []byte, error) {
 	if looksLikeSkillMarkdown(body) {
 		files := map[string][]byte{"SKILL.md": body}
@@ -914,7 +909,7 @@ func looksLikeJSON(contentType string, body []byte) bool {
 }
 
 func looksLikeSkillMarkdown(body []byte) bool {
-	trimmed := bytes.TrimSpace(body)
+	trimmed := bytes.TrimSpace(bytes.TrimPrefix(body, []byte("\ufeff")))
 	if !bytes.HasPrefix(trimmed, []byte("---")) {
 		return false
 	}

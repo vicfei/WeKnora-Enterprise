@@ -20,7 +20,14 @@ on:
       - "skills/preloaded/**"
       - "testdata/**"
       - "docker/Dockerfile.app"
-      - "third_party/anydoc-go/**"
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "licenses/**"
+      - "internal/textconv/data/**"
+      - "scripts/*license*.sh"
+      - "scripts/git-hooks/**"
+      - "scripts/test-git-hooks.sh"
+      - "cmd/desktop/build/windows/installer/project.nsi"
       - ".github/workflows/app.yml"
   pull_request:
     paths:
@@ -37,7 +44,14 @@ on:
       - "skills/preloaded/**"
       - "testdata/**"
       - "docker/Dockerfile.app"
-      - "third_party/anydoc-go/**"
+      - "LICENSE"
+      - "THIRD_PARTY_NOTICES.md"
+      - "licenses/**"
+      - "internal/textconv/data/**"
+      - "scripts/*license*.sh"
+      - "scripts/git-hooks/**"
+      - "scripts/test-git-hooks.sh"
+      - "cmd/desktop/build/windows/installer/project.nsi"
       - ".github/workflows/app.yml"
   workflow_dispatch:
 
@@ -74,6 +88,11 @@ jobs:
       - name: Download modules
         run: go mod download
 
+      - name: Verify third-party notices and source bundle
+        run: |
+          bash ./scripts/check-license-bundle.sh
+          bash ./scripts/test-license-bundle.sh
+
       - name: Check formatting
         shell: bash
         run: |
@@ -98,6 +117,9 @@ jobs:
             exit 1
           fi
 
+      - name: Verify Git hook test coverage
+        run: bash ./scripts/test-git-hooks.sh
+
       - name: Vet and test
         shell: bash
         run: |
@@ -107,49 +129,3 @@ jobs:
 
       - name: Build server
         run: go build ./cmd/server
-
-  anydoc:
-    name: anydoc parser engine
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo-audit
-        id: cargo-audit-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-audit
-          key: cargo-audit-${{ runner.os }}
-
-      - name: Install cargo-audit
-        if: steps.cargo-audit-cache.outputs.cache-hit != 'true'
-        run: cargo install cargo-audit --locked
-
-      # The vendored bindings pull anydoc and its PDF stack from crates.io, and
-      # WeKnora parses untrusted uploads in-process. A Rust advisory there (as
-      # in RUSTSEC-2026-0187, an uncatchable abort on a hostile PDF) has to
-      # break the build, not wait for someone to notice. Vulnerabilities fail
-      # the job; unmaintained-crate warnings only report, since a transitive
-      # crate going unmaintained is not something this repo can act on.
-      - name: Audit the vendored dependency tree
-        working-directory: third_party/anydoc-go
-        run: cargo audit
-
-      # The archive is a build artifact, not a committed blob, so CI is what
-      # keeps the vendored bindings in third_party/anydoc-go compiling.
-      - name: Build the anydoc static archive
-        run: ./scripts/build-anydoc-lib.sh
-
-      - name: Vet, test, and build with the engine linked in
-        run: |
-          go vet -tags anydoc ./internal/infrastructure/docparser/...
-          go test -tags anydoc -count=1 ./internal/infrastructure/docparser/...
-          go build -tags anydoc ./cmd/server

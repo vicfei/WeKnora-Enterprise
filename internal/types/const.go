@@ -4,8 +4,16 @@ package types
 type ContextKey string
 
 const (
-	// TenantIDContextKey is the context key for tenant ID
+	// TenantIDContextKey scopes execution (repository/model queries).
 	TenantIDContextKey ContextKey = "TenantID"
+	// CallerContextKey captures the authenticated resource caller.
+	CallerContextKey ContextKey = "ResourceCaller"
+	// KBGrantsContextKey carries immutable operation grants.
+	KBGrantsContextKey ContextKey = "ResourceKBGrants"
+	// KBTransferContextKey carries one admitted resource pair.
+	KBTransferContextKey ContextKey = "ResourceKBTransfer"
+	// SharedAgentGrantContextKey carries an authorized agent read scope.
+	SharedAgentGrantContextKey ContextKey = "ResourceSharedAgentGrant"
 	// TenantInfoContextKey is the context key for tenant information
 	TenantInfoContextKey ContextKey = "TenantInfo"
 	// RequestIDContextKey is the context key for request ID
@@ -61,6 +69,10 @@ const (
 	// every context key, and middleware imports this package, so a key
 	// declared there could only be referred to by its raw string value.
 	EmbedChannelContextKey ContextKey = "EmbedChannel"
+	// MCPEndpointContextKey stores the authenticated *MCPEndpoint on the
+	// request context of a call arriving on the workspace MCP server surface.
+	// Declared here for the same reason as EmbedChannelContextKey.
+	MCPEndpointContextKey ContextKey = "MCPEndpoint"
 	// LangfuseTraceContextKey carries the active Langfuse *Trace across the
 	// request lifecycle. Defined here (not inside the langfuse package) so
 	// that logger.CloneContext can preserve it without importing langfuse.

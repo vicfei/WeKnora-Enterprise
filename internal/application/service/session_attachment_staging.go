@@ -192,12 +192,14 @@ func (s *agentService) stageSessionAttachments(
 // deliberately excluded from DB serialization (json:"-") so a cross-session
 // downloadable reference cannot leak; the temporary-document row keyed by
 // attachment.ID is the authoritative source of the storage reference.
+// Lookup is tenant+id (not session-scoped) so a forked session can still
+// stage attachments whose temporary_documents row remains on the parent.
 // Attachments that already carry a URL, or that have no temporary-document ID,
 // pass through unchanged so callers with other attachment sources keep working.
 func (s *agentService) resolveSessionAttachmentURLs(
 	ctx context.Context,
 	tenantID uint64,
-	sessionID string,
+	_ string,
 	attachments types.MessageAttachments,
 ) (types.MessageAttachments, error) {
 	if len(attachments) == 0 || s == nil || s.db == nil {
@@ -210,7 +212,7 @@ func (s *agentService) resolveSessionAttachmentURLs(
 			out = append(out, attachment)
 			continue
 		}
-		document, err := repo.GetScoped(ctx, tenantID, sessionID, attachment.ID)
+		document, err := repo.GetByID(ctx, tenantID, attachment.ID)
 		if err != nil {
 			return nil, fmt.Errorf("resolve attachment %q storage reference: %w", attachment.FileName, err)
 		}
@@ -272,7 +274,13 @@ func buildSandboxAttachmentsPrompt(attachments []stagedSessionAttachment) string
 			escapeAttachmentXML(attachment.Path),
 		)
 	}
-	b.WriteString("  <instruction>Use these absolute paths as read-only inputs. Inspect them with read_sandbox_file or list_sandbox_files, or pass them to shell commands or skill script arguments when those tools are available. Create generated files with write_sandbox_file; patch existing ones with edit_sandbox_file; put downloadable artifacts under $WEKNORA_SKILL_OUTPUT_DIR.</instruction>\n")
+	b.WriteString("  <instruction>These are the user's files: read them at the absolute paths above " +
+		"and do not write into /workspace/input. Inspect them with read_file, " +
+		"or with shell_exec (ls/find) when a shell is available. " +
+		"Create generated files with write_sandbox_file " +
+		"and patch existing ones with edit_sandbox_file. $WEKNORA_SKILL_OUTPUT_DIR (/workspace/output) " +
+		"is the only directory collected for download, so put finished deliverables there " +
+		"and keep drafts and intermediate files in any other directory under /workspace.</instruction>\n")
 	b.WriteString("</sandbox_attachments>")
 	return b.String()
 }

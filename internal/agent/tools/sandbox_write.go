@@ -6,9 +6,13 @@
 //
 // Design notes:
 //   - Session-scoped: the sandbox is resolved from ToolExecContext.SessionID.
-//   - Path guardrail: writes sit under /workspace and never under
-//     /workspace/input (staged attachments stay read-only). Prefer
-//     /workspace/output for files the user should download.
+//   - Path guardrail: writes stay inside the session sandbox and never under
+//     /workspace/input (staged attachments are the user's, not ours).
+//     /workspace/output is what gets collected for download, so the
+//     description reserves it for finished deliverables and sends scratch
+//     work elsewhere under /workspace. Only the /workspace/input half is
+//     enforced here; the rest is guidance, because "finished" is a judgement
+//     the tool cannot make.
 //   - Content stays out of ToolResult.Data/Output: the model already has the
 //     bytes it just sent. The result is path + size so the next call can
 //     shell_exec the file.
@@ -92,65 +96,14 @@ type SandboxFileSink interface {
 
 // writeSandboxFileDescription carries one %s, filled with the size guidance
 // derived from the round's completion-token budget.
-const writeSandboxFileDescription = `Write a text file into the current session's sandbox.
-
-## Usage
-- This is the way to create or overwrite a script, report, or other text
-  file. Do NOT dump large files through ` + "`shell_exec`" + ` with ` + "`cat`" + `,
-  heredocs, or ` + "`python -c`" + ` — those hit a small command-length cap.
-- After writing a script that needs a skill's packages, run it with
-  ` + "`execute_skill_script(skill_name=..., script_path=<this path>)`" + `
-  so the skill's virtualenv is used. Independent scripts: ` + "`shell_exec`" + `,
-  e.g. ` + "`python3 /workspace/output/generate_ppt.py`" + `.
-- Put user-facing artifacts (pptx, pdf, png, html) under
-  ` + "`/workspace/output`" + ` so they can be collected for download. Scratch
-  scripts may live anywhere under ` + "`/workspace`" + ` except
-  ` + "`/workspace/input`" + `.
-- JSON arguments MUST include both ` + "`path`" + ` and ` + "`content`" + `.
-  Emit ` + "`path`" + ` first.
-- ` + pythonQuoteGuidance + `
-
-## Large Files: Write In Chunks
-One call carries the whole file body inside its JSON arguments, so a big file
-does not fit in a single response — the output gets cut off mid-string and the
-call is refused. Build it up instead:
-
-1. First chunk: default mode (` + "`mode` omitted or `overwrite`" + `).
-2. Every later chunk: ` + "`mode: \"append\"`" + `, same ` + "`path`" + `.
-
-Keep each chunk to a few hundred lines. Split at a structural boundary (a
-closing tag, the end of a function) so the file is never left mid-token.
-Do NOT resend the earlier chunks — append adds to what is already on disk.
-The result reports the running total so you can tell how much has landed.
-
-## When to Use
-- Generating a Python/JS/HTML file the sandbox will execute next.
-- Saving a long report or config that does not fit in a shell command.
-- Overwriting a file you previously wrote in this session.
-- Continuing a file you are writing in chunks (` + "`mode: \"append\"`" + `).
-
-## When NOT to Use
-- To change a few lines of a file you already wrote, call
-  ` + "`edit_sandbox_file`" + ` instead of sending the whole file again.
-- To recover from a truncated write: append the missing tail, or fix the
-  break with ` + "`edit_sandbox_file`" + `. Rewriting the whole file from the
-  top will truncate again at the same place.
-- Do not write under ` + "`/workspace/input`" + `: that tree is reserved for
-  user-uploaded attachments and is read-only.
-- Do not write binary bytes. Have a script produce binary artifacts under
-  ` + "`/workspace/output`" + `.
-
-## Path Rules
-- ` + "`path`" + ` MUST be an absolute path under ` + "`/workspace`" + `.
-- ` + "`/workspace`" + `, ` + "`/workspace/output`" + `, and ` + "`/workspace/input`" + `
-  themselves are directories and cannot be used as the file path.
-
-## Size Handling
-- %s
-
-## Returns
-- The absolute path and the file's total byte count (for an append, also how
-  many bytes this call added). File contents are not echoed back.`
+const writeSandboxFileDescription = `Create, overwrite, or append a text file inside the session sandbox,
+excluding /workspace/input.
+/workspace/output is collected for download, so it holds finished deliverables only; put drafts, scratch and
+intermediate files in any other directory under /workspace. Send both path and content (path first).
+Use edit_sandbox_file for small changes to an existing file. File content does not pass through shell quoting.
+Large files: first call uses mode=overwrite (default), subsequent calls use mode=append with only the next chunk. Keep calls in order and inspect the reported running byte count. A refused/truncated call wrote nothing; retry that chunk with complete JSON, never duplicate successful chunks.
+%s
+Binary content is not accepted. The result reports the absolute path and total size without echoing content.`
 
 // WriteSandboxFileInput defines the input parameters for write_sandbox_file.
 //
@@ -158,7 +111,7 @@ The result reports the running total so you can tell how much has landed.
 // depends on the agent's per-round token budget and is stated in the tool
 // description, which is built per session.
 type WriteSandboxFileInput struct {
-	Path    string `json:"path" jsonschema:"Absolute sandbox path to write. Must sit under /workspace and must not sit under /workspace/input. Prefer /workspace/output for downloadable artifacts."`
+	Path    string `json:"path" jsonschema:"Absolute or /workspace-relative sandbox path to write, excluding /workspace/input. Use the artifact output directory for finished deliverables only; intermediate files belong elsewhere."`                                 //nolint:lll // JSON schema tags must remain on one line.
 	Content string `json:"content" jsonschema:"Text to write. In overwrite mode this is the full file; in append mode it is only the next chunk. Keep near the per-call size stated in the tool description so the response is not cut off. Do not send binary bytes."` //nolint:lll // one-line struct tag
 	Mode    string `json:"mode,omitempty" jsonschema:"How to apply content: 'overwrite' (default) replaces the file, 'append' adds to the end of an existing file. Use append to build a large file across several calls."`                                             //nolint:lll // one-line struct tag
 }
@@ -248,7 +201,7 @@ func (t *WriteSandboxFileTool) Execute(ctx context.Context, args json.RawMessage
 		}, nil
 	}
 
-	clean := path.Clean(trimmed)
+	clean := sandbox.ResolveWorkspacePath(trimmed)
 	rootDir, ok := matchingWritableRoot(clean)
 	if !ok {
 		return &types.ToolResult{
@@ -360,15 +313,7 @@ func (t *WriteSandboxFileTool) Execute(ctx context.Context, args json.RawMessage
 	if stat := formatSandboxDiffStat(added, 0); stat != "" {
 		sizeLine = stat + ", " + sizeLine
 	}
-	output := fmt.Sprintf(
-		"=== Wrote sandbox file: %s ===\n\n%s\n\n"+
-			"If this script needs a skill's packages, run it with\n"+
-			"execute_skill_script(skill_name=<skill>, script_path=%s)\n"+
-			"so the skill's virtualenv is used. Independent scripts:\n"+
-			"shell_exec python3 %s\n\n"+
-			"User-facing artifacts should land under %s.\n",
-		clean, sizeLine, clean, clean, sandbox.SessionOutputRoot,
-	)
+	output := fmt.Sprintf("=== Wrote sandbox file: %s ===\n\n%s\n", clean, sizeLine)
 	data := map[string]interface{}{
 		"display_type": ToolWriteSandboxFile,
 		"session_id":   sessionID,
@@ -381,9 +326,10 @@ func (t *WriteSandboxFileTool) Execute(ctx context.Context, args json.RawMessage
 	}
 	attachSandboxDiffStats(data, added, 0)
 	return &types.ToolResult{
-		Success: true,
-		Output:  output,
-		Data:    data,
+		Success:     true,
+		Output:      output,
+		OutputFiles: sandboxOutputLinks(clean),
+		Data:        data,
 	}, nil
 }
 
@@ -431,21 +377,21 @@ func (t *WriteSandboxFileTool) Cleanup(ctx context.Context) error {
 }
 
 // workspaceWriteScopeError explains a refused write/edit path. This is a
-// tool-scope convention (attachments stay out of these tools; scripts go
-// under /workspace), not a privilege check — shell_exec can already write
+// tool-scope convention (attachments stay out of these tools), not a privilege
+// check — shell_exec can already write
 // the same session sandbox.
 func workspaceWriteScopeError(requested string) string {
 	return fmt.Sprintf(
-		"this tool only writes files under %s (not under %s, and not the directory roots themselves). path %q is outside that scope; use shell_exec for other locations",
-		sandbox.SessionWorkspaceRoot, sandbox.SessionInputRoot, requested,
+		"path %q is outside that scope: write a file inside the session sandbox, "+
+			"not a directory root or a path under read-only %s",
+		requested, sandbox.SessionInputRoot,
 	)
 }
 
-// matchingWritableRoot returns the workspace root that contains clean, or
-// ("", false) when the path is outside /workspace, is /workspace itself, or
-// sits under the read-only attachment tree.
+// matchingWritableRoot labels sandbox writes while excluding directory roots
+// and the read-only attachment tree.
 func matchingWritableRoot(clean string) (string, bool) {
-	if !isUnderRoot(clean, sandbox.SessionWorkspaceRoot) ||
+	if !path.IsAbs(clean) || clean == "/" ||
 		clean == sandbox.SessionWorkspaceRoot ||
 		clean == sandbox.SessionOutputRoot ||
 		isUnderRoot(clean, sandbox.SessionInputRoot) {
@@ -454,5 +400,8 @@ func matchingWritableRoot(clean string) (string, bool) {
 	if isUnderRoot(clean, sandbox.SessionOutputRoot) {
 		return sandbox.SessionOutputRoot, true
 	}
-	return sandbox.SessionWorkspaceRoot, true
+	if isUnderRoot(clean, sandbox.SessionWorkspaceRoot) {
+		return sandbox.SessionWorkspaceRoot, true
+	}
+	return "/", true
 }

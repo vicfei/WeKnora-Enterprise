@@ -101,6 +101,14 @@ func (m *stagingSandboxManager) WriteSessionInputFile(_ context.Context, _ strin
 func (m *stagingSandboxManager) WriteSessionWorkspaceFile(ctx context.Context, sessionID, filePath string, content []byte) error {
 	return m.WriteSessionInputFile(ctx, sessionID, filePath, content)
 }
+func (m *stagingSandboxManager) WriteSessionWorkspaceFiles(ctx context.Context, sessionID string, files []sandbox.SessionWorkspaceFile) error {
+	for _, file := range files {
+		if err := m.WriteSessionWorkspaceFile(ctx, sessionID, file.Path, file.Content); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (m *stagingSandboxManager) RemoveSessionInputPath(_ context.Context, _ string, targetPath string) error {
 	for filePath := range m.files {
 		if filePath == targetPath || strings.HasPrefix(filePath, targetPath+"/") {
@@ -182,8 +190,12 @@ func TestBuildSandboxAttachmentsPromptEscapesMetadata(t *testing.T) {
 
 	assert.Contains(t, prompt, `name="a&lt;&amp;&gt;.txt"`)
 	assert.Contains(t, prompt, `path="/workspace/input/hash/a.txt"`)
-	assert.Contains(t, prompt, "read-only inputs")
-	assert.Contains(t, prompt, "read_sandbox_file")
+	assert.Contains(t, prompt, "do not write into /workspace/input")
+	assert.Contains(t, prompt, "only directory collected for download",
+		"a model that treats /workspace/output as scratch ships the user its drafts")
+	assert.Contains(t, prompt, "read_file")
+	assert.NotContains(t, prompt, "read_sandbox_file")
+	assert.NotContains(t, prompt, "list_sandbox_files")
 	assert.Contains(t, prompt, "write_sandbox_file")
 	assert.Contains(t, prompt, "edit_sandbox_file")
 }
@@ -243,6 +255,59 @@ func TestStageSessionAttachmentsResolvesURLFromTemporaryDocument(t *testing.T) {
 	assert.Equal(t, remotePath, staged[0].Path)
 	assert.Equal(t, []string{remotePath}, manager.writes)
 	assert.Equal(t, 1, fileService.getCalls[resourceRef])
+}
+
+func TestStageSessionAttachmentsResolvesURLFromParentSessionDocument(t *testing.T) {
+	db := stagingTempDocDB(t)
+	docID := "doc-1"
+	resourceRef := "local://tenant/attachment-1"
+	require.NoError(t, db.Create(&types.TemporaryDocument{
+		ID:          docID,
+		TenantID:    7,
+		SessionID:   "parent-session",
+		ResourceRef: resourceRef,
+		FileName:    "report.pdf",
+		FileType:    ".pdf",
+		FileSize:    7,
+		Status:      types.TemporaryDocumentStatusReady,
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}).Error)
+
+	attachment := types.MessageAttachment{
+		ID:       docID,
+		FileName: "report.pdf",
+		FileType: ".pdf",
+		FileSize: 7,
+	}
+	remotePath, err := sandboxAttachmentPath(types.MessageAttachment{
+		URL: resourceRef, FileName: "report.pdf",
+	})
+	require.NoError(t, err)
+
+	manager := &stagingSandboxManager{sandboxType: sandbox.SandboxTypeCube}
+	fileService := &stagingFileService{
+		files: map[string][]byte{resourceRef: []byte("content")},
+	}
+	service := &agentService{
+		db:              db,
+		sandboxMgr:      manager,
+		fileService:     fileService,
+		sandboxResolver: stubSandboxResolver{mgr: manager},
+	}
+	ctx := context.WithValue(context.Background(), types.TenantIDContextKey, uint64(7))
+
+	staged, err := service.stageSessionAttachments(
+		ctx,
+		"forked-session",
+		"cfg-remote",
+		7,
+		types.MessageAttachments{attachment},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, staged, 1)
+	assert.Equal(t, remotePath, staged[0].Path)
+	assert.Equal(t, []string{remotePath}, manager.writes)
 }
 
 func TestStageSessionAttachmentsSkipsMissingTemporaryDocument(t *testing.T) {

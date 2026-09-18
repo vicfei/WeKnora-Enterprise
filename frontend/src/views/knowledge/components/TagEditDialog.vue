@@ -87,17 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { createKnowledgeBaseTag } from '@/api/knowledge-base';
 
-interface Tag {
-  id: string;
-  name: string;
-  color?: string;
-  knowledge_count?: number;
-}
+import { useKnowledgeTagSelection, type KnowledgeTag as Tag } from '@/composables/useKnowledgeTagSelection';
 
 const props = defineProps<{
   visible: boolean;
@@ -117,101 +112,23 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const searchQuery = ref('');
-const selectedSet = ref<Set<string>>(new Set());
-const creatingTag = ref(false);
-const saving = ref(false);
-const newTagName = ref('');
-
-watch(
-  () => props.visible,
-  (val) => {
-    if (val) {
-      selectedSet.value = new Set(props.selectedTags.map((t) => t.id));
-      searchQuery.value = '';
-      newTagName.value = '';
-    }
+const {
+  searchQuery, newTagName, selectedSet, creatingTag, selectedTagsList, availableTagsList,
+  toggleTag, clearAll, handleCreateTag, handleAddNewTag,
+} = useKnowledgeTagSelection({
+  visible: () => props.visible,
+  kbId: () => props.kbId,
+  tags: () => props.tagList,
+  selectedIds: () => props.selectedTags.map(tag => tag.id),
+  createTag: createKnowledgeBaseTag,
+  onCreated: () => {
+    emit('tag-created');
+    MessagePlugin.success(t('knowledgeBase.tagCreateSuccess'));
   },
-);
-
-const tagMap = computed(() => new Map(props.tagList.map((tag) => [tag.id, tag])));
-
-const selectedTagsList = computed(() => {
-  return Array.from(selectedSet.value)
-    .map((id) => tagMap.value.get(id))
-    .filter((tag): tag is Tag => Boolean(tag));
+  onError: (error: any) => MessagePlugin.error(error?.message || t('common.operationFailed')),
 });
 
-const availableTagsList = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase();
-  return props.tagList.filter((tag) => {
-    if (selectedSet.value.has(tag.id)) return false;
-    if (query && !(tag.name || '').toLowerCase().includes(query)) return false;
-    return true;
-  });
-});
-
-function toggleTag(tagId: string) {
-  const next = new Set(selectedSet.value);
-  if (next.has(tagId)) {
-    next.delete(tagId);
-  } else {
-    next.add(tagId);
-  }
-  selectedSet.value = next;
-}
-
-function clearAll() {
-  selectedSet.value = new Set();
-}
-
-async function handleCreateTag() {
-  const name = searchQuery.value.trim();
-  if (!name) return;
-  creatingTag.value = true;
-  try {
-    const res: any = await createKnowledgeBaseTag(props.kbId, { name });
-    const newTag = res?.data || res;
-    const next = new Set(selectedSet.value);
-    next.add(newTag.id);
-    selectedSet.value = next;
-    searchQuery.value = '';
-    emit('tag-created');
-    MessagePlugin.success(t('knowledgeBase.tagCreateSuccess'));
-  } catch (error: any) {
-    MessagePlugin.error(error?.message || t('common.operationFailed'));
-  } finally {
-    creatingTag.value = false;
-  }
-}
-
-async function handleAddNewTag() {
-  const name = newTagName.value.trim();
-  if (!name) return;
-  const exists = props.tagList.find((t) => t.name === name);
-  if (exists) {
-    const next = new Set(selectedSet.value);
-    next.add(exists.id);
-    selectedSet.value = next;
-    newTagName.value = '';
-    return;
-  }
-  creatingTag.value = true;
-  try {
-    const res: any = await createKnowledgeBaseTag(props.kbId, { name });
-    const newTag = res?.data || res;
-    const next = new Set(selectedSet.value);
-    next.add(newTag.id);
-    selectedSet.value = next;
-    newTagName.value = '';
-    emit('tag-created');
-    MessagePlugin.success(t('knowledgeBase.tagCreateSuccess'));
-  } catch (error: any) {
-    MessagePlugin.error(error?.message || t('common.operationFailed'));
-  } finally {
-    creatingTag.value = false;
-  }
-}
+const saving = ref(false);
 
 async function handleConfirm() {
   saving.value = true;
@@ -237,7 +154,7 @@ function handleOpenManage() {
 .tag-edit-dialog {
   overflow: hidden;
   padding: 0;
-  border-radius: 4px;
+  border-radius: var(--app-radius-xs);
 }
 
 .tag-edit-dialog .t-dialog__header {
@@ -254,7 +171,7 @@ function handleOpenManage() {
   right: 16px;
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: var(--app-radius-xs);
   color: var(--td-text-color-secondary);
   transition: background 0.18s ease;
 }
@@ -294,7 +211,7 @@ function handleOpenManage() {
 
 .tag-edit-title {
   color: var(--td-text-color-primary);
-  font-size: 15px;
+  font-size: var(--app-text-lg);
   font-weight: 600;
   line-height: 22px;
   letter-spacing: 0.2px;
@@ -305,7 +222,7 @@ function handleOpenManage() {
   min-width: 0;
   overflow: hidden;
   color: var(--td-text-color-placeholder);
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   font-weight: 400;
   line-height: 18px;
   text-overflow: ellipsis;
@@ -336,7 +253,7 @@ function handleOpenManage() {
 }
 
 .tag-edit-body .setting-drawer__section-title {
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 600;
   color: var(--td-text-color-primary);
   margin: 0 0 4px;
@@ -371,13 +288,13 @@ function handleOpenManage() {
 .tag-edit-section-head :deep(.t-button) {
   height: auto;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   color: var(--td-text-color-placeholder);
   flex-shrink: 0;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
-  transition: color 0.15s ease;
+  transition: color var(--app-motion-fast) ease;
 }
 
 .tag-edit-section-head :deep(.tag-edit-manage-link.t-button:hover),
@@ -393,10 +310,10 @@ function handleOpenManage() {
 }
 
 .tag-edit-search-bar :deep(.t-input) {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   background-color: var(--td-bg-color-secondarycontainer);
   border-color: transparent;
-  border-radius: 4px;
+  border-radius: var(--app-radius-xs);
   box-shadow: none !important;
 }
 
@@ -433,11 +350,11 @@ function handleOpenManage() {
   height: 22px;
   padding: 0 8px;
   border: 1px solid var(--td-component-stroke);
-  border-radius: 4px;
+  border-radius: var(--app-radius-xs);
   background: transparent;
   color: var(--td-text-color-secondary);
   font-family: var(--app-font-family);
-  font-size: 11px;
+  font-size: var(--app-text-xs);
   line-height: 22px;
   text-align: center;
   cursor: pointer;
@@ -445,7 +362,7 @@ function handleOpenManage() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color var(--app-motion-fast) ease, background var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -473,7 +390,7 @@ function handleOpenManage() {
 .tag-edit-section-empty {
   margin: 0;
   min-height: 22px;
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 22px;
   color: var(--td-text-color-placeholder);
 }
@@ -490,11 +407,11 @@ function handleOpenManage() {
 }
 
 .tag-edit-create-row :deep(.t-input) {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   background-color: transparent;
   border-style: dashed;
   border-color: var(--td-component-stroke);
-  border-radius: 4px;
+  border-radius: var(--app-radius-xs);
   box-shadow: none !important;
 }
 
@@ -517,7 +434,7 @@ function handleOpenManage() {
 }
 
 .tag-edit-selected-count {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   color: var(--td-text-color-placeholder);
   white-space: nowrap;
 }

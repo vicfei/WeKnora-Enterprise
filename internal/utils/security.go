@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -123,6 +124,25 @@ func SafePathUnderBase(baseDir, filePath string) (string, error) {
 		return "", fmt.Errorf("path traversal denied: path is outside base directory")
 	}
 	return absPath, nil
+}
+
+// SafeJoinUnderBase 把调用方提供的相对后缀拼到 baseDir 下，并返回仍落在
+// baseDir 内的绝对路径。首尾分隔符会被去掉，避免 "/etc" 一类输入覆盖根目录；
+// ".." 经 path.Clean 后若仍指向父级则拒绝。空后缀表示 baseDir 本身。
+func SafeJoinUnderBase(baseDir, relPath string) (string, error) {
+	if strings.TrimSpace(baseDir) == "" {
+		return "", fmt.Errorf("baseDir cannot be empty")
+	}
+	rel := strings.Trim(strings.TrimSpace(relPath), `/\`)
+	if rel == "" {
+		return SafePathUnderBase(baseDir, baseDir)
+	}
+	slashRel := filepath.ToSlash(rel)
+	cleaned := path.Clean(slashRel)
+	if path.IsAbs(slashRel) || path.IsAbs(cleaned) || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("path traversal denied: path is outside base directory")
+	}
+	return SafePathUnderBase(baseDir, filepath.Join(baseDir, filepath.FromSlash(cleaned)))
 }
 
 // SafeFileName 校验并返回安全的“仅文件名”部分，防止路径遍历。
@@ -648,10 +668,11 @@ func ValidateStdioConfig(command string, args []string, envVars map[string]strin
 
 // SSRFSafeHTTPClientConfig contains configuration for the SSRF-safe HTTP client
 type SSRFSafeHTTPClientConfig struct {
-	Timeout            time.Duration
-	MaxRedirects       int
-	DisableKeepAlives  bool
-	DisableCompression bool
+	SameOriginRedirectsOnly bool
+	Timeout                 time.Duration
+	MaxRedirects            int
+	DisableKeepAlives       bool
+	DisableCompression      bool
 }
 
 // DefaultSSRFSafeHTTPClientConfig returns the default configuration
@@ -678,11 +699,14 @@ func sameHTTPOrigin(a, b *url.URL) bool {
 // stripRedirectSensitiveHeaders removes credentials that must not follow a
 // cross-host redirect (Go only strips Authorization/Cookie by default).
 func stripRedirectSensitiveHeaders(req *http.Request) {
-	req.Header.Del("Authorization")
-	req.Header.Del("Cookie")
-	req.Header.Del("X-Auth-Token")
-	req.Header.Del("X-Api-Key")
-	req.Header.Del("Api-Key")
+	for name := range req.Header {
+		switch http.CanonicalHeaderKey(name) {
+		case "Accept", "Accept-Language", "User-Agent":
+		default:
+			req.Header.Del(name)
+		}
+	}
+	req.Host = ""
 }
 
 // NewSSRFSafeTransport builds an *http.Transport whose connections are guarded
@@ -711,6 +735,9 @@ func newSSRFCheckRedirect(maxRedirects int) func(*http.Request, []*http.Request)
 		// Strip credentials when the redirect crosses hosts so connector
 		// tokens (e.g. Yuque X-Auth-Token) cannot leak to a third party.
 		if len(via) > 0 && !sameHTTPOrigin(via[0].URL, req.URL) {
+			if via[0].Method != http.MethodGet && via[0].Method != http.MethodHead || via[0].Body != nil {
+				return fmt.Errorf("%w: cross-origin request replay is forbidden", ErrSSRFRedirectBlocked)
+			}
 			stripRedirectSensitiveHeaders(req)
 		}
 
@@ -765,9 +792,14 @@ func NewSSRFSafeHTTPClientWithTransport(
 		transport = NewSSRFSafeTransport(config)
 	}
 	return &http.Client{
-		Timeout:       config.Timeout,
-		Transport:     &SSRFValidatingRoundTripper{Base: transport},
-		CheckRedirect: newSSRFCheckRedirect(config.MaxRedirects),
+		Timeout:   config.Timeout,
+		Transport: &SSRFValidatingRoundTripper{Base: transport},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if config.SameOriginRedirectsOnly && len(via) > 0 && !sameHTTPOrigin(via[0].URL, req.URL) {
+				return fmt.Errorf("%w: cross-origin redirect is forbidden", ErrSSRFRedirectBlocked)
+			}
+			return newSSRFCheckRedirect(config.MaxRedirects)(req, via)
+		},
 	}
 }
 

@@ -87,6 +87,14 @@ type MessageRepository interface {
 	ListMessagesBySessionAfterTime(
 		ctx context.Context, sessionID string, afterTime time.Time, limit int,
 	) ([]*types.Message, error)
+	// ListMessagesBySessionAfterCursor uses (created_at, id) for lossless paging.
+	ListMessagesBySessionAfterCursor(ctx context.Context, sessionID string, cursor types.MemoryMessageCursor, limit int) ([]*types.Message, error)
+	// ListMessagesBySessionUpTo returns every message sorting strictly before
+	// the (boundary, boundaryID) composite cursor, oldest first. Used by
+	// session fork to copy the history preceding a fork point.
+	ListMessagesBySessionUpTo(
+		ctx context.Context, sessionID string, boundary time.Time, boundaryID string,
+	) ([]*types.Message, error)
 	// UpdateMessage updates a message
 	UpdateMessage(ctx context.Context, message *types.Message) error
 	// UpdateMessageImages updates only the images JSONB column for a message
@@ -99,14 +107,17 @@ type MessageRepository interface {
 	DeleteMessagesBySessionID(ctx context.Context, sessionID string) error
 	// GetFirstMessageOfUser gets the first message of a user
 	GetFirstMessageOfUser(ctx context.Context, sessionID string) (*types.Message, error)
-	// SearchMessagesByKeyword searches messages by keyword (ILIKE) across sessions for a tenant
+	// SearchMessagesByKeyword searches messages by keyword across sessions for a tenant
 	// OwnedSessionIDs narrows a set of session ids to the ones this person owns.
 	OwnedSessionIDs(ctx context.Context, tenantID uint64, ownerID string, sessionIDs []string) (map[string]bool, error)
 	SearchMessagesByKeyword(ctx context.Context, tenantID uint64, ownerID, keyword string, sessionIDs []string, limit int) ([]*types.MessageWithSession, error)
 	// GetMessagesByKnowledgeIDs retrieves messages by their associated Knowledge IDs
 	GetMessagesByKnowledgeIDs(ctx context.Context, knowledgeIDs []string) ([]*types.MessageWithSession, error)
-	// GetMessagesByRequestIDs retrieves messages by their request IDs (used to fetch Q&A pair partners)
-	GetMessagesByRequestIDs(ctx context.Context, requestIDs []string) ([]*types.MessageWithSession, error)
+	// GetMessagesByRequestIDs retrieves messages by request ID inside one session
+	// (used to fetch Q&A pair partners). Empty sessionID returns no rows.
+	GetMessagesByRequestIDs(
+		ctx context.Context, sessionID string, requestIDs []string,
+	) ([]*types.MessageWithSession, error)
 	// GetKnowledgeIDsBySessionID retrieves all knowledge IDs for messages in a session
 	GetKnowledgeIDsBySessionID(ctx context.Context, sessionID string) ([]string, error)
 	// UpdateMessageKnowledgeID updates the knowledge_id field for a message
@@ -120,4 +131,9 @@ type MessageRepository interface {
 	// GetSessionAttachments returns every user-uploaded attachment recorded in
 	// the session. Implementations should project only the attachments column.
 	GetSessionAttachments(ctx context.Context, sessionID string) (types.MessageAttachments, error)
+	// RewriteSandboxCheckpoints replaces SandboxID on every copied checkpoint
+	// in the session that still points at oldSandboxID, keeping CommitSHA and
+	// CommittedAt. Used after a forked sandbox boots so a later fork-of-fork
+	// compares against the live handle rather than the parent's sandbox.
+	RewriteSandboxCheckpoints(ctx context.Context, sessionID, oldSandboxID, newSandboxID string) error
 }

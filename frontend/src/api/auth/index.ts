@@ -95,6 +95,7 @@ export interface RegisterResponse {
 // 新加 key 时记得：后端 service.UpdateUserPreferences 也要在 merge 分支里
 // 处理；前端调用方按需读 / 默认值降级。
 export interface UserPreferences {
+  browser_search_instructions?: string | null
   // last_active_tenant_id 持久化「刷新 / 换设备 / 重新登录后回到上次的空间」
   // 偏好；后端在 Login / RefreshToken 时校验 membership 有效后才会沿用，
   // 否则回退到 home 并清掉这个字段。传 0 给 PATCH 表示「清除偏好」。
@@ -294,7 +295,12 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
  */
 export async function autoSetup(): Promise<LoginResponse> {
   try {
-    const response = await post('/api/v1/auth/auto-setup', {})
+    const nativeApp = (window as any).go?.main?.App
+    if (!nativeApp?.GetAutoSetupToken) return { success: false, message: 'Desktop authentication required' }
+    const token = await nativeApp.GetAutoSetupToken()
+    const response = await post('/api/v1/auth/auto-setup', {}, {
+      headers: { 'X-WeKnora-Desktop-Token': token },
+    })
     return response as unknown as LoginResponse
   } catch (error: any) {
     return {
@@ -325,10 +331,10 @@ export interface AuthCapabilities {
   auto_accept_invitation: boolean
 }
 
-export async function getCurrentUser(): Promise<{ success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities }; message?: string }> {
+export async function getCurrentUser(): Promise<{ success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities; preference_defaults?: { browser_search_instructions: string } }; message?: string }> {
   try {
     const response = await get('/api/v1/auth/me')
-    return response as unknown as { success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities }; message?: string }
+    return response as unknown as { success: boolean; data?: { user: UserInfo; tenant?: TenantInfo | null; memberships?: MembershipInfo[]; tenant_required?: boolean; capabilities?: AuthCapabilities; preference_defaults?: { browser_search_instructions: string } }; message?: string }
   } catch (error: any) {
     return {
       success: false,

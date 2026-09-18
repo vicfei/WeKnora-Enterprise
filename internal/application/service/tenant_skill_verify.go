@@ -90,7 +90,11 @@ func (s *TenantSkillService) verifySkill(
 	if err := s.verifyDeclaredDependencies(ctx, mgr, sessionID, skillDir, bundle); err != nil {
 		return nil, err
 	}
-	return s.verifyScriptsParse(ctx, mgr, sessionID, skillDir, bundle)
+	notes, err := s.verifyScriptsParse(ctx, mgr, sessionID, skillDir, bundle)
+	if err != nil {
+		return notes, err
+	}
+	return notes, s.verifyRuntimePrerequisites(ctx, mgr, sessionID, skillDir)
 }
 
 // verifySkillTree confirms the files the agent was given are still the files
@@ -227,9 +231,9 @@ func (s *TenantSkillService) verifyScriptsParse(
 	return notes, nil
 }
 
-// execVerify runs one verification pass as the ordinary sandbox user, with the
-// same working directory and environment a real skill call gets. Running it as
-// install-mode root would test permissions that never reach a session.
+// execVerify uses the ordinary execution path and workspace bootstrap, with
+// the same working directory and skill environment as a session call. Both
+// paths currently run as root; AsRoot would select the maintenance bootstrap.
 func (s *TenantSkillService) execVerify(
 	ctx context.Context, mgr sandbox.Manager, sessionID, skillDir, label, command string,
 ) ([]string, error) {

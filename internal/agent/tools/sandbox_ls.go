@@ -9,9 +9,8 @@
 //   - Session-scoped: the sandbox path is resolved from the tool exec
 //     context (`ToolExecContext.SessionID`). The LLM cannot pass an
 //     arbitrary session ID.
-//   - Directory guardrail: `path` must resolve underneath `/workspace`,
-//     the session's own tree — the same scope write_sandbox_file may
-//     create in. Omitting `path` lists the artifact output dir
+//   - Paths are inside the current session's sandbox. Relative paths resolve
+//     from /workspace. Omitting `path` lists the artifact output dir
 //     (`$WEKNORA_SKILL_OUTPUT_DIR`, default `/workspace/output`) so a
 //     listing does not dump every attachment and scratch file into context.
 //   - Read-only: this tool never creates, modifies or deletes anything
@@ -26,7 +25,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 	"time"
@@ -63,59 +61,19 @@ const (
 
 var listSandboxFilesTool = BaseTool{
 	name: ToolListSandboxFiles,
-	description: `List files in the current session's inspectable sandbox directories.
-
-## Usage
-- Call this tool BEFORE invoking a follow-up skill that consumes a file
-  produced by an earlier skill in this session. Without this tool you are
-  guessing paths; with it you can see exactly what is available.
-- Also useful to confirm a skill actually produced the files it claims to
-  have generated (e.g. before telling the user "your report is ready").
-- Pass ` + "`/workspace/input`" + ` (or a path from the current
-  ` + "`<sandbox_attachments>`" + ` block) to list staged chat attachments.
-
-## When to Use
-- The user asks a follow-up question that references a file from a prior
-  turn ("summarize the report you generated", "improve the chart").
-- You are about to chain two skills where the second consumes an output
-  of the first.
-- You want to inspect a user-uploaded attachment staged under
-  ` + "`/workspace/input`" + `.
-- You want to give the user a listing of everything the current session
-  has produced.
-
-## When NOT to Use
-- Do NOT list skill install directories (` + "`/opt/weknora/tenant/skills/...`" + `).
-  Call ` + "`read_skill(skill_name=...)`" + ` instead: that returns SKILL.md and
-  the skill's file list (scripts, docs). Those trees also contain
-  ` + "`.venv`" + ` / ` + "`node_modules`" + `.
-- Do not list ` + "`/etc`" + ` or other system paths.
-
-## Path Rules
-- ` + "`path`" + ` is optional. When omitted, the tool lists the default artifact
-  output directory (` + "`$WEKNORA_SKILL_OUTPUT_DIR`" + `, typically ` + "`/workspace/output`" + `).
-- When provided, ` + "`path`" + ` MUST sit under ` + "`/workspace`" + ` — anything
-  this session can write, including scratch files you created with
-  ` + "`write_sandbox_file`" + `. Paths outside it (` + "`/etc`" + `, ` + "`/home`" + `,
-  skill image dirs) are rejected.
-- Listing is recursive: sub-directories are traversed automatically and
-  only files are returned in the flat listing.
-
-## Returns
-- A list of entries with ` + "`path`" + ` (absolute, ready to pass to
-  ` + "`read_sandbox_file`" + `), ` + "`size`" + `, and ` + "`modified_at`" + ` timestamps.
-- When the session has never invoked a skill (no live sandbox yet), the
-  tool returns an empty listing with a clear "no sandbox" note — this is
-  not an error.`,
+	description: `List files inside the current session's sandbox when no shell executor is available.
+Relative paths resolve from /workspace; omitted path lists the artifact output directory.
+Use known paths directly with read_file; list only to discover unknown files.
+Results are bounded by max_entries. An unprovisioned session returns an empty listing.`,
 	schema: utils.GenerateSchema[ListSandboxFilesInput](),
 }
 
 // ListSandboxFilesInput defines the input parameters for list_sandbox_files.
 type ListSandboxFilesInput struct {
 	// Path is the absolute path inside the sandbox to list. When empty
-	// the tool falls back to skills.ArtifactOutputDir(). Must sit under
-	// /workspace.
-	Path string `json:"path,omitempty" jsonschema:"Optional absolute sandbox path to list, under /workspace. Defaults to the session's artifact output directory."` //nolint:lll // one-line struct tag
+	// the tool falls back to skills.ArtifactOutputDir(). Relative paths resolve
+	// from /workspace inside the current session sandbox.
+	Path string `json:"path,omitempty" jsonschema:"Optional absolute or /workspace-relative sandbox path to list. Defaults to the session's artifact output directory."` //nolint:lll // one-line struct tag
 	// MaxEntries caps the listing size to protect the LLM context.
 	// Zero uses defaultListSandboxMaxEntries.
 	MaxEntries int `json:"max_entries,omitempty" jsonschema:"Optional cap on the number of entries returned. Defaults to 200, hard-capped at 500. Use a smaller value when you only need to check whether a specific file exists."`
@@ -175,14 +133,11 @@ func (t *ListSandboxFilesTool) Execute(ctx context.Context, args json.RawMessage
 	if targetDir == "" {
 		targetDir = skills.ArtifactOutputDir()
 	} else {
-		targetDir = path.Clean(targetDir)
+		targetDir = sandbox.ResolveWorkspacePath(targetDir)
 	}
 	rootDir, ok := matchingInspectableRoot(targetDir)
 	if !ok {
-		return &types.ToolResult{
-			Success: false,
-			Error:   inspectablePathError(input.Path),
-		}, nil
+		rootDir = "/"
 	}
 
 	maxEntries := input.MaxEntries
@@ -290,15 +245,8 @@ func resolveSessionID(ctx context.Context) string {
 	return ""
 }
 
-// sandboxInspectableRoots is the allowlist for list_sandbox_files and
-// read_sandbox_file: the session workspace, and nothing outside it.
-//
-// It matches what write_sandbox_file may create. Narrowing the readers to
-// artifacts and attachments used to leave the agent unable to read back the
-// scratch script it had just written to /workspace, which bought no safety —
-// shell_exec reaches the same files — and only forced a detour through `cat`.
-//
-// The list is ordered most specific first so the reported root still names the
+// sandboxInspectableRoots labels familiar workspace paths in file metadata.
+// It is not a read/list allowlist. Ordered most specific first, the root names the
 // artifact or attachment tree when the path is inside one.
 func sandboxInspectableRoots() []string {
 	return []string{
@@ -308,55 +256,7 @@ func sandboxInspectableRoots() []string {
 	}
 }
 
-func inspectableRootsDescription() string {
-	return sandbox.SessionWorkspaceRoot
-}
-
-// inspectablePathError explains a refused list/read path. Skill image
-// paths are the common miss: the model sees /opt/weknora/tenant/skills/<name>
-// in read_skill's environment section and retries with this tool or ls.
-func inspectablePathError(requested string) string {
-	base := fmt.Sprintf(
-		"this tool only lists/reads the session workspace under %s. path %q is outside that scope",
-		inspectableRootsDescription(), requested,
-	)
-	clean := path.Clean(strings.TrimSpace(requested))
-	name, inImage := sandbox.SkillNameFromImagePath(clean)
-	if !inImage {
-		return base + ". Skill files: read_skill(skill_name=..., file_path=...)."
-	}
-	if name == "" {
-		return base + fmt.Sprintf(
-			". That path is the skill install root. Call read_skill(skill_name=...) for a listed skill instead of listing %s.",
-			sandbox.SkillsImageRoot,
-		)
-	}
-	hint := fmt.Sprintf(
-		". That path belongs to skill %q. Call read_skill(skill_name=%q) to load SKILL.md and list files",
-		name, name,
-	)
-	if rel := relativeSkillFileFromImagePath(clean, name); rel != "" {
-		hint += fmt.Sprintf(", or read_skill(skill_name=%q, file_path=%q) to read it", name, rel)
-	}
-	return base + hint + fmt.Sprintf(
-		". Do not ls %s (it includes .venv / node_modules).",
-		sandbox.SkillsImageRoot,
-	)
-}
-
-func relativeSkillFileFromImagePath(clean, skillName string) string {
-	dir, err := sandbox.SkillDirFor(skillName)
-	if err != nil || clean == dir {
-		return ""
-	}
-	prefix := dir + "/"
-	if strings.HasPrefix(clean, prefix) {
-		return strings.TrimPrefix(clean, prefix)
-	}
-	return ""
-}
-
-// matchingInspectableRoot returns the allowlisted root that contains
+// matchingInspectableRoot returns the named workspace root that contains
 // clean, or ("", false) when the path sits outside every root.
 func matchingInspectableRoot(clean string) (string, bool) {
 	for _, root := range sandboxInspectableRoots() {
@@ -368,8 +268,8 @@ func matchingInspectableRoot(clean string) (string, bool) {
 }
 
 // isUnderRoot reports whether clean sits at or underneath root. Both
-// arguments must already be cleaned. The list/read tools use this as a
-// scope check so they stay on artifacts and attachments; it is not a
+// arguments must already be cleaned. Readers use this to label workspace roots;
+// writers also use it to preserve attachment write protection. It is not a
 // privilege boundary (shell_exec can already reach the same files).
 func isUnderRoot(clean, root string) bool {
 	if clean == root {

@@ -193,10 +193,6 @@ func cleanIMContent(ctx context.Context, content string, tenant *types.Tenant, d
 	return content
 }
 
-func imLocalStorageBaseDir() string {
-	return storageurl.LocalStorageBaseDir()
-}
-
 // newIMFileServiceResolver builds a per-message storage backend resolver. The
 // cache lives for one cleanIMContent / outbound message so a long answer does
 // not re-create an SDK client for every reference.
@@ -1100,6 +1096,9 @@ func (s *Service) reloadChannelFromDB(channelID, reason string) {
 // the leader lock and opens the connection; other instances periodically
 // retry so they can take over if the leader dies.
 func (s *Service) StartChannel(channel *IMChannel) error {
+	if err := validateChannelTransport(channel); err != nil {
+		return err
+	}
 	if s.stopped.Load() {
 		return fmt.Errorf("im service is stopped")
 	}
@@ -2637,6 +2636,8 @@ func (s *Service) handleMessageStream(ctx context.Context, msg *IncomingMessage,
 		mergeIMAgentAnswerBuffers(&answerBuilder, &answerOuter, &agentLiveAnswer, data.FinalAnswer)
 		bufMu.Unlock()
 		closeComplete()
+		// Execute can emit EventError after Complete. The AgentQA return path
+		// closes done after those errors have been collected for finalization.
 		return nil
 	})
 
@@ -2783,6 +2784,13 @@ func (s *Service) handleMessageStream(ctx context.Context, msg *IncomingMessage,
 
 	// Run QA async
 	go func() {
+		// AgentQA returns after all synchronous events, including errors emitted
+		// after EventAgentComplete. KnowledgeQA starts an asynchronous stream,
+		// so its return must not end the reply.
+		if useAgent {
+			defer closeDone()
+			defer closeComplete()
+		}
 		var err error
 		req := buildIMQARequest(session, msg.Content, assistantMsg.ID, userMsg.ID, customAgent, kbIDs, msg.Quote, attachments)
 		req.ImageURLs = imageURLs
@@ -2864,7 +2872,8 @@ loop:
 	authServices := append([]imMCPAuthService(nil), mcpAuthServices...)
 	bufMu.Unlock()
 
-	finalDisplay := cleanIMContent(ctx, FormatIMFinalFromParts(parts), tenant, s.defaultFileSvc, s.storageResolver)
+	outCtx := imOutboundContext(ctx)
+	finalDisplay := cleanIMContent(outCtx, FormatIMFinalFromParts(parts), tenant, s.defaultFileSvc, s.storageResolver)
 	if noVisibleContent || finalDisplay == "" {
 		fallback := imNoAnswerFallback
 		if finalErr != nil {
@@ -2880,13 +2889,25 @@ loop:
 		answer = appendIMAuthNotice(answer, notice)
 	}
 
-	if err := streamer.FinalizeStream(ctx, msg, streamID, finalDisplay); err != nil {
-		logger.Warnf(ctx, "[IM] FinalizeStream failed: %v", err)
+	finalizeErr := streamer.FinalizeStream(outCtx, msg, streamID, finalDisplay)
+	if finalizeErr != nil {
+		logger.Warnf(ctx, "[IM] FinalizeStream failed: %v", finalizeErr)
 	}
 
 	// End the stream
-	if err := streamer.EndStream(ctx, msg, streamID); err != nil {
-		logger.Warnf(ctx, "[IM] EndStream failed: %v", err)
+	endErr := streamer.EndStream(outCtx, msg, streamID)
+	if endErr != nil {
+		logger.Warnf(ctx, "[IM] EndStream failed: %v", endErr)
+	}
+
+	// Match full-output delivery: a failed card replacement must not strand the
+	// answer in the database while the user only sees intermediate progress.
+	var fallbackErr error
+	if finalizeErr != nil {
+		fallbackErr = adapter.SendReply(outCtx, msg, &ReplyMessage{Content: finalDisplay, IsFinal: true})
+		if fallbackErr != nil {
+			logger.Errorf(ctx, "[IM] Plain reply fallback after stream finalize failure failed: %v", fallbackErr)
+		}
 	}
 
 	if answer == "" {
@@ -2895,12 +2916,15 @@ loop:
 
 	assistantMsg.Content = answer
 	assistantMsg.IsCompleted = true
-	if err := s.messageService.UpdateMessage(ctx, assistantMsg); err != nil {
+	if err := s.messageService.UpdateMessage(outCtx, assistantMsg); err != nil {
 		logger.Warnf(ctx, "[IM] Failed to update assistant message: %v", err)
 	}
 
+	if finalizeErr != nil && fallbackErr != nil {
+		return errors.Join(finalizeErr, endErr, fallbackErr)
+	}
 	logger.Infof(ctx, "[IM] Stream reply sent: platform=%s user=%s answer_len=%d", msg.Platform, msg.UserID, len(answer))
-	return nil
+	return endErr
 }
 
 // fallbackNonStream is used when streaming initialization fails.
@@ -3044,6 +3068,12 @@ func (s *Service) runQA(ctx context.Context, session *types.Session, query strin
 
 	// Run QA async
 	go func() {
+		// Match the streaming path: a returned AgentQA cannot produce more
+		// events, while KnowledgeQA may still be consuming its answer stream.
+		if useAgent {
+			defer closeDone()
+			defer closeComplete()
+		}
 		var err error
 		req := buildIMQARequest(session, query, assistantMsg.ID, userMsg.ID, customAgent, kbIDs, quote, attachments)
 		req.ImageURLs = imageURLs
@@ -3183,6 +3213,9 @@ func relocalizeBuiltinChannelAgentNames(ctx context.Context, rows []ChannelWithA
 // CreateChannel creates a new IM channel and optionally starts it.
 // Returns a duplicate_bot error if the bot identity is already used by another channel.
 func (s *Service) CreateChannel(channel *IMChannel) error {
+	if err := validateChannelTransport(channel); err != nil {
+		return err
+	}
 	if err := s.checkDuplicateBot(channel, ""); err != nil {
 		return err
 	}
@@ -3218,6 +3251,9 @@ func (s *Service) SetChannelAgentID(ctx context.Context, channel *IMChannel, age
 // UpdateChannel updates a channel and restarts it if needed.
 // Returns a duplicate_bot error if the bot identity is already used by another channel.
 func (s *Service) UpdateChannel(channel *IMChannel) error {
+	if err := validateChannelTransport(channel); err != nil {
+		return err
+	}
 	if err := s.checkDuplicateBot(channel, channel.ID); err != nil {
 		return err
 	}

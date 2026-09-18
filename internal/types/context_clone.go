@@ -25,12 +25,16 @@ var contextCloneAcrossDetach = map[ContextKey]bool{
 	// principal in the same workspace, so all of this has to survive; a
 	// detached goroutine that loses its tenant reads another tenant's rows or
 	// none at all.
-	TenantIDContextKey:    true,
-	TenantInfoContextKey:  true,
-	UserContextKey:        true,
-	UserIDContextKey:      true,
-	PrincipalContextKey:   true,
-	SystemAdminContextKey: true,
+	TenantIDContextKey:         true,
+	CallerContextKey:           true,
+	KBGrantsContextKey:         true,
+	KBTransferContextKey:       true,
+	SharedAgentGrantContextKey: true,
+	TenantInfoContextKey:       true,
+	UserContextKey:             true,
+	UserIDContextKey:           true,
+	PrincipalContextKey:        true,
+	SystemAdminContextKey:      true,
 	// TenantRoleContextKey: the caller's resolved role in the active tenant
 	// (PR 2 #1303). Must survive for the same reason as TenantIDContextKey —
 	// any handler that does `ctx := logger.CloneContext(c.Request.Context())`
@@ -111,6 +115,9 @@ var contextCloneAcrossDetach = map[ContextKey]bool{
 	// request context inside the embed handler that authenticated it; nothing
 	// downstream of a detach reads it.
 	EmbedChannelContextKey: false,
+	// The authenticated MCP endpoint. Read only by the MCP tool handlers on
+	// the request context that authenticated it.
+	MCPEndpointContextKey: false,
 }
 
 // ContextKeysClonedAcrossDetach returns the keys logger.CloneContext carries

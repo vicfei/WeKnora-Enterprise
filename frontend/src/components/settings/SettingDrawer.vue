@@ -43,13 +43,16 @@
       <slot />
     </div>
     <template v-if="!hideFooter" #footer>
+      <div v-if="$slots['footer-extra']" class="setting-drawer__footer-extra">
+        <slot name="footer-extra" />
+      </div>
       <div class="setting-drawer__footer">
         <div class="setting-drawer__footer-left">
           <slot name="footer-left" />
         </div>
         <div class="setting-drawer__footer-right">
           <slot name="footer-right">
-            <t-button theme="default" variant="outline" @click="handleCancel">
+            <t-button theme="default" variant="outline" :disabled="cancelDisabled" @click="handleCancel">
               {{ cancelText || t('common.cancel') }}
             </t-button>
             <t-button theme="primary" :loading="confirmLoading" :disabled="confirmDisabled" @click="handleConfirm">
@@ -100,6 +103,7 @@ interface Props {
    */
   storageKey?: string
   confirmLoading?: boolean
+  cancelDisabled?: boolean
   confirmDisabled?: boolean
   confirmText?: string
   cancelText?: string
@@ -118,6 +122,7 @@ const props = withDefaults(defineProps<Props>(), {
   maxWidth: 1200,
   storageKey: '',
   confirmLoading: false,
+  cancelDisabled: false,
   confirmDisabled: false,
   confirmText: '',
   cancelText: '',
@@ -305,10 +310,10 @@ const handleCancel = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 192, 95, 0.1);
+  background: color-mix(in srgb, var(--td-brand-color) 10%, transparent);
   color: var(--td-brand-color);
-  font-size: 16px;
-  transition: background 0.2s ease;
+  font-size: var(--app-text-xl);
+  transition: background var(--app-motion-base) ease;
 }
 
 .setting-drawer__header-text {
@@ -340,7 +345,7 @@ const handleCancel = () => {
 }
 
 .setting-drawer__title {
-  font-size: 15px;
+  font-size: var(--app-text-lg);
   font-weight: 600;
   line-height: 1.4;
   color: var(--td-text-color-primary);
@@ -350,7 +355,7 @@ const handleCancel = () => {
 }
 
 .setting-drawer__subtitle {
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1.45;
   color: var(--td-text-color-secondary);
 }
@@ -418,7 +423,7 @@ const handleCancel = () => {
 }
 
 .setting-drawer__body :deep(.setting-drawer__section-title) {
-  font-size: 13px;
+  font-size: var(--app-text-md);
   font-weight: 600;
   color: var(--td-text-color-primary);
   margin: 0 0 4px;
@@ -440,6 +445,12 @@ const handleCancel = () => {
 }
 
 /* ---------- Footer ---------- */
+.setting-drawer__footer-extra {
+  margin-bottom: 12px;
+  min-width: 0;
+  text-align: left;
+}
+
 .setting-drawer__footer {
   display: flex;
   align-items: center;
@@ -530,7 +541,7 @@ const handleCancel = () => {
   border-radius: 1px;
   background: var(--td-component-border);
   opacity: 0.55;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition: opacity var(--app-motion-fast) ease, background var(--app-motion-fast) ease;
 }
 
 .setting-drawer-resize-handle:hover .setting-drawer-resize-line,

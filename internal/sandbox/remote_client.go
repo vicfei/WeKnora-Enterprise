@@ -49,6 +49,14 @@ type RemoteConnectRequest struct {
 	TrafficAccessToken string
 }
 
+// RemoteSessionConnector connects and checks lifecycle state using the same
+// provider handle. It avoids Get (which itself connects on Cube/E2B) followed
+// by another Connect. Terminal/missing sandboxes must return classified errors;
+// transient failures must never authorize replacement of a session's sandbox.
+type RemoteSessionConnector interface {
+	ConnectSession(context.Context, RemoteConnectRequest) (RemoteSandboxHandle, error)
+}
+
 // RemoteTimeoutMode describes how the remote provider should treat the
 // requested idle timeout.
 type RemoteTimeoutMode string
@@ -297,6 +305,10 @@ type RemoteListFilter struct {
 // RemoteExecRequest describes a single command invocation. See the
 // RemoteSandboxClient.Exec contract for how Shell interacts with Args.
 type RemoteExecRequest struct {
+	// OnOutput receives stdout/stderr chunks while the command runs. It is an
+	// observation hook only; callers must not retain the supplied bytes.
+	OnOutput func(stream string, chunk []byte) `json:"-"`
+
 	// Command is the executable name (Shell=false) or the shell expression
 	// (Shell=true).
 	Command string
@@ -323,19 +335,27 @@ type RemoteExecRequest struct {
 	// default". Both backends support selecting it (E2B WithUser, Cube
 	// CommandOptions.User).
 	//
-	// Callers that rely on filesystem permissions for isolation MUST set a
-	// non-root user: root bypasses mode bits entirely, which would defeat
-	// read-only protection on shared volumes.
+	// The default is root: each chat session owns its own sandbox
+	// (one-session-one-sandbox, single tenant), so there is no shared-volume
+	// tenant boundary inside a sandbox for file-mode isolation to defend.
+	// Cross-tenant and host isolation live at the container boundary, not in
+	// the exec account. Callers that still rely on in-container filesystem
+	// permissions should not treat mode bits as a root isolation boundary.
+	// Enforce read-only access at the mount level instead.
 	User string
 
 	// Timeout bounds a single exec call. Zero means "use provider default".
 	Timeout time.Duration
 }
 
-// DefaultSandboxExecUser is the non-root account WeKnora runs sandboxed
-// scripts as. The sandbox template must provision this user; E2B base
-// templates ship a "user" account, and Cube templates are expected to match.
-const DefaultSandboxExecUser = "user"
+// DefaultSandboxExecUser is the account WeKnora runs sandboxed scripts as.
+// It is root: every chat session gets its own sandbox, so the in-container
+// account is not a tenant boundary and root is the least surprising default
+// for an agent that installs packages and writes wherever it needs. The
+// adapters resolve an empty request user to this constant, independent of
+// the image USER. The image retains a "user" compatibility account for
+// E2B/Cube tooling that explicitly selects it.
+const DefaultSandboxExecUser = "root"
 
 // RemoteExecResult is the neutral shape returned by Exec.
 type RemoteExecResult struct {
@@ -420,6 +440,20 @@ type RemoteSandboxCapabilities struct {
 	// use this to tell an operator up front that a backend cannot serve
 	// volume-based features, instead of failing later at first use.
 	SupportsVolumes bool
+
+	// SupportsTerminals is true when the provider can open interactive PTYs
+	// inside a running sandbox (RemoteTerminalManager). Callers use this to
+	// reject terminal features with an unsupported-backend error instead of
+	// failing after the WebSocket is upgraded.
+	SupportsTerminals bool
+
+	// SupportsDesktop is true when the provider can relay a WebSocket to a
+	// non-envd data-plane port inside the sandbox, which is what the VNC
+	// desktop needs (websockify on 6080). It is separate from
+	// SupportsTerminals: the terminal rides envd's PTY service, the desktop
+	// rides a raw port through the gateway. Docker is false — not because it
+	// cannot, but because it is not scheduled.
+	SupportsDesktop bool
 }
 
 // RemoteSandboxClient is the contract SessionBoundManager talks to. All

@@ -46,12 +46,18 @@ func (r *messageRepository) GetMessage(
 	return &message, nil
 }
 
-// GetMessagesBySession retrieves all messages for a session with pagination
+// GetMessagesBySession retrieves all messages for a session with pagination.
+//
+// The secondary sort on id is not cosmetic: messages created in the same
+// millisecond would otherwise come back in an order the database is free to
+// vary between calls, which makes a fork boundary drawn at one of them
+// irreproducible.
 func (r *messageRepository) GetMessagesBySession(
 	ctx context.Context, sessionID string, page int, pageSize int,
 ) ([]*types.Message, error) {
 	var messages []*types.Message
-	if err := r.db.WithContext(ctx).Where("session_id = ?", sessionID).Order("created_at ASC").
+	if err := r.db.WithContext(ctx).Where("session_id = ?", sessionID).
+		Order("created_at ASC, id ASC").
 		Offset((page - 1) * pageSize).Limit(pageSize).Find(&messages).Error; err != nil {
 		return nil, err
 	}
@@ -124,7 +130,39 @@ func (r *messageRepository) ListMessagesBySessionAfterTime(
 	return messages, nil
 }
 
-// UpdateMessage updates an existing message
+// ListMessagesBySessionAfterCursor uses a stable tie-breaker for memory paging.
+func (r *messageRepository) ListMessagesBySessionAfterCursor(ctx context.Context, sessionID string, cursor types.MemoryMessageCursor, limit int) ([]*types.Message, error) {
+	var messages []*types.Message
+	query := r.db.WithContext(ctx).Where("session_id = ?", sessionID)
+	if !cursor.At.IsZero() || cursor.ID != "" {
+		query = query.Where("created_at > ? OR (created_at = ? AND id > ?)", cursor.At, cursor.At, cursor.ID)
+	}
+	err := query.Order("created_at ASC, id ASC").Limit(limit).Find(&messages).Error
+	return messages, err
+}
+
+// ListMessagesBySessionUpTo returns every message of a session that sorts
+// strictly before the (boundary, boundaryID) cursor, oldest first.
+//
+// The cursor is composite rather than a bare timestamp because a fork boundary
+// must be reproducible: two messages written in the same millisecond are
+// ordered by ID, and the caller's boundary message must be excluded regardless
+// of how many peers share its timestamp.
+func (r *messageRepository) ListMessagesBySessionUpTo(
+	ctx context.Context, sessionID string, boundary time.Time, boundaryID string,
+) ([]*types.Message, error) {
+	var messages []*types.Message
+	if err := r.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Where("created_at < ? OR (created_at = ? AND id < ?)", boundary, boundary, boundaryID).
+		Order("created_at ASC, id ASC").
+		Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	return messages, nil
+}
+
+// UpdateMessage updates an existing message.
 func (r *messageRepository) UpdateMessage(ctx context.Context, message *types.Message) error {
 	return r.db.WithContext(ctx).Model(&types.Message{}).Where(
 		"id = ? AND session_id = ?", message.ID, message.SessionID,
@@ -169,12 +207,21 @@ func (r *messageRepository) GetMessageByRequestID(
 	return &message, nil
 }
 
-// SearchMessagesByKeyword searches messages by keyword (ILIKE) across sessions for a tenant
+// SearchMessagesByKeyword searches messages by keyword across sessions for a tenant
 func (r *messageRepository) SearchMessagesByKeyword(
 	ctx context.Context, tenantID uint64, ownerID, keyword string, sessionIDs []string, limit int,
 ) ([]*types.MessageWithSession, error) {
 	if limit <= 0 {
 		limit = 20
+	}
+
+	// ILIKE is Postgres-only; SQLite (Lite build) and MySQL lack the keyword,
+	// so mirror the session-list search with LOWER() on both sides. ESCAPE ?
+	// pairs with escapeLikeKeyword: SQLite has no default LIKE escape
+	// character, so without it \% and \_ would never match a literal wildcard.
+	contentLikeExpr := "LOWER(messages.content) LIKE LOWER(?) ESCAPE ?"
+	if r.db.Name() == "postgres" {
+		contentLikeExpr = "messages.content ILIKE ? ESCAPE ?"
 	}
 
 	var results []*types.MessageWithSession
@@ -185,7 +232,7 @@ func (r *messageRepository) SearchMessagesByKeyword(
 		Joins("INNER JOIN sessions ON sessions.id = messages.session_id AND sessions.deleted_at IS NULL").
 		Where("sessions.tenant_id = ?", tenantID).
 		Where("messages.deleted_at IS NULL").
-		Where("messages.content ILIKE ?", "%"+escapeLikeKeyword(keyword)+"%")
+		Where(contentLikeExpr, "%"+escapeLikeKeyword(keyword)+"%", likeEscapeChar)
 
 	// Matches the scoping used when listing sessions, including the legacy
 	// allowance for tenant-level sessions created before per-user ownership.
@@ -255,11 +302,12 @@ func (r *messageRepository) GetMessagesByKnowledgeIDs(
 	return results, nil
 }
 
-// GetMessagesByRequestIDs retrieves messages by their request IDs (used to fetch Q&A pair partners)
+// GetMessagesByRequestIDs retrieves messages by request ID inside one session
+// (used to fetch Q&A pair partners). Empty sessionID is treated as no match.
 func (r *messageRepository) GetMessagesByRequestIDs(
-	ctx context.Context, requestIDs []string,
+	ctx context.Context, sessionID string, requestIDs []string,
 ) ([]*types.MessageWithSession, error) {
-	if len(requestIDs) == 0 {
+	if sessionID == "" || len(requestIDs) == 0 {
 		return nil, nil
 	}
 	var results []*types.MessageWithSession
@@ -268,6 +316,7 @@ func (r *messageRepository) GetMessagesByRequestIDs(
 		Select("messages.*, sessions.title as session_title").
 		Joins("INNER JOIN sessions ON sessions.id = messages.session_id AND sessions.deleted_at IS NULL").
 		Where("messages.deleted_at IS NULL").
+		Where("messages.session_id = ?", sessionID).
 		Where("messages.request_id IN ?", requestIDs).
 		Find(&results).Error; err != nil {
 		return nil, err
@@ -357,6 +406,73 @@ func (r *messageRepository) GetSessionArtifacts(
 		result = append(result, row.Artifacts...)
 	}
 	return result, nil
+}
+
+// RewriteSandboxCheckpoints retargets copied checkpoints onto the forked
+// session's live sandbox. CommitSHA / CommittedAt are left untouched: the git
+// objects are in the snapshot, only the sandbox identity changed.
+func (r *messageRepository) RewriteSandboxCheckpoints(
+	ctx context.Context, sessionID, oldSandboxID, newSandboxID string,
+) error {
+	if sessionID == "" || oldSandboxID == "" || newSandboxID == "" || oldSandboxID == newSandboxID {
+		return nil
+	}
+	var messages []*types.Message
+	if err := r.db.WithContext(ctx).
+		Where("session_id = ?", sessionID).
+		Find(&messages).Error; err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if message == nil || message.SandboxCheckpoint == nil {
+			continue
+		}
+		if message.SandboxCheckpoint.SandboxID != oldSandboxID {
+			continue
+		}
+		updated := *message.SandboxCheckpoint
+		updated.SandboxID = newSandboxID
+		if err := r.db.WithContext(ctx).
+			Model(&types.Message{}).
+			Where("id = ? AND session_id = ?", message.ID, sessionID).
+			Update("sandbox_checkpoint", updated).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RecordRestoredArtifactMtime updates ModTime (and ContentHash) on artifacts
+// in this session whose source path matches a same-content sandbox restore.
+func (r *messageRepository) RecordRestoredArtifactMtime(
+	ctx context.Context, sessionID, sourcePath string, mod time.Time, hash string,
+) error {
+	if sessionID == "" || sourcePath == "" {
+		return nil
+	}
+	var messages []*types.Message
+	if err := r.db.WithContext(ctx).
+		Select("id", "session_id", "artifacts").
+		Where("session_id = ?", sessionID).
+		Find(&messages).Error; err != nil {
+		return err
+	}
+	for _, message := range messages {
+		if message == nil {
+			continue
+		}
+		updated, changed := message.Artifacts.WithRestoredMtime(sourcePath, mod, hash)
+		if !changed {
+			continue
+		}
+		if err := r.db.WithContext(ctx).
+			Model(&types.Message{}).
+			Where("id = ? AND session_id = ?", message.ID, sessionID).
+			Update("artifacts", updated).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetSessionAttachments returns every user-uploaded attachment in creation

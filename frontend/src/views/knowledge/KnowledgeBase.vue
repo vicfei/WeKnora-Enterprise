@@ -2,6 +2,10 @@
 import { ref, onMounted, onUnmounted, watch, reactive, computed, nextTick } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 import DocContent from "@/components/doc-content.vue";
+import KnowledgeTagFilter from './components/KnowledgeTagFilter.vue';
+import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
+import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
+import { tagTreeEnabled } from '@/features/common/flags';
 import useKnowledgeBase from '@/hooks/useKnowledgeBase';
 import { useRoute, useRouter } from 'vue-router';
 import EmptyKnowledge from '@/components/empty-knowledge.vue';
@@ -32,6 +36,8 @@ import {
   reparseKnowledge,
   cancelKnowledgeParse,
   batchDeleteKnowledge,
+  batchDownloadKnowledge,
+  delKnowledgeDetails,
   batchReparseKnowledge,
   getKnowledgeSpans,
   getKnowledgeDetails,
@@ -41,6 +47,8 @@ import {
   downKnowledgeDetails,
   type KnowledgeFolderTree,
 } from "@/api/knowledge-base/index";
+import { isBatchDownloadableKnowledge } from './knowledgeDownloadFileName';
+import { waitForKnowledgeDeletion } from '@/utils/knowledgeDeletion';
 import { knowledgeSpansPayloadHasTrace } from '@/utils/knowledgeTrace';
 import FAQEntryManager from './components/FAQEntryManager.vue';
 import DocumentListView from './components/DocumentListView.vue';
@@ -53,9 +61,6 @@ import BatchTagDialog from './components/BatchTagDialog.vue';
 import KbTagManageDrawer from './components/KbTagManageDrawer.vue';
 import type { KnowledgeProcessOverrides } from '@/types/knowledgeProcess';
 import { useUploadConfirmStore, type UploadConfirmResult } from '@/stores/uploadConfirm';
-import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
-import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
-import { tagTreeEnabled } from '@/features/common/flags';
 import WikiBrowser from './wiki/WikiBrowser.vue';
 import { getWikiStats } from '@/api/wiki';
 import {
@@ -335,7 +340,7 @@ const canDownloadKnowledge = computed(() => {
 });
 
 const knowledgeList = ref<Array<{ id: string; name: string; type?: string }>>([]);
-let { cardList, total, moreIndex, details, getKnowled, delKnowledge, openMore, onVisibleChange: _onVisibleChange, getCardDetails, getfDetails } = useKnowledgeBase(kbId.value)
+let { cardList, total, moreIndex, details, getKnowled, openMore, onVisibleChange: _onVisibleChange, getCardDetails, getfDetails } = useKnowledgeBase(kbId.value)
 
 const showKbDetailContextualGuide = computed(() => {
   return Boolean(kbId.value)
@@ -442,6 +447,67 @@ let lastSelectedIndex = -1;
 const batchDeleting = ref(false);
 const batchReparsing = ref(false);
 const batchTagging = ref(false);
+const batchDownloading = ref(false);
+let batchDownloadController: AbortController | undefined;
+
+const MAX_BATCH_DOWNLOAD_FILES = 200;
+const MAX_BATCH_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+
+const handleBatchDownload = async () => {
+  if (batchDownloading.value || batchDeleting.value || batchReparsing.value || batchTagging.value || selectedIds.value.size === 0) return;
+  const selected = Array.from(selectedIds.value);
+  const itemsById = new Map((cardList.value || []).map((item) => [item.id, item]));
+  const ids = selected.filter((id) => isBatchDownloadableKnowledge(itemsById.get(id)));
+  const skipped = selected.length - ids.length;
+  if (ids.length === 0) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadNoFiles'));
+    return;
+  }
+  if (ids.length > MAX_BATCH_DOWNLOAD_FILES) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadHint'));
+    return;
+  }
+  let knownBytes = 0;
+  for (const id of ids) {
+    const size = Number(itemsById.get(id)?.file_size);
+    if (Number.isFinite(size) && size > 0) knownBytes += size;
+  }
+  if (knownBytes > MAX_BATCH_DOWNLOAD_BYTES) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadTooLarge'));
+    return;
+  }
+  if (skipped > 0) {
+    MessagePlugin.warning(t('knowledgeBase.batchDownloadSkipped', { count: skipped }));
+  }
+  const controller = new AbortController();
+  batchDownloadController = controller;
+  batchDownloading.value = true;
+  try {
+    const blob = await batchDownloadKnowledge(kbId.value, ids, controller.signal);
+    if (controller.signal.aborted) return;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `knowledge-files-${Date.now()}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // 延迟释放，给浏览器留出开始保存文件的时间。
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    MessagePlugin.success(t('knowledgeBase.batchDownloadStarted'));
+  } catch (error: any) {
+    if (!controller.signal.aborted) {
+      MessagePlugin.error(error?.message || t('knowledgeBase.batchDownloadFailed'));
+    }
+  } finally {
+    if (batchDownloadController === controller) {
+      batchDownloading.value = false;
+      batchDownloadController = undefined;
+    }
+  }
+};
+watch(kbId, () => batchDownloadController?.abort());
+onUnmounted(() => batchDownloadController?.abort());
 const batchTagDialogVisible = ref(false);
 const batchTagPreSelectedIds = computed(() => {
   const ids = Array.from(selectedIds.value);
@@ -498,7 +564,7 @@ const awaitBatchReparseReflection = async (ids: string[]) => {
 };
 
 const confirmBatchReparse = async () => {
-  if (batchReparsing.value || batchDeleting.value || selectedIds.value.size === 0) return;
+  if (batchReparsing.value || batchDeleting.value || batchDownloading.value || selectedIds.value.size === 0) return;
   const allIds = Array.from(selectedIds.value);
   const ids = allIds.filter((id) => {
     const item = cardList.value.find((c) => c.id === id);
@@ -532,18 +598,8 @@ const confirmBatchReparse = async () => {
   }
 };
 
-const tagFilterPanelVisible = ref(false);
-const tagFilterTriggerHover = ref(false);
 const tagFilterCleared = ref(false);
 const tagManageDrawerVisible = ref(false);
-
-const showTagFilterClear = computed(
-  () => selectedTagIds.value.length > 0 && tagFilterTriggerHover.value,
-);
-
-const isTagFilterPlaceholder = computed(
-  () => selectedTagIds.value.length === 0 && tagFilterCleared.value,
-);
 
 const selectedTagIds = ref<string[]>([]);
 const tagList = ref<any[]>([]);
@@ -602,6 +658,7 @@ const sourceOptions = computed(() => [
   { label: t('knowledgeBase.channelFeishuDrive'), value: 'feishu_drive' },
   { label: t('knowledgeBase.channelNotion'), value: 'notion' },
   { label: t('knowledgeBase.channelYuque'), value: 'yuque' },
+  { label: t('knowledgeBase.channelConfluence'), value: 'confluence' },
   { label: t('knowledgeBase.channelGitLab'), value: 'gitlab' },
   { label: t('knowledgeBase.channelIma'), value: 'ima' },
   { label: t('knowledgeBase.channelWechat'), value: 'wechat' },
@@ -689,47 +746,6 @@ const tagMap = computed<Record<string, any>>(() => {
   });
   return map;
 });
-const sidebarCategoryCount = computed(() => tagTotal.value || tagList.value.length);
-const sidebarTags = computed(() => {
-  const list = tagList.value;
-  const selectedIds = selectedTagIds.value;
-  if (selectedIds.length === 0) {
-    return list;
-  }
-  const missing = selectedIds
-    .filter((id) => !list.some((tag) => tag.id === id))
-    .map((id) => tagMap.value[id])
-    .filter(Boolean);
-  if (missing.length === 0) {
-    return list;
-  }
-  return [...missing, ...list];
-});
-
-const activeTagFilterLabel = computed(() => {
-  if (selectedTagIds.value.length === 0) {
-    return tagFilterCleared.value
-      ? t('knowledgeBase.tagFilterPlaceholder')
-      : t('knowledgeBase.allTags');
-  }
-  if (selectedTagIds.value.length === 1) {
-    const id = selectedTagIds.value[0];
-    return tagMap.value[id]?.name || t('knowledgeBase.allTags');
-  }
-  return t('knowledgeBase.tagFilterMulti', { count: selectedTagIds.value.length });
-});
-
-const activeTagFilterTitle = computed(() => {
-  if (selectedTagIds.value.length === 0) {
-    return t('knowledgeBase.tagFilterTitle');
-  }
-  const names = selectedTagIds.value
-    .map((id) => tagMap.value[id]?.name)
-    .filter(Boolean);
-  return names.length > 0 ? names.join('、') : t('knowledgeBase.tagFilterTitle');
-});
-
-const isTagFilterActive = (tagId: string) => selectedTagIds.value.includes(tagId);
 
 // 标签编辑弹窗
 const tagEditDialogVisible = ref(false);
@@ -946,30 +962,8 @@ const handleTagFilterChange = (tagIds: string[]) => {
   resetPage();
 };
 
-const handleTagRowClick = (tagId: string) => {
-  const next = new Set(selectedTagIds.value);
-  if (next.has(tagId)) {
-    next.delete(tagId);
-  } else {
-    next.add(tagId);
-  }
-  if (next.size > 0) {
-    tagFilterCleared.value = false;
-  }
-  handleTagFilterChange([...next]);
-};
-
-const clearTagFilter = () => {
-  tagFilterCleared.value = true;
-  handleTagFilterChange([]);
-};
-
-const openTagManageDrawer = () => {
-  tagFilterPanelVisible.value = false;
-  tagManageDrawerVisible.value = true;
-};
-
-// 二开功能：层级标签浏览（feature flag 默认关闭，仅在筛选弹层内追加一个浏览区块）
+// 二开功能：层级标签浏览（feature flag 默认关闭；弹层由 KnowledgeTagFilter 渲染，
+// 树数据在 kbId 就绪时预载，量小且带防重）
 const tagTreeFeatureEnabled = computed(() => tagTreeEnabled());
 const tagTree = ref<TagTreeNode[]>([]);
 const tagTreeLoading = ref(false);
@@ -993,9 +987,15 @@ const loadTagTree = async () => {
   }
 };
 
-watch(tagFilterPanelVisible, (visible) => {
-  if (visible && tagTreeFeatureEnabled.value) loadTagTree();
-});
+watch([kbId, tagTreeFeatureEnabled], ([id, enabled], [prevId]) => {
+  if (id !== prevId) {
+    // 切换知识库：重置树缓存，避免显示上一个库的标签树
+    tagTree.value = [];
+    tagTreeLoaded.value = false;
+    tagTreeExpanded.value = new Set();
+  }
+  if (id && enabled) loadTagTree();
+}, { immediate: true });
 
 const toggleTagTreeExpand = (id: string) => {
   const next = new Set(tagTreeExpanded.value);
@@ -1025,6 +1025,10 @@ const handleTagTreeNodeClick = (node: TagTreeNode) => {
     tagFilterCleared.value = false;
   }
   handleTagFilterChange([...next]);
+};
+
+const openTagManageDrawer = () => {
+  tagManageDrawerVisible.value = true;
 };
 
 const openTagManageFromEditDialog = () => {
@@ -1501,20 +1505,7 @@ const closeCardMoreMenu = (index: number) => {
 
 const confirmDeleteKnowledge = (index: number, item: KnowledgeCard) => {
   closeCardMoreMenu(index);
-  const deletedId = item?.id;
-  delKnowledge(index, item, async () => {
-    resetPage();
-    const maxPolls = 30;
-    const delayMs = 400;
-    for (let i = 0; i < maxPolls; i++) {
-      await loadKnowledgeFiles(kbId.value);
-      const stillPresent = (cardList.value || []).some((c: KnowledgeCard) => c.id === deletedId);
-      if (!stillPresent) break;
-      await new Promise<void>((r) => setTimeout(r, delayMs));
-    }
-    loadTags(kbId.value, true);
-    void loadFolderTree(kbId.value);
-  });
+  void deleteKnowledgeDocuments([item.id], () => delKnowledgeDetails(item.id), false);
 };
 
 const onReparseMenuClick = (index: number, item: KnowledgeCard) => {
@@ -2133,7 +2124,7 @@ const {
   itemSelector: '.knowledge-card[data-select-id], .doc-list-row[data-select-id]',
   selectedIds,
   getItemId: (el) => el.dataset.selectId || null,
-  enabled: computed(() => canEdit.value && !isFAQ.value && cardList.value.length > 0),
+  enabled: computed(() => (canEdit.value || canDownloadKnowledge.value) && !isFAQ.value && cardList.value.length > 0),
   onSelectionStart: () => {
     batchMode.value = true;
   },
@@ -2154,41 +2145,87 @@ const openKnowledgeItem = (item: KnowledgeCard) => {
   openCardDetails(item);
 };
 
-const confirmBatchDelete = async () => {
-  if (batchDeleting.value || batchReparsing.value || selectedIds.value.size === 0) return;
-  const ids = Array.from(selectedIds.value);
-  const deletedIdSet = new Set(ids);
+// Stop observing a previous KB when navigating, including away and back.
+let deleteGeneration = 0;
+watch(kbId, () => {
+  deleteGeneration++;
+  batchDeleting.value = false;
+});
+onUnmounted(() => { deleteGeneration++; });
+
+const deleteKnowledgeDocuments = async (
+  ids: string[],
+  submit: () => Promise<any>,
+  batch: boolean,
+) => {
+  if (batchDeleting.value || batchReparsing.value || batchDownloading.value || ids.length === 0) return;
+  const targetKbId = kbId.value;
+  const generation = ++deleteGeneration;
+  const isActive = () => generation === deleteGeneration && isCurrentKb(targetKbId);
   batchDeleting.value = true;
+  let submitted = false;
   try {
-    const res: any = await batchDeleteKnowledge(kbId.value, ids);
-    if (res?.success) {
-      MessagePlugin.success(t('knowledgeBase.batchDeleteSuccess', { count: ids.length }));
+    const res = await submit();
+    if (!isActive()) return;
+    if (!res?.success) {
+      MessagePlugin.error(res?.message || t('knowledgeBase.batchDeleteFailed'));
+      return;
+    }
+    submitted = true;
+    MessagePlugin.info(t('knowledgeBase.deleteSubmitted'));
+    if (batch) {
       clearSelection();
       batchMode.value = false;
-      resetPage();
-      // 后端将批量删除放入异步队列，立刻拉列表仍可能包含待删项；短轮询直到列表与后端一致或超时
-      const maxPolls = 30;
-      const delayMs = 400;
-      for (let i = 0; i < maxPolls; i++) {
-        await loadKnowledgeFiles(kbId.value);
-        const stillPresent = (cardList.value || []).some((c: KnowledgeCard) => deletedIdSet.has(c.id));
-        if (!stillPresent) break;
-        await new Promise<void>((r) => setTimeout(r, delayMs));
-      }
-      loadTags(kbId.value, true);
-      void loadFolderTree(kbId.value);
+    }
+    const result = await waitForKnowledgeDeletion(
+      ids,
+      async (queryIds) => {
+        const query = new URLSearchParams();
+        queryIds.forEach(id => query.append('ids', id));
+        return await batchQueryKnowledge(query.toString(), targetKbId) as any;
+      },
+      { isActive },
+    );
+    if (!isActive() || result === 'cancelled') return;
+    if (result === 'completed') {
+      MessagePlugin.success(batch
+        ? t('knowledgeBase.batchDeleteSuccess', { count: ids.length })
+        : t('knowledgeBase.deleteSuccess'));
+    } else if (result === 'failed') {
+      MessagePlugin.error(t('knowledgeBase.deleteTaskFailed'));
     } else {
-      MessagePlugin.error(res?.message || t('knowledgeBase.batchDeleteFailed'));
+      MessagePlugin.info(t('knowledgeBase.deletePending'));
     }
   } catch (e: any) {
-    MessagePlugin.error(e?.message || t('knowledgeBase.batchDeleteFailed'));
+    if (!isActive()) return;
+    if (submitted) {
+      MessagePlugin.warning(t('knowledgeBase.deleteStatusUnavailable'));
+    } else {
+      MessagePlugin.error(e?.message || t('knowledgeBase.batchDeleteFailed'));
+    }
   } finally {
-    batchDeleting.value = false;
+    if (isActive()) {
+      batchDeleting.value = false;
+      if (submitted) {
+        resetPage();
+        await loadKnowledgeFiles(targetKbId);
+        if (isActive()) {
+          void loadTags(targetKbId, true);
+          void loadFolderTree(targetKbId);
+        }
+      }
+    }
   }
 };
 
+const confirmBatchDelete = () => {
+  const targetKbId = kbId.value;
+  const ids = Array.from(selectedIds.value);
+  return deleteKnowledgeDocuments(ids, () => batchDeleteKnowledge(targetKbId, ids), true);
+};
+
 const handleBatchTag = () => {
-  if (batchDeleting.value || batchReparsing.value || batchTagging.value || selectedIds.value.size === 0) return;
+  if (batchDeleting.value || batchReparsing.value || batchTagging.value || batchDownloading.value || selectedIds.value.size === 0) return;
   batchTagDialogVisible.value = true;
 };
 
@@ -2488,133 +2525,47 @@ async function createNewSession(value: string): Promise<void> {
                   </template>
                 </t-input>
                 <div class="doc-filter-bar__filters">
-                <t-popup v-model:visible="tagFilterPanelVisible" trigger="click" placement="bottom-left"
-                  overlay-class-name="tag-filter-popup" :overlay-inner-style="{ padding: 0 }">
-                  <template #content>
-                    <div class="tag-filter-panel" @click.stop>
-                      <div class="tag-filter-panel__header">
-                        <div class="tag-filter-panel__title">
-                          <span>{{ $t('knowledgeBase.tagFilterTitle') }}</span>
-                          <span class="tag-filter-panel__count">({{ sidebarCategoryCount }})</span>
-                        </div>
-                      </div>
-                      <div class="tag-search-bar">
-                        <t-input v-model.trim="tagSearchQuery" size="small"
-                          :placeholder="$t('knowledgeBase.tagSearchPlaceholder')" clearable>
-                          <template #prefix-icon>
-                            <t-icon name="search" size="14px" />
-                          </template>
-                        </t-input>
-                      </div>
-                      <div class="tag-filter-panel__body">
-                        <template v-if="tagLoading && !sidebarTags.length">
-                          <div class="tag-filter-chips">
-                            <div v-for="n in 8" :key="'skel-tag-' + n" class="tag-filter-chip-skeleton">
-                              <t-skeleton animation="gradient"
-                                :row-col="[{ width: '56px', height: '24px', type: 'rect' }]" />
-                            </div>
-                          </div>
-                        </template>
-                        <template v-else>
-                          <div class="tag-filter-chips">
-                            <button
-                              v-for="tag in sidebarTags"
-                              :key="tag.id"
-                              type="button"
-                              class="tag-filter-chip"
-                              :class="{ active: isTagFilterActive(tag.id) }"
-                              :title="`${tag.name} (${tag.knowledge_count || 0})`"
-                              @click="handleTagRowClick(tag.id)"
-                            >
-                              <span class="tag-filter-chip__label">{{ tag.name }}</span>
-                              <span class="tag-filter-chip__count">{{ tag.knowledge_count || 0 }}</span>
-                            </button>
-                          </div>
-                          <div v-if="!sidebarTags.length" class="tag-empty-state">
-                            {{ $t('knowledgeBase.tagEmptyResult') }}
-                          </div>
-                          <div v-if="tagHasMore" class="tag-load-more">
-                            <t-button variant="text" size="small" :loading="tagLoadingMore"
-                              @click.stop="kbId && loadTags(kbId)">
-                              {{ $t('tenant.loadMore') }}
-                            </t-button>
-                          </div>
-                        </template>
-                        <!-- 二开功能：层级标签浏览（feature flag 默认关闭） -->
-                        <template v-if="tagTreeFeatureEnabled && tagTreeLoading">
-                          <div class="tag-tree-browse tag-tree-browse--loading">
-                            <t-loading size="small" />
-                          </div>
-                        </template>
-                        <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0">
-                          <div class="tag-filter-panel__divider"></div>
-                          <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
-                          <div class="tag-tree-browse">
-                            <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
-                              :class="{
-                                'is-selected': isTagTreeNodeSelected(row.node),
-                                'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
-                              }"
-                              :style="{ '--tag-tree-browse-depth': row.depth }"
-                              :title="tagTreeNodeLeafIds(row.node).length === 0
-                                ? $t('tagTreePicker.noLeaves')
-                                : row.node.path"
-                              @click="handleTagTreeNodeClick(row.node)">
-                              <button type="button" class="tag-tree-browse__caret"
-                                :class="{ invisible: !row.hasChildren }"
-                                :aria-expanded="tagTreeExpanded.has(row.node.id)"
-                                @click.stop="toggleTagTreeExpand(row.node.id)">
-                                <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
-                                  size="13px" />
-                              </button>
-                              <span class="tag-tree-browse__name">{{ row.node.name }}</span>
-                              <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
-                                class="tag-tree-browse__count">
-                                {{ tagTreeNodeLeafIds(row.node).length }}
-                              </span>
-                            </div>
-                          </div>
-                        </template>
-                      </div>
-                      <div v-if="canEdit" class="tag-filter-panel__footer">
-                        <t-button variant="text" size="small" class="tag-manage-link" @click="openTagManageDrawer">
-                          {{ $t('knowledgeBase.tagManageLink') }}
-                        </t-button>
+                <KnowledgeTagFilter v-model:search="tagSearchQuery" v-model:cleared="tagFilterCleared"
+                  :tags="tagList" :selected-ids="selectedTagIds" :total="tagTotal"
+                  :loading="tagLoading" :loading-more="tagLoadingMore" :has-more="tagHasMore"
+                  :can-manage="canEdit" variant="documents" @change="handleTagFilterChange"
+                  @load-more="kbId && loadTags(kbId)" @manage="openTagManageDrawer">
+                  <!-- 二开功能：层级标签浏览（feature flag 默认关闭） -->
+                  <template v-if="tagTreeFeatureEnabled && tagTreeLoading" #browse>
+                    <div class="tag-tree-browse tag-tree-browse--loading">
+                      <t-loading size="small" />
+                    </div>
+                  </template>
+                  <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0" #browse>
+                    <div class="tag-filter-panel__divider"></div>
+                    <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
+                    <div class="tag-tree-browse">
+                      <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
+                        :class="{
+                          'is-selected': isTagTreeNodeSelected(row.node),
+                          'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
+                        }"
+                        :style="{ '--tag-tree-browse-depth': row.depth }"
+                        :title="tagTreeNodeLeafIds(row.node).length === 0
+                          ? $t('tagTreePicker.noLeaves')
+                          : row.node.path"
+                        @click="handleTagTreeNodeClick(row.node)">
+                        <button type="button" class="tag-tree-browse__caret"
+                          :class="{ invisible: !row.hasChildren }"
+                          :aria-expanded="tagTreeExpanded.has(row.node.id)"
+                          @click.stop="toggleTagTreeExpand(row.node.id)">
+                          <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
+                            size="13px" />
+                        </button>
+                        <span class="tag-tree-browse__name">{{ row.node.name }}</span>
+                        <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
+                          class="tag-tree-browse__count">
+                          {{ tagTreeNodeLeafIds(row.node).length }}
+                        </span>
                       </div>
                     </div>
                   </template>
-                  <div class="doc-filter-field">
-                    <button type="button" class="doc-tag-filter-trigger doc-filter-field__control"
-                      :class="{ open: tagFilterPanelVisible, 'is-placeholder': isTagFilterPlaceholder }"
-                      :aria-label="$t('knowledgeBase.tagFilterTitle')"
-                      :title="activeTagFilterTitle"
-                      @mouseenter="tagFilterTriggerHover = true"
-                      @mouseleave="tagFilterTriggerHover = false">
-                      <span class="doc-tag-filter-trigger__prefix" aria-hidden="true">
-                        <t-icon name="discount" size="16px" />
-                      </span>
-                      <span class="doc-tag-filter-trigger__label">{{ activeTagFilterLabel }}</span>
-                      <span class="doc-tag-filter-trigger__suffix">
-                        <span
-                          v-if="showTagFilterClear"
-                          class="t-input__suffix t-input__suffix-icon t-input__clear"
-                          :aria-label="$t('common.clear')"
-                          @click.stop="clearTagFilter"
-                          @mousedown.stop
-                        >
-                          <t-icon name="close-circle-filled" class="t-input__suffix-clear" />
-                        </span>
-                        <t-icon
-                          v-else
-                          name="chevron-down"
-                          size="16px"
-                          class="doc-tag-filter-trigger__caret"
-                          :class="{ open: tagFilterPanelVisible }"
-                        />
-                      </span>
-                    </button>
-                  </div>
-                </t-popup>
+                </KnowledgeTagFilter>
                 <div class="doc-filter-field">
                   <t-select v-model="selectedFileType" :options="fileTypeOptions"
                     :placeholder="$t('knowledgeBase.fileTypeFilter')" class="doc-type-select doc-filter-field__control"
@@ -2654,6 +2605,12 @@ async function createNewSession(value: string): Promise<void> {
                 </div>
                 </div>
                 <div class="doc-filter-bar__trailing">
+                  <t-button v-if="(canDownloadKnowledge || canMutateKnowledge) && cardList.length"
+                    variant="outline" size="small"
+                    :disabled="batchDeleting || batchReparsing || batchTagging || batchDownloading"
+                    @click="toggleBatchMode">
+                    {{ $t(batchMode ? 'knowledgeBase.clearSelection' : 'menu.batchManage') }}
+                  </t-button>
                   <div class="doc-view-toggle" role="group" :aria-label="$t('knowledgeBase.viewModeToggle')">
                     <t-tooltip :content="$t('knowledgeBase.viewModeGrid')" placement="top">
                       <button type="button" class="doc-view-toggle-btn" :class="{ active: viewMode === 'grid' }"
@@ -2770,10 +2727,12 @@ async function createNewSession(value: string): Promise<void> {
               </div>
               <div class="doc-batch-bar-anchor" v-show="batchMode || selectedIds.size > 0">
                 <DocumentBatchBar :count="selectedIds.size" :delete-loading="batchDeleting"
-                  :reparse-loading="batchReparsing" :tag-loading="batchTagging" :visible="batchMode || selectedIds.size > 0"
+                  :reparse-loading="batchReparsing" :tag-loading="batchTagging" :download-loading="batchDownloading"
+                  :can-download="canDownloadKnowledge" :can-mutate="canMutateKnowledge"
+                  :visible="batchMode || selectedIds.size > 0"
                   :show-move-to-folder="canEdit" :folder-options="folderOptions"
                   @cancel="handleBatchCancel" @delete="confirmBatchDelete" @reparse="confirmBatchReparse"
-                  @batch-tag="handleBatchTag"
+                  @batch-tag="handleBatchTag" @download="handleBatchDownload" @select-loaded="toggleSelectAll(true)"
                   @move-to-folder="(path: string) => moveKnowledgeIntoFolder(Array.from(selectedIds), path)" />
               </div>
             </div>
@@ -2826,20 +2785,6 @@ async function createNewSession(value: string): Promise<void> {
 </template>
 <style>
 /* 下拉菜单容器样式已统一至 @/assets/dropdown-menu.less */
-.tag-filter-popup {
-  z-index: 5500 !important;
-}
-
-.tag-filter-popup .t-popup__content {
-  padding: 0 !important;
-  border-radius: 8px !important;
-  background: var(--td-bg-color-container) !important;
-  border: 0.5px solid var(--td-component-stroke) !important;
-  box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.03),
-    0 2px 4px rgba(0, 0, 0, 0.04),
-    0 8px 24px rgba(0, 0, 0, 0.1) !important;
-}
 
 .tag-more-popup .tag-menu {
   display: flex;
@@ -2851,16 +2796,16 @@ async function createNewSession(value: string): Promise<void> {
   align-items: center;
   padding: 8px 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--app-motion-base) ease;
   color: var(--td-text-color-primary);
   font-family: var(--app-font-family);
-  font-size: 14px;
+  font-size: var(--app-text-base);
   font-weight: 400;
 }
 
 .tag-more-popup .tag-menu-item .menu-icon {
   margin-right: 8px;
-  font-size: 16px;
+  font-size: var(--app-text-xl);
 }
 
 .tag-more-popup .tag-menu-item:hover {
@@ -2887,7 +2832,7 @@ async function createNewSession(value: string): Promise<void> {
   cursor: pointer;
   color: var(--td-text-color-placeholder);
   font-weight: 400;
-  transition: color 0.15s;
+  transition: color var(--app-motion-fast);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2910,7 +2855,7 @@ async function createNewSession(value: string): Promise<void> {
   display: inline-flex;
   align-items: center;
   color: var(--td-brand-color);
-  font-size: 12px;
+  font-size: var(--app-text-sm);
   line-height: 1;
 }
 
@@ -2936,306 +2881,6 @@ async function createNewSession(value: string): Promise<void> {
 }
 
 // 标签筛选浮层：点击工具栏入口展开，不占文档列表横向空间
-.tag-filter-panel {
-  width: 320px;
-  max-width: min(320px, calc(100vw - 32px));
-  max-height: min(70vh, 480px);
-  display: flex;
-  flex-direction: column;
-  padding: 12px 14px;
-  box-sizing: border-box;
-  font-size: 12px;
-  color: var(--td-text-color-primary);
-
-  .tag-filter-panel__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    padding: 0;
-    color: var(--td-text-color-primary);
-  }
-
-  .tag-filter-panel__title {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
-
-  .tag-filter-panel__count {
-    font-size: 12px;
-    color: var(--td-text-color-placeholder);
-    font-weight: 400;
-  }
-
-  .tag-search-bar {
-    margin-bottom: 10px;
-    padding: 0;
-
-    :deep(.t-input) {
-      font-size: 13px;
-      background-color: var(--td-bg-color-secondarycontainer);
-      border-color: transparent;
-      border-radius: 6px;
-      box-shadow: none !important;
-
-      &:hover,
-      &:focus,
-      &.t-is-focused {
-        border-color: var(--td-component-border);
-        background-color: var(--td-bg-color-container);
-        box-shadow: none !important;
-      }
-    }
-
-    :deep(.t-input__inner) {
-      font-size: 13px;
-    }
-
-    :deep(.t-input__prefix-icon) {
-      margin-right: 0;
-    }
-  }
-
-  .tag-filter-panel__body {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: thin;
-
-    &::-webkit-scrollbar {
-      width: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-      border-radius: 2px;
-      background: var(--td-scrollbar-color);
-    }
-  }
-
-  .tag-filter-chips {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 6px;
-  }
-
-  .tag-filter-chip-skeleton {
-    flex-shrink: 0;
-  }
-
-  .tag-filter-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    box-sizing: border-box;
-    max-width: 100%;
-    height: 24px;
-    padding: 0 8px;
-    border: 1px solid var(--td-component-stroke);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--td-text-color-secondary);
-    font-family: var(--app-font-family);
-    font-size: 11px;
-    font-weight: 400;
-    line-height: 24px;
-    cursor: pointer;
-    outline: none;
-    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-    -webkit-font-smoothing: antialiased;
-
-    &:hover:not(.active) {
-      border-color: var(--td-component-border);
-      background: var(--td-bg-color-secondarycontainer);
-      color: var(--td-text-color-primary);
-    }
-
-    &:focus-visible {
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--td-component-stroke) 60%, transparent);
-    }
-
-    &.active {
-      border-color: color-mix(in srgb, var(--td-brand-color) 35%, var(--td-component-stroke));
-      color: var(--td-brand-color);
-      font-weight: 500;
-      background-color: color-mix(in srgb, var(--td-brand-color) 6%, transparent);
-
-      .tag-filter-chip__count {
-        color: color-mix(in srgb, var(--td-brand-color) 72%, var(--td-text-color-secondary));
-      }
-
-      &:hover {
-        background-color: color-mix(in srgb, var(--td-brand-color) 10%, transparent);
-      }
-    }
-  }
-
-  .tag-filter-chip__label {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 120px;
-  }
-
-  .tag-filter-chip__count {
-    flex-shrink: 0;
-    font-size: 10px;
-    font-weight: 400;
-    font-variant-numeric: tabular-nums;
-    color: var(--td-text-color-placeholder);
-
-    &::before {
-      content: '·';
-      margin-right: 2px;
-      opacity: 0.65;
-    }
-  }
-
-  .tag-filter-panel__footer {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--td-component-stroke);
-    display: flex;
-    justify-content: flex-start;
-
-    :deep(.tag-manage-link.t-button) {
-      padding: 0;
-      height: auto;
-      min-height: 0;
-      font-size: 13px;
-      color: var(--td-text-color-secondary);
-      border: none !important;
-      background: transparent !important;
-      box-shadow: none !important;
-      transition: color 0.15s ease;
-
-      &:hover,
-      &:focus-visible {
-        color: var(--td-brand-color) !important;
-        background: transparent !important;
-        border-color: transparent !important;
-        text-decoration: none;
-      }
-    }
-  }
-
-  .tag-load-more {
-    display: flex;
-    justify-content: center;
-    padding-top: 2px;
-
-    :deep(.t-button) {
-      padding: 0;
-      font-size: 12px;
-      color: var(--td-text-color-placeholder);
-    }
-  }
-
-  .tag-empty-state {
-    text-align: center;
-    padding: 6px 0;
-    color: var(--td-text-color-placeholder);
-    font-size: 12px;
-  }
-
-  // 二开功能：层级标签浏览区块
-  .tag-filter-panel__divider {
-    height: 1px;
-    margin: 10px 0 6px;
-    background: var(--td-component-stroke);
-  }
-
-  .tag-filter-panel__subtitle {
-    font-size: 12px;
-    color: var(--td-text-color-secondary);
-    margin-bottom: 4px;
-  }
-
-  .tag-tree-browse {
-    max-height: 180px;
-    overflow: auto;
-    padding: 2px;
-
-    &--loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 48px;
-    }
-
-    .tag-tree-browse__row {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 6px;
-      border-radius: var(--td-radius-default);
-      margin-left: calc(var(--tag-tree-browse-depth, 0) * 16px);
-      cursor: pointer;
-      user-select: none;
-
-      &:hover {
-        background: var(--td-bg-color-container-hover);
-      }
-
-      &.is-selected {
-        .tag-tree-browse__name {
-          color: var(--td-brand-color);
-          font-weight: 500;
-        }
-      }
-
-      &.is-disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-
-        &:hover {
-          background: transparent;
-        }
-      }
-    }
-
-    .tag-tree-browse__caret {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;
-      height: 16px;
-      border: none;
-      background: transparent;
-      color: var(--td-text-color-secondary);
-      padding: 0;
-      cursor: pointer;
-
-      &.invisible {
-        visibility: hidden;
-      }
-    }
-
-    .tag-tree-browse__name {
-      font-size: 12px;
-      color: var(--td-text-color-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 180px;
-    }
-
-    .tag-tree-browse__count {
-      margin-left: auto;
-      font-size: 11px;
-      color: var(--td-text-color-placeholder);
-    }
-  }
-}
 
 .tag-content {
   flex: 1;
@@ -3280,11 +2925,11 @@ async function createNewSession(value: string): Promise<void> {
     margin-right: 4px;
     padding: 0;
     border: 1px solid var(--td-component-border);
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     background: var(--td-bg-color-container);
     color: var(--td-text-color-secondary);
     cursor: pointer;
-    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    transition: border-color var(--app-motion-fast) ease, color var(--app-motion-fast) ease, background var(--app-motion-fast) ease;
 
     &:hover {
       border-color: var(--td-brand-color);
@@ -3297,17 +2942,17 @@ async function createNewSession(value: string): Promise<void> {
     max-width: 220px;
     padding: 2px 4px;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--app-radius-xs);
     background: transparent;
     color: var(--td-text-color-secondary);
     font-family: var(--app-font-family);
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     line-height: 18px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
-    transition: color 0.15s ease, background 0.15s ease;
+    transition: color var(--app-motion-fast) ease, background var(--app-motion-fast) ease;
 
     &:hover {
       color: var(--td-brand-color);
@@ -3328,7 +2973,7 @@ async function createNewSession(value: string): Promise<void> {
 
   &__sep {
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     color: var(--td-text-color-placeholder);
   }
 }
@@ -3410,77 +3055,6 @@ async function createNewSession(value: string): Promise<void> {
     }
   }
 
-  .doc-tag-filter-trigger {
-    display: inline-flex;
-    align-items: center;
-    box-sizing: border-box;
-    width: 100%;
-    height: 32px;
-    padding: 0 8px;
-    border: 1px solid transparent;
-    border-radius: var(--td-radius-default);
-    background: var(--td-bg-color-secondarycontainer);
-    color: var(--td-text-color-primary);
-    font-family: var(--app-font-family);
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
-
-    &:hover,
-    &.open {
-      background: var(--td-bg-color-secondarycontainer);
-      border-color: transparent;
-    }
-
-    &.is-placeholder {
-      color: var(--td-text-color-placeholder);
-    }
-
-    &__prefix {
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      margin-right: var(--td-comp-margin-s);
-      color: var(--td-text-color-placeholder);
-    }
-
-    &__label {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      text-align: left;
-    }
-
-    &__suffix {
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      margin-left: var(--td-comp-margin-s);
-
-      :deep(.t-input__suffix) {
-        margin-left: 0;
-      }
-
-      :deep(.t-input__suffix-clear) {
-        font-size: 16px;
-      }
-    }
-
-    &__caret {
-      flex-shrink: 0;
-      color: var(--td-text-color-placeholder);
-      transition: transform 0.2s ease, color 0.2s ease;
-
-      &.open {
-        color: var(--td-brand-color);
-        transform: rotate(180deg);
-      }
-    }
-  }
-
   @media (min-width: 1280px) {
     .doc-search-input {
       flex: 1 1 220px;
@@ -3509,7 +3083,7 @@ async function createNewSession(value: string): Promise<void> {
     align-items: center;
     padding: 2px;
     background: var(--td-bg-color-secondarycontainer);
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     gap: 0;
 
     .doc-view-toggle-btn {
@@ -3520,18 +3094,18 @@ async function createNewSession(value: string): Promise<void> {
       justify-content: center;
       border: 0;
       background: transparent;
-      border-radius: 4px;
-      color: var(--td-text-color-secondary, #888);
+      border-radius: var(--app-radius-xs);
+      color: var(--td-text-color-secondary);
       cursor: pointer;
-      transition: background-color 0.12s ease, color 0.12s ease;
+      transition: background-color var(--app-motion-instant) ease, color var(--app-motion-instant) ease;
 
       &:hover {
-        color: var(--td-text-color-primary, #232323);
+        color: var(--td-text-color-primary);
       }
 
       &.active {
-        background: var(--td-bg-color-container, #fff);
-        color: var(--td-brand-color, #0052d9);
+        background: var(--td-bg-color-container);
+        color: var(--td-brand-color);
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
       }
     }
@@ -3553,10 +3127,10 @@ async function createNewSession(value: string): Promise<void> {
   }
 
   :deep(.t-input) {
-    font-size: 13px;
+    font-size: var(--app-text-md);
     background-color: var(--td-bg-color-secondarycontainer);
     border-color: transparent;
-    border-radius: 6px;
+    border-radius: var(--app-radius-sm);
     box-shadow: none !important;
 
     &:hover,
@@ -3570,10 +3144,10 @@ async function createNewSession(value: string): Promise<void> {
 
   :deep(.t-select) {
     .t-input {
-      font-size: 13px;
+      font-size: var(--app-text-md);
       background-color: var(--td-bg-color-secondarycontainer);
       border-color: transparent;
-      border-radius: 6px;
+      border-radius: var(--app-radius-sm);
       box-shadow: none !important;
 
       &:hover,
@@ -3677,7 +3251,7 @@ async function createNewSession(value: string): Promise<void> {
     align-items: center;
     gap: 6px;
     margin: 0;
-    font-size: 20px;
+    font-size: var(--app-text-3xl);
     font-weight: 600;
     color: var(--td-text-color-primary);
   }
@@ -3693,8 +3267,8 @@ async function createNewSession(value: string): Promise<void> {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    border-radius: 6px;
-    transition: all 0.12s ease;
+    border-radius: var(--app-radius-sm);
+    transition: all var(--app-motion-instant) ease;
 
     &:hover:not(:disabled) {
       color: var(--td-success-color);
@@ -3710,8 +3284,8 @@ async function createNewSession(value: string): Promise<void> {
       padding-right: 6px;
 
       :deep(.t-icon) {
-        font-size: 14px;
-        transition: transform 0.12s ease;
+        font-size: var(--app-text-base);
+        transition: transform var(--app-motion-instant) ease;
       }
 
       &:hover:not(:disabled) {
@@ -3723,7 +3297,7 @@ async function createNewSession(value: string): Promise<void> {
   }
 
   .breadcrumb-separator {
-    font-size: 14px;
+    font-size: var(--app-text-base);
     color: var(--td-text-color-placeholder);
   }
 
@@ -3736,7 +3310,7 @@ async function createNewSession(value: string): Promise<void> {
     margin: 0;
     color: var(--td-text-color-primary);
     font-family: var(--app-font-family);
-    font-size: 24px;
+    font-size: var(--app-text-4xl);
     font-weight: 600;
     line-height: 32px;
   }
@@ -3745,7 +3319,7 @@ async function createNewSession(value: string): Promise<void> {
     margin: 0;
     color: var(--td-text-color-placeholder);
     font-family: var(--app-font-family);
-    font-size: 14px;
+    font-size: var(--app-text-base);
     font-weight: 400;
     line-height: 20px;
   }
@@ -3756,10 +3330,10 @@ async function createNewSession(value: string): Promise<void> {
     gap: 4px;
     margin: 2px 0 0;
     color: var(--td-warning-color);
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     line-height: 1.4;
     cursor: pointer;
-    transition: color 0.15s ease;
+    transition: color var(--app-motion-fast) ease;
 
     &:hover {
       color: var(--td-warning-color-active);
@@ -3770,7 +3344,7 @@ async function createNewSession(value: string): Promise<void> {
     }
 
     .parser-hint-icon {
-      font-size: 12px;
+      font-size: var(--app-text-sm);
       flex-shrink: 0;
     }
 
@@ -3787,10 +3361,10 @@ async function createNewSession(value: string): Promise<void> {
     gap: 4px;
     margin: 2px 0 0;
     color: var(--td-warning-color);
-    font-size: 12px;
+    font-size: var(--app-text-sm);
     line-height: 1.4;
     cursor: pointer;
-    transition: color 0.15s ease;
+    transition: color var(--app-motion-fast) ease;
 
     &:hover {
       color: var(--td-warning-color-active);
@@ -3801,7 +3375,7 @@ async function createNewSession(value: string): Promise<void> {
     }
 
     .warning-icon {
-      font-size: 12px;
+      font-size: var(--app-text-sm);
       flex-shrink: 0;
     }
 
@@ -3829,7 +3403,7 @@ async function createNewSession(value: string): Promise<void> {
   justify-content: center;
   color: var(--td-text-color-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--app-motion-base) ease;
   padding: 0;
 
   &:hover:not(:disabled) {
@@ -3844,119 +3418,8 @@ async function createNewSession(value: string): Promise<void> {
   }
 
   :deep(.t-icon) {
-    font-size: 18px;
+    font-size: var(--app-text-2xl);
   }
-}
-
-.tag-filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .tag-filter-label {
-    color: var(--td-text-color-placeholder);
-    font-size: 14px;
-  }
-}
-
-.card-tag-selector {
-  display: flex;
-  align-items: center;
-
-  .card-tag-chips {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: nowrap;
-    cursor: pointer;
-  }
-
-  .card-tag-overflow {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 18px;
-    min-width: 18px;
-    padding: 0 5px;
-    border-radius: 999px;
-    border: 1px solid var(--td-component-stroke);
-    color: var(--td-text-color-placeholder);
-    font-size: 10px;
-    line-height: 1;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    &:hover {
-      border-color: var(--td-brand-color);
-      color: var(--td-brand-color);
-      background: var(--td-bg-color-secondarycontainer);
-    }
-  }
-
-  :deep(.t-tag) {
-    cursor: pointer;
-    max-width: 120px;
-    height: 18px;
-    line-height: 18px;
-    border-radius: 999px;
-    border-color: var(--td-component-stroke);
-    color: var(--td-text-color-secondary);
-    padding: 0 6px;
-    background: transparent;
-    transition: all 0.2s ease;
-
-    &:hover {
-      border-color: var(--td-brand-color);
-      color: var(--td-brand-color-active);
-      background: var(--td-bg-color-secondarycontainer);
-    }
-  }
-
-  .tag-text {
-    display: inline-block;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: middle;
-    font-size: 11px;
-  }
-
-  .card-tag-add {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 999px;
-    border: 1px dashed var(--td-component-stroke);
-    color: var(--td-text-color-placeholder);
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-
-    .t-icon {
-      font-size: 12px;
-    }
-
-    &:hover {
-      border-color: var(--td-brand-color);
-      color: var(--td-brand-color-active);
-      background: var(--td-bg-color-secondarycontainer);
-      border-style: solid;
-    }
-  }
-}
-
-
-.card-bottom-right {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  overflow: hidden;
 }
 
 .faq-manager-wrapper {
@@ -4072,252 +3535,20 @@ async function createNewSession(value: string): Promise<void> {
   min-height: 100%;
 }
 
-
-.card-menu {
-  display: flex;
-  flex-direction: column;
-  min-width: 140px;
-  gap: 1px;
-}
-
-.card-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  cursor: pointer;
-  color: var(--td-text-color-primary);
-  transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
-  border-radius: 6px;
-  font-size: 14px;
-  line-height: 20px;
-
-  &:hover {
-    background: var(--td-bg-color-container-hover);
-  }
-
-  &:active {
-    background: var(--td-bg-color-container-active);
-    transform: scale(0.98);
-  }
-
-  .icon {
-    font-size: 16px;
-    color: var(--td-text-color-secondary);
-    transition: all 0.15s cubic-bezier(0.2, 0, 0, 1);
-  }
-
-  &:hover .icon {
-    color: var(--td-text-color-primary);
-  }
-
-  &.danger {
-    color: var(--td-error-color-6);
-    margin-top: 4px;
-    position: relative;
-
-    &::before {
-      content: '';
-      position: absolute;
-      top: -3px;
-      left: 8px;
-      right: 8px;
-      height: 1px;
-      background: var(--td-component-stroke);
-    }
-
-    .icon {
-      color: var(--td-error-color-6);
-    }
-
-    &:hover {
-      background: var(--td-error-color-1);
-      color: var(--td-error-color-6);
-
-      .icon {
-        color: var(--td-error-color-6);
-      }
-    }
-
-    &:active {
-      background: var(--td-error-color-2);
-    }
-  }
-}
-
-.move-menu {
-  min-width: 220px;
-  max-width: 280px;
-  max-height: 360px;
-  overflow-y: auto;
-
-  .move-menu-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--td-text-color-primary);
-    border-bottom: 1px solid var(--td-component-stroke);
-    cursor: pointer;
-
-    &:hover {
-      background: var(--td-bg-color-container-hover);
-    }
-  }
-
-  .move-menu-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px 0;
-  }
-
-  .move-menu-empty {
-    padding: 12px 16px;
-    font-size: 12px;
-    color: var(--td-text-color-placeholder);
-    text-align: center;
-    line-height: 1.5;
-  }
-
-  .move-target-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .move-target-count {
-    font-size: 12px;
-    color: var(--td-text-color-placeholder);
-  }
-
-  .move-confirm-body {
-    padding: 8px;
-
-    .move-target-info {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
-      background: var(--td-bg-color-container-hover);
-      border-radius: 6px;
-      font-size: 13px;
-      color: var(--td-text-color-secondary);
-      margin-bottom: 8px;
-    }
-
-    .move-mode-item {
-      display: flex;
-      align-items: flex-start;
-      gap: 6px;
-      padding: 6px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-bottom: 4px;
-
-      &:hover {
-        background: var(--td-bg-color-container-hover);
-      }
-
-      &.active {
-        background: var(--td-brand-color-light);
-      }
-
-      .move-mode-text {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-
-        .move-mode-label {
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--td-text-color-primary);
-        }
-
-        .move-mode-desc {
-          font-size: 11px;
-          color: var(--td-text-color-placeholder);
-          line-height: 1.4;
-        }
-      }
-    }
-
-    .move-confirm-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 8px;
-    }
-  }
-}
-
-.card-draft {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  flex-shrink: 0;
-}
-
-.card-draft-tip {
-  color: var(--td-warning-color);
-  font-size: 11px;
-}
-
 .knowledge-card {
   min-width: 240px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--td-component-border);
   height: 136px;
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   overflow: hidden;
   box-sizing: border-box;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   background: var(--td-bg-color-container);
   position: relative;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-
-  /* 仅在批量管理模式下渲染 checkbox，常态下不占位，避免标题在 hover 时右滑 */
-  .card-nav-check {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 29px;
-    margin-right: 8px;
-    cursor: pointer;
-
-    .card-select-checkbox {
-      margin: 0;
-      line-height: 0;
-
-      :deep(.t-checkbox) {
-        align-items: center;
-      }
-
-      :deep(.t-checkbox__label) {
-        display: none !important;
-        width: 0 !important;
-        min-width: 0 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-
-      :deep(.t-checkbox__input) {
-        margin: 0;
-      }
-
-      :deep(.t-checkbox__input-wrapper) {
-        margin: 0;
-      }
-    }
-  }
+  transition: border-color var(--app-motion-base) ease, box-shadow var(--app-motion-base) ease, background-color var(--app-motion-base) ease;
 
   .card-content {
     flex: 1;
@@ -4327,136 +3558,12 @@ async function createNewSession(value: string): Promise<void> {
     padding: 10px 14px 8px;
   }
 
-  .card-analyze {
-    flex-shrink: 0;
-    height: 52px;
-    display: flex;
-    align-items: flex-start;
-  }
-
-  .card-analyze-loading {
-    display: block;
-    color: var(--td-brand-color);
-    font-size: 14px;
-    margin-top: 2px;
-  }
-
-  .card-analyze-txt {
-    color: var(--td-brand-color);
-    font-family: var(--app-font-family);
-    font-size: 11px;
-    margin-left: 8px;
-  }
-
-  // In-flight / failed: only status text + trace icon open the drawer.
-  .card-analyze-trace {
-    height: auto;
-    min-height: 0;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .card-analyze-trace-link {
-    cursor: pointer;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  .card-analyze-trace-btn {
-    flex-shrink: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    padding: 2px;
-    border: none;
-    background: transparent;
-    color: var(--td-brand-color);
-    cursor: pointer;
-    line-height: 1;
-    border-radius: 4px;
-
-    :deep(.t-icon) {
-      font-size: 14px;
-    }
-
-    &:hover {
-      background: var(--td-bg-color-component-hover);
-    }
-  }
-
-  .card-analyze.failure .card-analyze-trace-btn {
-    color: var(--td-error-color);
-  }
-
-  .failure {
-    color: var(--td-error-color);
-  }
-
   .card-content-nav {
     flex-shrink: 0;
     display: flex;
     align-items: flex-start;
     gap: 0;
     margin-bottom: 6px;
-  }
-
-  .card-content-title {
-    flex: 1;
-    min-width: 0;
-    height: 24px;
-    line-height: 24px;
-    display: inline-block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--td-text-color-primary);
-    font-family: var(--app-font-family);
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    margin-right: 8px;
-  }
-
-  .more-wrap {
-    flex-shrink: 0;
-    display: flex;
-    width: 25px;
-    height: 25px;
-    justify-content: center;
-    align-items: center;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-
-  .more-wrap:hover {
-    background: var(--td-component-stroke);
-  }
-
-  .more-icon {
-    width: 14px;
-    height: 14px;
-  }
-
-  .active-more {
-    background: var(--td-component-stroke);
-  }
-
-  .card-content-txt {
-    flex: 1;
-    min-height: 0;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    color: var(--td-text-color-secondary);
-    font-family: var(--app-font-family);
-    font-size: 12px;
-    font-weight: 400;
-    line-height: 19px;
   }
 
   .card-bottom {
@@ -4473,35 +3580,6 @@ async function createNewSession(value: string): Promise<void> {
     border-top: 1px solid var(--td-component-stroke);
   }
 
-  .card-time {
-    flex-shrink: 0;
-    color: var(--td-text-color-secondary);
-    font-family: var(--app-font-family);
-    font-size: 12px;
-    font-weight: 400;
-    white-space: nowrap;
-  }
-
-  .card-type {
-    flex-shrink: 0;
-    color: var(--td-text-color-placeholder);
-    font-family: var(--app-font-family);
-    font-size: 11px;
-    font-weight: 500;
-    padding: 0;
-    background: transparent;
-    letter-spacing: 0.02em;
-  }
-}
-
-.card-bottom-right {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  overflow: hidden;
 }
 
 .knowledge-card:hover {
@@ -4509,224 +3587,93 @@ async function createNewSession(value: string): Promise<void> {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
 }
 
-/* 悬停知识卡片时跟随鼠标的详情气泡 */
-.knowledge-card-hover-popover {
-  position: fixed;
-  z-index: 9999;
-  pointer-events: none;
-  min-width: 220px;
-  max-width: 360px;
-  padding: 12px 14px;
-  background: var(--td-bg-color-container);
-  border: 1px solid var(--td-component-stroke);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  font-family: var(--app-font-family);
-  transition: opacity 0.15s ease;
-  will-change: transform;
 
-  /* 防止气泡内容抖动 */
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-
-  .card-popover-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--td-text-color-primary);
-    margin-bottom: 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  // 二开功能：层级标签浏览区块
+  .tag-filter-panel__divider {
+    height: 1px;
+    margin: 10px 0 6px;
+    background: var(--td-component-stroke);
   }
 
-  .card-popover-status {
-    font-size: 12px;
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    &.parsing {
-      color: var(--td-brand-color);
-    }
-
-    &.failure {
-      color: var(--td-error-color);
-    }
-
-    &.draft {
-      color: var(--td-warning-color);
-    }
-  }
-
-  .card-popover-desc {
+  .tag-filter-panel__subtitle {
     font-size: 12px;
     color: var(--td-text-color-secondary);
-    line-height: 1.5;
-    margin-bottom: 8px;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 5;
-    line-clamp: 5;
-    overflow: hidden;
+    margin-bottom: 4px;
   }
 
-  .card-popover-error-msg {
-    display: block;
-    margin-top: 4px;
-    font-size: 11px;
-    color: var(--td-error-color);
-    opacity: 0.95;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 280px;
-  }
+  .tag-tree-browse {
+    max-height: 180px;
+    overflow: auto;
+    padding: 2px;
 
-  .card-popover-source {
-    font-size: 11px;
-    color: var(--td-brand-color);
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
+    &--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+    }
 
-  .card-popover-extra {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    font-size: 11px;
-    color: var(--td-text-color-secondary);
-    margin-bottom: 6px;
-  }
+    .tag-tree-browse__row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border-radius: var(--td-radius-default);
+      margin-left: calc(var(--tag-tree-browse-depth, 0) * 16px);
+      cursor: pointer;
+      user-select: none;
 
-  .card-popover-created,
-  .card-popover-size {
-    flex-shrink: 0;
-  }
+      &:hover {
+        background: var(--td-bg-color-container-hover);
+      }
 
-  .card-popover-meta {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    font-size: 11px;
-    color: var(--td-text-color-secondary);
-  }
+      &.is-selected {
+        .tag-tree-browse__name {
+          color: var(--td-brand-color);
+          font-weight: 500;
+        }
+      }
 
-  .card-popover-channel {
-    padding: 1px 6px;
-    background: var(--td-warning-color-light);
-    color: var(--td-warning-color);
-    border-radius: 4px;
-  }
+      &.is-disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
 
-  .card-popover-tags {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    max-width: 100%;
-  }
+        &:hover {
+          background: transparent;
+        }
+      }
+    }
 
-  .card-popover-tag-chip {
-    max-width: 120px;
-    height: 18px;
-    line-height: 18px;
-    border-radius: 999px;
-    border-color: var(--td-component-stroke);
-    color: var(--td-text-color-secondary);
-    padding: 0 6px;
-    background: transparent;
+    .tag-tree-browse__caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      color: var(--td-text-color-secondary);
+      padding: 0;
+      cursor: pointer;
 
-    .tag-text {
-      display: inline-block;
-      max-width: 80px;
+      &.invisible {
+        visibility: hidden;
+      }
+    }
+
+    .tag-tree-browse__name {
+      font-size: 12px;
+      color: var(--td-text-color-primary);
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
-      vertical-align: middle;
+      max-width: 180px;
+    }
+
+    .tag-tree-browse__count {
+      margin-left: auto;
       font-size: 11px;
+      color: var(--td-text-color-placeholder);
     }
   }
-
-  .card-popover-type {
-    padding: 1px 6px;
-    background: var(--td-bg-color-secondarycontainer);
-    color: var(--td-text-color-secondary);
-    border-radius: 4px;
-  }
-
-  .card-popover-hint {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--td-component-stroke);
-    font-size: 11px;
-    color: var(--td-text-color-secondary);
-  }
-}
-
-.url-import-form {
-  padding: 8px 0;
-
-  .url-input-label {
-    color: var(--td-text-color-primary);
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 8px;
-  }
-
-  .url-input-tip {
-    color: var(--td-text-color-secondary);
-    font-size: 12px;
-    margin-top: 8px;
-    line-height: 1.5;
-  }
-}
-
-.knowledge-card-upload {
-  color: var(--td-text-color-primary);
-  font-family: var(--app-font-family);
-  font-size: 14px;
-  font-weight: 400;
-  cursor: pointer;
-
-  .btn-upload {
-    margin: 33px auto 0;
-    width: 112px;
-    height: 32px;
-    border: 1px solid var(--td-component-border);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 24px;
-  }
-
-  .svg-icon-download {
-    margin-right: 8px;
-  }
-}
-
-.upload-described {
-  color: var(--td-text-color-disabled);
-  font-family: var(--app-font-family);
-  font-size: 12px;
-  font-weight: 400;
-  text-align: center;
-  display: block;
-  width: 188px;
-  margin: 0 auto;
-}
-
-.del-card {
-  vertical-align: middle;
-}
 </style>

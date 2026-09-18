@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	infra_web_search "github.com/Tencent/WeKnora/internal/infrastructure/web_search"
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -129,7 +130,7 @@ func (s *webSearchProviderService) DeleteProvider(ctx context.Context, tenantID 
 // isValidProviderType checks if the given provider type is supported
 func isValidProviderType(provider types.WebSearchProviderType) bool {
 	switch provider {
-	case types.WebSearchProviderTypeBing,
+	case types.WebSearchProviderTypeBrave, types.WebSearchProviderTypeBing,
 		types.WebSearchProviderTypeGoogle,
 		types.WebSearchProviderTypeDuckDuckGo,
 		types.WebSearchProviderTypeTavily,
@@ -141,7 +142,8 @@ func isValidProviderType(provider types.WebSearchProviderType) bool {
 		types.WebSearchProviderTypeZhipu,
 		types.WebSearchProviderTypeExa,
 		types.WebSearchProviderTypeBocha,
-		types.WebSearchProviderTypeDoubao:
+		types.WebSearchProviderTypeDoubao,
+		types.WebSearchProviderTypeSerply:
 		return true
 	default:
 		return false
@@ -151,6 +153,14 @@ func isValidProviderType(provider types.WebSearchProviderType) bool {
 // validateProviderParameters validates required parameters for each provider type
 func validateProviderParameters(provider types.WebSearchProviderType, params types.WebSearchProviderParameters) error {
 	switch provider {
+	case types.WebSearchProviderTypeBrave:
+		if strings.TrimSpace(params.APIKey) == "" {
+			return fmt.Errorf("API key is required for Brave provider")
+		}
+	case types.WebSearchProviderTypeSerply:
+		if strings.TrimSpace(params.APIKey) == "" {
+			return fmt.Errorf("API key is required for Serply provider")
+		}
 	case types.WebSearchProviderTypeBing:
 		if params.APIKey == "" {
 			return fmt.Errorf("API key is required for Bing provider")

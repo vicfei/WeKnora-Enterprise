@@ -49,6 +49,7 @@ type CreateKnowledgeQARequest struct {
 	AgentID             string   `json:"agent_id"`                              // Selected custom agent ID (backend resolves shared agent and its workspace from share relation)
 	AgentSourceTenantID uint64   `json:"agent_source_tenant_id,omitempty"`      // Optional disambiguator; backend still verifies the share relation
 	WebSearchEnabled    bool     `json:"web_search_enabled"`                    // Whether web search is enabled for this request
+	LocalBrowserEnabled bool     `json:"local_browser_enabled"`                 // Browser source
 	// EnableKBRouting (二开特性, default off): with no explicit KB selection,
 	// auto-route the query to the most relevant KBs by content-centroid
 	// similarity. Explicit selections are never overridden.
