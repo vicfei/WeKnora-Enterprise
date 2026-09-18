@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	apperrors "github.com/Tencent/WeKnora/internal/errors"
@@ -212,6 +213,22 @@ func (s *knowledgeBaseService) HybridSearch(ctx context.Context,
 		}
 	}
 
+	// Time-aware retrieval (design §4.4): resolve the time condition to a
+	// knowledge whitelist, mirroring the tag-scope contract above. The
+	// resolver itself skips prefer strictness (soft recency belongs to
+	// ranking, not filtering).
+	if params.TimeCondition != nil {
+		timeApplied, err := s.resolveDocumentTimeScope(ctx, kbs, &params)
+		if err != nil {
+			return nil, err
+		}
+		if timeApplied && len(params.KnowledgeIDs) == 0 {
+			logger.Infof(ctx, "Hybrid search time scope matched no knowledge, tenant_id: %d, kb_ids: %v, field: %s, op: %s, returning empty result",
+				mustTenantIDForLog(ctx), searchKBIDs, params.TimeCondition.Field, params.TimeCondition.Op)
+			return nil, nil
+		}
+	}
+
 	// Over-retrieval (existing rule, preserved): 5x per-KB matchCount,
 	// floored at DefaultRetrievalTopK, capped at maxRetrievalPoolSize across
 	// the whole search.
@@ -389,6 +406,92 @@ func (s *knowledgeBaseService) resolveDocumentTagScope(
 func mustTenantIDForLog(ctx context.Context) uint64 {
 	tenantID, _ := types.TenantIDFromContext(ctx)
 	return tenantID
+}
+
+// resolveDocumentTimeScope mirrors resolveDocumentTagScope for time-aware
+// retrieval (design §4.4). It resolves params.TimeCondition to a knowledge
+// whitelist intersected with any existing KnowledgeIDs (from tags or explicit
+// selection — an empty intersection yields an empty result, never a
+// whole-KB fallback).
+//
+//   - business_date field, all-document scope: knowledge.business_date window.
+//   - updated_at field: the same window on the system timestamp (the
+//     governance-free fallback channel) regardless of KB type.
+//   - FAQ KBs have no business time; a business_date condition on a scope
+//     containing FAQ KBs degrades those KBs to updated_at with a
+//     time_scope_fallback log marker.
+//
+// Returns false (params untouched) when no time condition is present or the
+// strictness is "prefer" (soft recency is expressed by ranking, not filtering).
+func (s *knowledgeBaseService) resolveDocumentTimeScope(
+	ctx context.Context,
+	kbs []*types.KnowledgeBase,
+	params *types.SearchParams,
+) (bool, error) {
+	tc := params.TimeCondition
+	if tc == nil || tc.Strictness == types.SearchTimeStrictnessPrefer {
+		// prefer strictness: no hard filter. Recency weighting in the
+		// ranking layer expresses the preference instead.
+		return false, nil
+	}
+	kbIDs := make([]string, 0, len(kbs))
+	hasFAQ := false
+	for _, kb := range kbs {
+		kbIDs = append(kbIDs, kb.ID)
+		if kb.Type == types.KnowledgeBaseTypeFAQ {
+			hasFAQ = true
+		}
+	}
+
+	field := tc.Field
+	if field == "" {
+		field = types.SearchTimeFieldBusinessDate
+	}
+	if field == types.SearchTimeFieldBusinessDate && hasFAQ {
+		logger.Infof(ctx, "Hybrid search time scope falls back to updated_at (FAQ or mixed KB scope has no business_date), tenant_id: %d, kb_ids: %v, time_scope_fallback=updated_at",
+			mustTenantIDForLog(ctx), kbIDs)
+		field = types.SearchTimeFieldUpdatedAt
+	}
+
+	start, end := tc.Start, tc.End
+	switch tc.Op {
+	case types.SearchTimeOpGte:
+		end = time.Time{}
+	case types.SearchTimeOpLte:
+		start, end = time.Time{}, tc.Start
+	case types.SearchTimeOpBetween:
+		if end.Before(start) {
+			start, end = end, start
+		}
+	default:
+		// Unknown operator: no condition rather than a wrong one (the
+		// wrong-window-is-worse-than-no-window rule, design §4.3).
+		logger.Warnf(ctx, "Hybrid search time scope ignored unknown op %q, tenant_id: %d", tc.Op, mustTenantIDForLog(ctx))
+		return false, nil
+	}
+
+	resolved := make([]string, 0)
+	for _, kb := range kbs {
+		ids, err := s.kgRepo.ListIDsByTimeWindow(ctx, kb.TenantID, kb.ID, field, start, end)
+		if err != nil {
+			logger.ErrorWithFields(ctx, err, map[string]interface{}{
+				"tenant_id": kb.TenantID,
+				"kb_id":     kb.ID,
+			})
+			return false, err
+		}
+		resolved = append(resolved, ids...)
+	}
+	resolved = uniqueNonEmptyStrings(resolved)
+	if len(params.KnowledgeIDs) > 0 {
+		resolved = intersectStrings(resolved, params.KnowledgeIDs)
+	}
+
+	logger.Infof(ctx, "Hybrid search document time scope resolved to knowledge whitelist, tenant_id: %d, kb_ids: %v, field: %s, op: %s, knowledge_count: %d",
+		mustTenantIDForLog(ctx), kbIDs, field, tc.Op, len(resolved))
+
+	params.KnowledgeIDs = resolved
+	return true, nil
 }
 
 // normalizedMatchCount resolves the effective primary-match cap for a search.

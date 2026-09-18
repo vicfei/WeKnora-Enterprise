@@ -1264,9 +1264,21 @@ func (t *KnowledgeSearchTool) compositeScore(
 	recency := 0.0
 	ranking := t.effectiveRanking()
 	if ranking.RecencyWeight > 0 && result.Metadata != nil {
-		recency = searchutil.RecencySignal(
-			result.Metadata["knowledge_updated_at"],
-			ranking.RecencyHalfLifeDays, time.Now())
+		// Time-aware retrieval: business_date is the primary axis when
+		// parseable (even when its decayed signal is ~0 — old is the
+		// business truth); updated_at remains the fallback.
+		now := time.Now()
+		if ts := result.Metadata["knowledge_business_date"]; ts != "" {
+			if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+				recency = searchutil.RecencySignal(ts, ranking.RecencyHalfLifeDays, now)
+			} else {
+				recency = searchutil.RecencySignal(result.Metadata["knowledge_updated_at"], ranking.RecencyHalfLifeDays, now)
+			}
+		} else {
+			recency = searchutil.RecencySignal(
+				result.Metadata["knowledge_updated_at"],
+				ranking.RecencyHalfLifeDays, now)
+		}
 	}
 
 	// Composite formula: weighted combination of model score, base score,

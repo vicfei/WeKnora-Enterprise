@@ -122,6 +122,10 @@ type PipelineState struct {
 	RewriteQuery string      `json:"rewrite_query,omitempty"`
 	Intent       QueryIntent `json:"intent,omitempty"`
 	History      []*History  `json:"history,omitempty"`
+	// TimeCondition is the structured time intent extracted by query
+	// understanding (time-aware retrieval). nil = no time intent — the whole
+	// retrieval path stays untouched (zero-behavior-change guarantee).
+	TimeCondition *SearchTimeCondition `json:"-"`
 
 	SearchResult         []*SearchResult   `json:"-"`
 	RerankResult         []*SearchResult   `json:"-"`

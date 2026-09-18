@@ -184,6 +184,16 @@ type Knowledge struct {
 	// CustomMetadata is user-authored descriptive metadata. It is deliberately
 	// separate from Metadata, which contains internal ingestion state and IDs.
 	CustomMetadata JSON `json:"custom_metadata" gorm:"type:json;not null"`
+	// BusinessDate is the document's business point in time (report period,
+	// publication date, as-of date) — NOT a system timestamp. It drives
+	// time-aware retrieval (time_condition filtering and recency ranking);
+	// NULL means "unknown business time" and never matches a time filter.
+	// Existing rows are intentionally not backfilled (system time must not
+	// impersonate business time).
+	BusinessDate *time.Time `json:"business_date,omitempty" gorm:"type:timestamptz"`
+	// BusinessDateSpecified distinguishes an explicit null (clear the date)
+	// from an omitted field in partial update requests.
+	BusinessDateSpecified bool `json:"-" gorm:"-"`
 	// Last FAQ import result (for FAQ type knowledge only)
 	LastFAQImportResult JSON `json:"last_faq_import_result" gorm:"type:json"`
 	// Creation time of the knowledge
@@ -277,6 +287,9 @@ type ManualKnowledgePayload struct {
 	TagIDs        []string                   `json:"tag_ids"`
 	Channel       string                     `json:"channel"`
 	ProcessConfig *KnowledgeProcessOverrides `json:"process_config,omitempty"`
+	// BusinessDate is the optional document business time (time-aware
+	// retrieval). nil = unknown; NULL never matches a time filter.
+	BusinessDate *time.Time `json:"business_date,omitempty"`
 }
 
 // KnowledgeSearchScope defines a (tenant_id, knowledge_base_id) scope for knowledge search (e.g. own KBs + shared KBs).

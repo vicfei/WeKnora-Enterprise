@@ -750,6 +750,11 @@ func (s *knowledgeService) UpdateKnowledge(ctx context.Context, knowledge *types
 	if knowledge.Title != "" {
 		record.Title = knowledge.Title
 	}
+	if knowledge.BusinessDateSpecified {
+		// Explicit null clears the business time; a parsed value replaces it.
+		// Omitted leaves the stored value untouched.
+		record.BusinessDate = knowledge.BusinessDate
+	}
 	if knowledge.DescriptionSpecified {
 		record.Description = knowledge.Description
 		if record.Description != "" {

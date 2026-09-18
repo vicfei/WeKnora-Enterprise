@@ -1128,3 +1128,26 @@ func (r *knowledgeRepository) ListIDsByTagIDs(
 		Pluck("knowledges.id", &ids).Error
 	return ids, err
 }
+
+// ListIDsByTimeWindow returns knowledge IDs whose field (business_date or
+// updated_at) falls inside [start, end]. A zero end means +inf. Rows with a
+// NULL business_date never match — unknown business time is not a match.
+func (r *knowledgeRepository) ListIDsByTimeWindow(
+	ctx context.Context,
+	tenantID uint64,
+	kbID, field string,
+	start, end time.Time,
+) ([]string, error) {
+	column := "business_date"
+	if field == types.SearchTimeFieldUpdatedAt {
+		column = "updated_at"
+	}
+	q := r.db.WithContext(ctx).Model(&types.Knowledge{}).
+		Where("tenant_id = ? AND knowledge_base_id = ? AND "+column+" >= ?", tenantID, kbID, start)
+	if !end.IsZero() {
+		q = q.Where(column + " <= ?", end)
+	}
+	var ids []string
+	err := q.Pluck("id", &ids).Error
+	return ids, err
+}

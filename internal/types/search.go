@@ -3,6 +3,7 @@ package types
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"time"
 )
 
 // SearchTargetType represents the type of search target
@@ -256,6 +257,45 @@ type SearchParams struct {
 	// in processSearchResults. Used by the chat pipeline where context assembly
 	// is handled separately in the merge stage.
 	SkipContextEnrichment bool `json:"skip_context_enrichment,omitempty"`
+	// TimeCondition constrains retrieval by document time. Document-type KBs
+	// resolve it to a knowledge whitelist (business_date, falling back to
+	// updated_at for FAQ scopes) before retrieval — an empty resolution yields
+	// an empty result, not a whole-KB search (same contract as TagIDs).
+	// nil never filters.
+	TimeCondition *SearchTimeCondition `json:"time_condition,omitempty"`
+}
+
+// Time-condition field and strictness vocabulary (SearchTimeCondition).
+const (
+	SearchTimeFieldBusinessDate = "business_date"
+	SearchTimeFieldUpdatedAt    = "updated_at"
+
+	SearchTimeOpGte     = "gte"
+	SearchTimeOpLte     = "lte"
+	SearchTimeOpBetween = "between"
+
+	SearchTimeStrictnessFilter = "filter"
+	SearchTimeStrictnessPrefer = "prefer"
+)
+
+// SearchTimeCondition is the structured time intent for time-aware
+// retrieval (docs/design/time-aware-retrieval-design.md §4.2).
+type SearchTimeCondition struct {
+	// Field selects the time axis: "business_date" (document business time,
+	// the default) or "updated_at" (system time — the governance-free
+	// fallback channel).
+	Field string `json:"field"`	// Op is the window shape: "gte" | "lte" | "between".
+	Op string `json:"op"`
+	// Start and End carry the window. between uses both; gte/lte use Start.
+	// Values are absolute times — relative phrases ("last three months")
+	// must be resolved by the producer (query understanding), never here.
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+	// Strictness picks the failure mode: "filter" (default) hard-filters and
+	// honestly returns zero results outside the window; "prefer" keeps
+	// out-of-window candidates and lets recency weighting reorder them —
+	// the safety valve for fuzzy recency asks ("the latest ...").
+	Strictness string `json:"strictness,omitempty"`
 }
 
 // Value implements the driver.Valuer interface, used to convert SearchResult to database value
