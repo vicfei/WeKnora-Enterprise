@@ -350,6 +350,12 @@ func formatToolGuidanceForMode(names []string, skillInstallMode bool) string {
 		b.WriteString("In older instructions, translate execute_skill_script(skill_name, script_path, ...) " +
 			"to shell_exec(skill_name=..., command=...).\n")
 	}
+	if has("knowledge_search") {
+		b.WriteString("When the user's request constrains WHEN documents should be from (a date range, " +
+			"\"since <date>\", \"as of <date>\", a report period), pass time_min/time_max to " +
+			"knowledge_search as absolute YYYY-MM-DD dates. Durations describing the subject " +
+			"(e.g. \"three-year bond\") are not time windows. No stated constraint → pass neither.\n")
+	}
 	if has("discover_mcp_tools") {
 		b.WriteString("For MCP tools, use already offered functions directly. Otherwise inspect the " +
 			"relevant listed server, describe the exact tool, and wait for its definition before making " +
