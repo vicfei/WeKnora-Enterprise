@@ -488,7 +488,6 @@ func TestSkillInstallerIsHiddenFromThePicker(t *testing.T) {
 	require.NotContains(t, types.GetBuiltinAgentIDs(), types.BuiltinSkillInstallerID,
 		"it must not clutter the tenant's agent picker")
 }
-
 func TestGetKnowledgeBaseInfos_SharedKnowledgeBaseUsesSourceTenant(t *testing.T) {
 	const (
 		receiverTenantID = uint64(7)

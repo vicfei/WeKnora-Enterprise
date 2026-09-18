@@ -290,7 +290,6 @@ func TestDeleteModel_ReportsUntruncatedTotalsWhenListsAreCapped(t *testing.T) {
 	assert.Equal(t, int64(12), details.AgentTotal)
 	assert.Len(t, details.Agents, 1)
 }
-
 type stubTenantServiceForModelDelete struct {
 	tenant *types.Tenant
 }
@@ -352,8 +351,7 @@ func TestDeleteModel_RejectsWhenUsedByMemory(t *testing.T) {
 	assert.Contains(t, appErr.Message, "long-term memory")
 	details, ok := appErr.Details.(types.ModelUsageDetails)
 	require.True(t, ok)
-	assert.Equal(t, []types.ModelUsageBinding{types.ModelUsageBindingEmbeddingModel}, details.LongTermMemory.Bindings)
-}
+	assert.Equal(t, []types.ModelUsageBinding{types.ModelUsageBindingEmbeddingModel}, details.LongTermMemory.Bindings)}
 
 // The extraction model is pinned by the workspace exactly like the embedding
 // one. Deleting it leaves memory_config pointing at a model that is gone, and
@@ -417,8 +415,7 @@ func TestDeleteModel_ReportsAllMemoryBindings(t *testing.T) {
 	assert.Equal(t, []types.ModelUsageBinding{
 		types.ModelUsageBindingEmbeddingModel,
 		types.ModelUsageBindingExtractModel,
-	}, details.LongTermMemory.Bindings)
-}
+	}, details.LongTermMemory.Bindings)}
 
 func TestFormatModelInUseMessage(t *testing.T) {
 	t.Parallel()

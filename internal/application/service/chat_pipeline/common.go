@@ -95,7 +95,7 @@ func prepareMessagesWithHistory(chatManage *types.ChatManage) []chat.Message {
 		"language": chatManage.Language,
 		"contexts": chatManage.RenderedContexts,
 	})
-	// Memory goes at the end of the system prompt, after the retrieved-context
+	systemPrompt = appendRetrievedImageOutputRequirement(systemPrompt, chatManage.RenderedContexts)	// Memory goes at the end of the system prompt, after the retrieved-context
 	// placeholders have been rendered, so a remembered sentence can never be
 	// substituted into prompt structure.
 	systemPrompt += chatManage.MemoryPrompt

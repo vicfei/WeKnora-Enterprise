@@ -260,8 +260,7 @@ const (
 	// it emits it first, so replaying the log alone shows what was asked for
 	// — the console does not have to read the durable prompt row to caption
 	// the run.
-	ResponseTypeInstallPrompt ResponseType = "install_prompt"
-)
+	ResponseTypeInstallPrompt ResponseType = "install_prompt")
 
 // StreamResponse stream response
 // FinishReasonIncomplete marks a stream that broke before the provider sent a

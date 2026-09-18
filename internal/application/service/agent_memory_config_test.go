@@ -65,5 +65,4 @@ func TestAgentConfigCarriesMaxCompletionTokens(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 64000, agentConfig.MaxCompletionTokens)
 }
-
 func boolPtr(v bool) *bool { return &v }

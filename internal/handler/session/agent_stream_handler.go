@@ -492,7 +492,6 @@ func (h *AgentStreamHandler) handleContextCompacted(_ context.Context, evt event
 	}
 	return nil
 }
-
 // handleFinalAnswer handles final answer events
 func (h *AgentStreamHandler) handleFinalAnswer(ctx context.Context, evt event.Event) error {
 	data, ok := evt.Data.(event.AgentFinalAnswerData)

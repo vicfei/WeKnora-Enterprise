@@ -1755,8 +1755,7 @@ func (s *Service) HandleMessage(ctx context.Context, msg *IncomingMessage, chann
 		}); err != nil {
 			logger.Warnf(ctx, "[IM] Failed to send empty-message hint reply: %v", err)
 		}
-		return nil
-	}
+		return nil	}
 
 	// 1. Get tenant
 	tenant, err := s.tenantService.GetTenantByID(ctx, tenantID)
@@ -1972,8 +1971,7 @@ func (s *Service) executeQARequest(req *qaRequest) {
 				ctx, req.msg, req.session, req.agent, kbIDs, attachments, imageURLs,
 				progressSender, req.adapter, req.userKey, req.tenant,
 			); err != nil {
-				logger.Errorf(ctx, "[IM] Full-output QA failed: %v", err)
-			}
+				logger.Errorf(ctx, "[IM] Full-output QA failed: %v", err)			}
 			return
 		}
 	} else if streamer, ok := req.adapter.(StreamSender); ok {

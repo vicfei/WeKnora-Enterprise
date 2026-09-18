@@ -9,8 +9,7 @@ export const DEPLOYMENT_CAPABILITY_KEYS = [
   'settings.vectorstore',
   'settings.storage',
   'settings.sandbox',
-  'settings.sandbox.docker',
-] as const
+  'settings.sandbox.docker',] as const
 
 export type DeploymentCapabilityKey = typeof DEPLOYMENT_CAPABILITY_KEYS[number]
 
@@ -41,8 +40,7 @@ export function isDeploymentCapabilitySupported(
   // missing or failed capability probes must not leave the picker visible.
   if (key === 'settings.sandbox.docker') {
     return capabilities[key]?.supported === true
-  }
-  return capabilities[key]?.supported !== false
+  }  return capabilities[key]?.supported !== false
 }
 
 export const SETTINGS_SECTION_CAPABILITY: Partial<Record<string, DeploymentCapabilityKey>> = {
@@ -56,6 +54,5 @@ export const SETTINGS_SECTION_CAPABILITY: Partial<Record<string, DeploymentCapab
   // Skill credentials exist only because sandboxes do: the values are injected
   // into a skill script's process. A deployment without sandbox support has
   // nowhere to inject them, so the page would only ever show its empty state.
-  envvars: 'settings.sandbox',
-  mcp: 'settings.mcp',
+  envvars: 'settings.sandbox',  mcp: 'settings.mcp',
 }

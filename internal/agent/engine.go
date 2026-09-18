@@ -141,8 +141,7 @@ func (e *AgentEngine) buildSystemPrompt(ctx context.Context) string {
 	// Memory has to ride in the system prompt: buildMessagesWithLLMContext
 	// drops system messages coming from history, so a separate memory message
 	// would be silently discarded from the second turn onward.
-	return strings.TrimRight(prompt, " \t\r\n") + e.memoryPrompt + e.modelContext.ProtocolPrompt() + e.noToolsPrompt
-}
+	return strings.TrimRight(prompt, " \t\r\n") + e.memoryPrompt + e.modelContext.ProtocolPrompt() + e.noToolsPrompt}
 
 // SetMemoryPrompt supplies the long-term memory envelope for this run. Empty
 // input leaves the system prompt untouched.
@@ -157,8 +156,7 @@ func (e *AgentEngine) SetMemoryPrompt(prompt string) {
 // otherwise leak the markers into the visible answer (U-15). Empty input
 // leaves the system prompt untouched.
 func (e *AgentEngine) SetNoToolsPrompt(prompt string) {
-	e.noToolsPrompt = prompt
-}
+	e.noToolsPrompt = prompt}
 
 // NewAgentEngineWithSkills creates a new agent engine with skills support
 func NewAgentEngineWithSkills(

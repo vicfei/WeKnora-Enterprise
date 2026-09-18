@@ -396,8 +396,7 @@ func (s *modelService) DeleteModel(ctx context.Context, id string) error {
 		return apperrors.NewModelInUseError(
 			formatModelInUseMessage(kbCount, agentCount, memoryInUse),
 			usage,
-		)
-	}
+		)	}
 
 	// Delete model from repository
 	err = s.repo.Delete(ctx, tenantID, id)

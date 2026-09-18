@@ -4926,8 +4926,7 @@ export default {
     clearConfirm: '{name}에 설정한 내 값을 삭제할까요? 이후에는 워크스페이스 공용 값이 있으면 다시 적용됩니다.',
     clearSuccess: '내 값을 삭제했습니다.',
     updatedAt: '{time}에 설정함'
-  },
-  memoryWorkspaceSettings: {
+  },  memoryWorkspaceSettings: {
     title: '장기 기억',
     description: '구성원이 말한 개인 정보, 선호, 사실, 진행 중인 일을 어시스턴트가 대화를 넘어 기억하도록 합니다.',
     introTitle: '기본값은 꺼짐이며 직접 켜야 합니다',
@@ -5870,8 +5869,7 @@ export default {
       allowedTools: '허용된 도구',
       multiTurn: '여러 라운드의 대화',
       historyTurns: '라운드 수를 유지하세요',
-      retainRetrievalHistory: '검색 결과 유지',
-      memoryEnabled: '장기 기억',
+      retainRetrievalHistory: '검색 결과 유지',      memoryEnabled: '장기 기억',
       retrievalStrategy: '검색 전략',
       embeddingTopK: '벡터 회수 횟수',
       keywordThreshold: '키워드 기준점',

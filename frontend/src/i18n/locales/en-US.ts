@@ -998,8 +998,7 @@ export default {
       allowedTools: 'Allowed Tools',
       multiTurn: 'Multi-turn Conversation',
       historyTurns: 'History Turns',
-      retainRetrievalHistory: 'Keep retrieval results',
-      memoryEnabled: 'Long-term Memory',
+      retainRetrievalHistory: 'Keep retrieval results',      memoryEnabled: 'Long-term Memory',
       retrievalStrategy: 'Retrieval Strategy',
       embeddingTopK: 'Embedding Top K',
       keywordThreshold: 'Keyword Threshold',
@@ -2020,8 +2019,7 @@ export default {
     clearConfirm: 'Remove your own value for {name}? The workspace value, if there is one, applies again afterwards.',
     clearSuccess: 'Your value was removed.',
     updatedAt: 'You set this on {time}'
-  },
-  memoryWorkspaceSettings: {
+  },  memoryWorkspaceSettings: {
     title: 'Long-term memory',
     description: 'Let the assistant remember what members tell it — who they are, how they like to work, stable facts and what they are working on — across conversations.',
     introTitle: 'Off by default, you have to turn it on',

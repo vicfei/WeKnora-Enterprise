@@ -4926,8 +4926,7 @@ export default {
     clearConfirm: 'Удалить ваше значение для {name}? После этого снова применится значение рабочего пространства, если оно задано.',
     clearSuccess: 'Ваше значение удалено.',
     updatedAt: 'Вы задали это {time}'
-  },
-  memoryWorkspaceSettings: {
+  },  memoryWorkspaceSettings: {
     title: 'Долговременная память',
     description: 'Позволяет ассистенту помнить между разговорами то, что говорят участники: кто они, как предпочитают работать, устойчивые факты и текущие задачи.',
     introTitle: 'По умолчанию выключена, включать нужно вручную',
@@ -5870,8 +5869,7 @@ export default {
       allowedTools: 'Allowed Tools',
       multiTurn: 'Multi-turn Conversation',
       historyTurns: 'History Turns',
-      retainRetrievalHistory: 'Сохранять результаты поиска',
-      memoryEnabled: 'Долговременная память',
+      retainRetrievalHistory: 'Сохранять результаты поиска',      memoryEnabled: 'Долговременная память',
       retrievalStrategy: 'Retrieval Strategy',
       embeddingTopK: 'Embedding Top K',
       keywordThreshold: 'Keyword Threshold',

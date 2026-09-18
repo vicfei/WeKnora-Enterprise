@@ -216,7 +216,6 @@ func (s *sessionService) KnowledgeQA(
 	if kbRouting != nil {
 		emitKBRoutingEvent(ctx, chatManage, kbRouting)
 	}
-
 	// Determine pipeline based on the effective knowledge retrieval scope and
 	// web search setting. Tag-only mentions leave the raw KB/knowledge ID slices
 	// empty but produce SearchTargets, so the unified targets must participate in

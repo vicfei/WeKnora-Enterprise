@@ -4928,8 +4928,7 @@ export default {
     clearConfirm: '清除你为 {name} 设置的值？之后会重新使用空间共用值（如果有）。',
     clearSuccess: '已清除你的值。',
     updatedAt: '你于 {time} 设置'
-  },
-  memoryWorkspaceSettings: {
+  },  memoryWorkspaceSettings: {
     title: '长期记忆',
     description: '让助手跨会话记住成员说过的个人信息、偏好、事实与在办事项。',
     introTitle: '默认关闭，需要你显式开启',
@@ -5872,8 +5871,7 @@ export default {
       allowedTools: '允许的工具',
       multiTurn: '多轮对话',
       historyTurns: '保留轮数',
-      retainRetrievalHistory: '保留检索结果',
-      memoryEnabled: '长期记忆',
+      retainRetrievalHistory: '保留检索结果',      memoryEnabled: '长期记忆',
       retrievalStrategy: '检索策略',
       embeddingTopK: '向量召回数量',
       keywordThreshold: '关键词阈值',

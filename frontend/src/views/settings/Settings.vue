@@ -137,7 +137,6 @@
                   <div v-if="currentSection === 'envvars'" class="section">
                     <EnvVarSettings />
                   </div>
-
                   <!-- 向量数据库引擎 -->
                   <div v-if="currentSection === 'vectorstore'" class="section">
                     <VectorStoreSettings />
@@ -273,7 +272,6 @@ import {
   normalizeSettingsSection as normalizeSettingsSectionFromQuery,
   settingsQueryUnchanged,
 } from '@/config/settingsRoute'
-
 const route = useRoute()
 const router = useRouter()
 const uiStore = useUIStore()
@@ -387,8 +385,7 @@ const navItems = computed(() => {
     { key: 'system-audit-log', icon: 'history', label: t('system.globalSettings.audit.tabLabel') },
     { key: 'userprofile', icon: 'user', label: t('userProfile.title') },
     { key: 'mymemory', icon: 'bookmark', label: t('memorySettings.title') },
-    { key: 'envvars', icon: 'key', label: t('envVarSettings.title') },
-    { key: 'tenant', icon: 'user-circle', label: t('settings.tenantInfo') },
+    { key: 'envvars', icon: 'key', label: t('envVarSettings.title') },    { key: 'tenant', icon: 'user-circle', label: t('settings.tenantInfo') },
     { key: 'members', icon: 'usergroup', label: t('tenantMember.title') },
     ...integrationItems,
   ]
@@ -412,8 +409,7 @@ const navGroups = computed<NavGroup[]>(() => {
     {
       key: 'account',
       label: t('settings.navGroups.account'),
-      items: pickItems(['general', 'userprofile', 'mymemory', 'envvars']),
-    },
+      items: pickItems(['general', 'userprofile', 'mymemory', 'envvars']),    },
     {
       key: 'workspace',
       label: t('settings.navGroups.workspace'),
@@ -585,8 +581,7 @@ watch(
     currentSubSection.value = normalizedSection === 'skills'
       ? (uiStore.settingsInitialSubSection || '')
       : ''
-    syncSettingsRoute(normalizedSection)
-  },
+    syncSettingsRoute(normalizedSection)  },
   { immediate: true },
 )
 

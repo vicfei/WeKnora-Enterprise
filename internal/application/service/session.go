@@ -134,8 +134,7 @@ type sessionService struct {
 	// this turn actually invoke". They are repositories rather than
 	// TenantSkillService because that service depends on this one.
 	sandboxConfigRepo repository.TenantSandboxConfigRepository
-	tenantSkillRepo   repository.TenantSkillRepository
-}
+	tenantSkillRepo   repository.TenantSkillRepository}
 
 // NewSessionService creates a new session service instance with all required dependencies
 func NewSessionService(cfg *config.Config,
@@ -158,8 +157,7 @@ func NewSessionService(cfg *config.Config,
 	sandboxPolicy WorkspaceSandboxPolicy,
 	memoryService interfaces.MemoryService,
 	sandboxConfigRepo repository.TenantSandboxConfigRepository,
-	tenantSkillRepo repository.TenantSkillRepository,
-) interfaces.SessionService {
+	tenantSkillRepo repository.TenantSkillRepository,) interfaces.SessionService {
 	return &sessionService{
 		cfg:                   cfg,
 		sessionRepo:           sessionRepo,
@@ -181,8 +179,7 @@ func NewSessionService(cfg *config.Config,
 		sandboxPolicy:         sandboxPolicy,
 		memoryService:         memoryService,
 		sandboxConfigRepo:     sandboxConfigRepo,
-		tenantSkillRepo:       tenantSkillRepo,
-	}
+		tenantSkillRepo:       tenantSkillRepo,	}
 }
 
 // CreateSession creates a new conversation session

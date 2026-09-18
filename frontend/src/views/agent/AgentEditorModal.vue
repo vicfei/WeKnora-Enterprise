@@ -172,8 +172,7 @@
                     </div>
 
                     <!-- 长期记忆。留在基础信息这一组而不是「多轮对话」，是因为它与
-                         多轮历史窗口无关，且智能推理恰恰是最需要这个开关的模式。
-                         这个开关只能"关"：空间或个人设置关闭时，这里打开也不生效。 -->
+                         多轮历史窗口无关，且智能推理恰恰是最需要这个开关的模式。                         这个开关只能"关"：空间或个人设置关闭时，这里打开也不生效。 -->
                     <div class="setting-row">
                       <div class="setting-info">
                         <label>{{ $t('agent.editor.memoryEnabled') }}</label>
@@ -2779,8 +2778,7 @@ const defaultFormData = {
     // 多轮对话设置
     multi_turn_enabled: false,
     history_turns: 5,
-    retain_retrieval_history: false,
-    // 长期记忆：默认跟随空间设置。写 true 与不写等价，只有 false 才会
+    retain_retrieval_history: false,    // 长期记忆：默认跟随空间设置。写 true 与不写等价，只有 false 才会
     // 让这个智能体单独不读记忆。
     memory_enabled: true,
     // 检索策略设置
@@ -3440,8 +3438,7 @@ watch(() => props.visible, async (val) => {
       // 附件解析调优字段：旧数据缺省时置 0（表示使用全局默认）
       if (agentData.config.attachment_ocr_max_pages == null) agentData.config.attachment_ocr_max_pages = 0;
       if (agentData.config.attachment_parse_wait_timeout_sec == null) agentData.config.attachment_parse_wait_timeout_sec = 0;
-      if (agentData.config.max_completion_tokens == null) agentData.config.max_completion_tokens = 0;
-      // 长期记忆：后端用 omitempty，跟随空间设置的智能体不带这个字段。
+      if (agentData.config.max_completion_tokens == null) agentData.config.max_completion_tokens = 0;      // 长期记忆：后端用 omitempty，跟随空间设置的智能体不带这个字段。
       // 不补成 true 的话开关会显示为"关"，用户随手一存就真的把记忆关了。
       if (agentData.config.memory_enabled == null) agentData.config.memory_enabled = true;
 
