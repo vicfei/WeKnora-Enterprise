@@ -55,6 +55,21 @@
 | 000088_skill_snapshot_planned_name | tenant_skill_snapshots 的 planned_name 列 |
 | 000089_env_vars | tenant_user_env_vars |
 | 000090_skill_catalog | tenant_skill_catalog |
+| 000091_mcp_tool_enabled | mcp_tool_approvals 的 enabled 列 |
+| 000092_mcp_metadata | mcp_services 的 metadata 列 |
+| 000093_browser_authorization | browser 流量授权对象 |
+| 000094_memory_consistency | memory 一致性约束 |
+| 000095_memory_vector_search | memory 向量检索支持 |
+| 000096_dingtalk_stream_only | 钉钉数据源流式标记 |
+| 000097_session_fork | sessions 的 parent_session_id / forked_from_message_id / fork_bootstrap 列 |
+| 000098_fork_snapshot_lease | fork_snapshot_leases 表 |
+| 000099_pg_search_0226 | pg_search 扩展版本 |
+| 000100_chunks_index_diet | chunks 索引瘦身 |
+| 000101_knowledge_profiles | knowledges.profile / knowledge_bases.profile_config+generated_profile 列 |
+| 000102_mcp_endpoints | mcp_endpoints 表（内置 MCP server 工作区端点） |
+
+> 2026-09-18（e3ac49ca 154 提交大同步）：000091–000102 已按步骤 ② 手工应用并逐项
+> 验证（备份 /tmp/weknora-pre-migration-20260918.dump，应用零错误）。
 
 ### 结构性漏洞与复发处置（规则 2 的代价）
 
