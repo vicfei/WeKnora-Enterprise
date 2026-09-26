@@ -378,7 +378,7 @@ func formatToolGuidanceForMode(names []string, skillInstallMode bool, layout san
 		b.WriteString("In older instructions, translate execute_skill_script(skill_name, script_path, ...) " +
 			"to shell_exec(skill_name=..., command=...).\n")
 	}
-	if has("knowledge_search") {
+	if has("knowledge_search") || has("search_knowledge") {
 		b.WriteString("When the user's request constrains WHEN documents should be from (a date range, " +
 			"\"since <date>\", \"as of <date>\", a report period), pass time_min/time_max to " +
 			"knowledge_search as absolute YYYY-MM-DD dates. Durations describing the subject " +

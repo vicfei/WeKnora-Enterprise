@@ -45,6 +45,11 @@ var searchKnowledgeTool = BaseTool{
 		"profile fits the question. When nothing passes the relevance check, rephrase with terms the documents " +
 		"would use; repeating the same query in another mode usually does not help. For identifiers, error " +
 		"codes or exact names retry with mode=keyword.\n" +
+		"time_min / time_max (optional, YYYY-MM-DD): a document-date window. When the user constrains " +
+		"WHEN documents should be from (a date range, \"since <date>\", \"as of <date>\", a report period), " +
+		"pass BOTH the window and keep dates out of the query text; as-of questions pass only time_max. " +
+		"Durations describing the subject (\"three-year bond\") are NOT windows. No stated constraint → " +
+		"pass neither.\n" +
 		"Every chunk carries a cN handle and belongs to a dN document. Use read_document(id=dN) to read the " +
 		"surrounding context or the whole document. Retrieval matches chunk text; the relevance model also " +
 		"sees the document title. To find a document by its title or file name use list_documents(keyword=...).",
