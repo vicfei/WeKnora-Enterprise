@@ -351,7 +351,7 @@ class EvalClient:
         seen: set[str] = set()
         for step in assistant.get("agent_steps") or []:
             for tc in step.get("tool_calls") or []:
-                if tc.get("name") != "knowledge_search":
+                if tc.get("name") not in ("knowledge_search", "search_knowledge"):
                     continue
                 results = ((tc.get("result") or {}).get("data") or {}).get("results") or []
                 for r in results:
