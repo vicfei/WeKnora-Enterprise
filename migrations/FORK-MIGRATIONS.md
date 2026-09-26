@@ -67,6 +67,17 @@
 | 000100_chunks_index_diet | chunks 索引瘦身 |
 | 000101_knowledge_profiles | knowledges.profile / knowledge_bases.profile_config+generated_profile 列 |
 | 000102_mcp_endpoints | mcp_endpoints 表（内置 MCP server 工作区端点） |
+| 000103_message_artifacts_table | message_artifacts 表（会话产物库，v0.8.2） |
+| 000104_skill_served_version | 技能 served version 列 |
+| 000105_message_context_checkpoint | 消息上下文检查点（rewind） |
+| 000106_messages_session_created_index | messages(session_id, created_at) 并发索引 |
+| 000107_message_artifacts_deleted_at | message_artifacts 软删列 |
+| 000108_session_sandbox_config_tenant | session 沙箱配置租户列 |
+| 000109_session_host_workspace_dir | 宿主沙箱工作区目录列 |
+| 000110_im_channel_locale | IM 渠道回复语言列 |
+
+> 2026-09-24（v0.8.2 同步，merge 9984bd295）：000103–000110 已按步骤 ② 手工应用
+> （备份 /tmp/weknora-pre-v082-migration.dump 600M，八个迁移零错误）。
 
 > 2026-09-18（e3ac49ca 154 提交大同步）：000091–000102 已按步骤 ② 手工应用并逐项
 > 验证（备份 /tmp/weknora-pre-migration-20260918.dump，应用零错误）。
