@@ -4,6 +4,7 @@ import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { onBeforeRouteUpdate } from 'vue-router';
 import { MessagePlugin } from "tdesign-vue-next";
+import type { SendMessageOptions } from '@/utils/questionOrigin';
 import { useSettingsStore } from '@/stores/settings';
 import { kbRoutingEnabled, weightedRankingEnabled } from '@/features/common/flags';
 import { useBrowserConnectionStore } from '@/stores/browserConnection';
@@ -54,6 +55,8 @@ import { formatLocalizedList } from '@/utils/format-list';
 import TagTreePickerMenu from '@/features/tag-tree/TagTreePickerMenu.vue';
 import { tagTreeEnabled } from '@/features/common/flags';
 import { SKILL_ICON, type MentionItem, type MentionItemType, type MentionRequestItem } from '@/types/mention';
+import { toolboxLocation } from '@/config/toolbox';
+import { supportedLevels, levelLabelKey, levelFromLegacy, clampLevel, type ReasoningLevel } from '@/utils/reasoningEffort';
 
 const route = useRoute();
 const router = useRouter();
@@ -516,6 +519,10 @@ const sharedAgentOrgName = computed(() => {
 });
 
 const props = defineProps({
+  compact: {
+    type: Boolean,
+    default: false
+  },
   autoFocus: {
     type: Boolean,
     default: false
@@ -523,6 +530,10 @@ const props = defineProps({
   isReplying: {
     type: Boolean,
     required: false
+  },
+  composerLocked: {
+    type: Boolean,
+    default: false
   },
   sessionId: {
     type: String,
@@ -757,35 +768,6 @@ const modelDropdownStyle = ref<Record<string, string>>({});
 const displayedKbs = computed(() => selectedKbs.value.slice(0, 2));
 const remainingCount = computed(() => Math.max(0, selectedKbs.value.length - 2));
 
-// 根据不同状态组合计算输入框的 placeholder
-const inputPlaceholder = computed(() => {
-  // 如果选择了自定义智能体
-  if (isCustomAgent.value && selectedAgent.value) {
-    // 有描述时显示描述，否则显示"向 [名称] 提问"
-    if (selectedAgent.value.description) {
-      return selectedAgent.value.description;
-    }
-    return t('input.placeholderAgent', { name: selectedAgent.value.name });
-  }
-
-  const hasKnowledge = allSelectedItems.value.length > 0;
-  const hasWebSearch = isWebSearchEnabled.value && isWebSearchConfigured.value;
-
-  if (hasKnowledge && hasWebSearch) {
-    // 有知识库 + 有网络搜索
-    return t('input.placeholderKbAndWeb');
-  } else if (hasKnowledge) {
-    // 有知识库 + 无网络搜索
-    return t('input.placeholderWithContext');
-  } else if (hasWebSearch) {
-    // 无知识库 + 有网络搜索
-    return t('input.placeholderWebOnly');
-  } else {
-    // 无知识库 + 无网络搜索（纯模型对话）
-    return t('input.placeholder');
-  }
-});
-
 // 加载知识库列表（自己的 + 共享的，用于 @ 提及等）
 const loadKnowledgeBases = async (force = false) => {
   try {
@@ -867,14 +849,40 @@ const loadFiles = async () => {
   }
 };
 
+// A shared agent @mentions its OWNER's MCP services; this workspace's service
+// ids match none of its preset, and the backend drops such a mention outright.
+// So the list follows the selected agent and is refetched when it changes.
+const currentAgentScope = computed(() => {
+  const sourceTenantId = settingsStore.selectedAgentSourceTenantId;
+  if (!sourceTenantId || !selectedAgentId.value) return undefined;
+  return { agentId: selectedAgentId.value, sourceTenantId };
+});
+
+const agentScopeKey = (scope?: { agentId: string; sourceTenantId: string | number }) =>
+  scope ? `${scope.sourceTenantId}:${scope.agentId}` : '';
+
+// Guards against a slow response for a previously selected agent overwriting
+// the list with another workspace's services after the user switched away.
+let mcpServicesRequestKey = '';
+
 const loadMCPServices = async () => {
+  const scope = currentAgentScope.value;
+  const requestKey = agentScopeKey(scope);
+  mcpServicesRequestKey = requestKey;
   try {
-    mcpServices.value = await listMCPServices();
+    const list = await listMCPServices(scope);
+    if (mcpServicesRequestKey !== requestKey) return;
+    mcpServices.value = list;
   } catch (error) {
     console.error('Failed to load MCP services:', error);
+    if (mcpServicesRequestKey !== requestKey) return;
     mcpServices.value = [];
   }
 };
+
+watch(currentAgentScope, () => {
+  void loadMCPServices();
+});
 
 watch(selectedFileIds, () => {
   loadFiles();
@@ -901,7 +909,7 @@ const browserSourceUnavailableHint = computed(() => {
 });
 
 const openBrowserConnectionSettings = () => {
-  uiStore.openSettings('browserconnection');
+  void router.push(toolboxLocation('browserconnection'));
 };
 
 const toggleBrowserSource = () => {
@@ -1129,6 +1137,28 @@ const handleModelChange = (value: string | number | Array<string | number> | und
 const selectedModel = computed(() => {
   return availableModels.value.find(model => model.id === selectedModelId.value);
 });
+
+const reasoningLevels = computed(() => supportedLevels(selectedModel.value?.capabilities));
+const agentReasoningLevel = computed(() => clampLevel(
+  levelFromLegacy(currentAgentConfig.value?.thinking, currentAgentConfig.value?.reasoning_effort),
+  reasoningLevels.value,
+));
+// Show the effective level while leaving the request unset until the user
+// chooses a different level. Selecting the agent's level restores inheritance.
+const displayedReasoningLevel = computed(() => settingsStore.reasoningEffortOverride || agentReasoningLevel.value);
+const showReasoningSelector = ref(false);
+const selectReasoningLevel = (level: ReasoningLevel) => {
+  settingsStore.reasoningEffortOverride = level === agentReasoningLevel.value ? '' : level;
+  showReasoningSelector.value = false;
+};
+watch([selectedModel, reasoningLevels, () => settingsStore.reasoningEffortOverride, () => settingsStore._isApplyingSessionState], () => {
+  // Wait for model resources during session restoration. Once known, an
+  // unsupported override returns to inheritance instead of inventing a level.
+  if (!settingsStore._isApplyingSessionState && selectedModel.value && settingsStore.reasoningEffortOverride
+    && !reasoningLevels.value.includes(settingsStore.reasoningEffortOverride)) {
+    settingsStore.reasoningEffortOverride = '';
+  }
+}, { immediate: true, flush: 'sync' });
 
 // 模型展示名：本空间列表中有则用名称；若为共享智能体且其 model_id 不在本空间列表中则显示“共享智能体配置的模型”
 const selectedModelDisplayName = computed(() => {
@@ -1431,7 +1461,12 @@ const loadMentionItems = async (q: string, resetIndex = true, append = false) =>
 
     const skillsMode = agentSkillsSelectionMode.value;
     if (skillsMode !== 'none') {
-      await editorResources.ensureSkills(currentAgentConfig.value?.sandbox_config_id);
+      // The scope makes a shared agent's skills resolve in its owner's
+      // workspace, where they are actually installed.
+      await editorResources.ensureSkills(
+        currentAgentConfig.value?.sandbox_config_id,
+        currentAgentScope.value,
+      );
       skillItems = editorResources.skills
         .filter(skill => isSkillAllowedByAgent(skill.name))
         .map(skill => ({
@@ -1816,6 +1851,7 @@ const removeFile = (id: string) => {
 };
 
 const toggleModelSelector = () => {
+  showReasoningSelector.value = false;
   // 如果智能体锁定了模型，不允许打开选择器
   if (isModelLockedByAgent.value) {
     MessagePlugin.warning(t('input.modelLockedByAgent'));
@@ -1846,6 +1882,13 @@ const toggleModelSelector = () => {
 
 const closeModelSelector = () => {
   showModelSelector.value = false;
+};
+
+const handleReasoningVisibleChange = (visible: boolean) => {
+  if (!visible) return;
+  closeModelSelector();
+  showMention.value = false;
+  showAgentModeSelector.value = false;
 };
 
 // 关闭 Agent 模式选择器（点击外部）
@@ -1986,7 +2029,7 @@ watch([selectedKbIds, selectedFileIds], ([kbIds, fileIds]) => {
 }, { deep: true });
 
 const emit = defineEmits<{
-  (e: 'send-msg', query: string, modelId: string, mentionedItems: MentionRequestItem[], imageFiles: File[], attachmentFiles: AttachmentFile[]): void;
+  (e: 'send-msg', query: string, modelId: string, mentionedItems: MentionRequestItem[], imageFiles: File[], attachmentFiles: AttachmentFile[], options: SendMessageOptions): void;
   (e: 'stop-generation'): void;
   (e: 'stop-confirmed'): void;
   (e: 'stop-failed'): void;
@@ -1998,7 +2041,16 @@ const emit = defineEmits<{
   (e: 'retry-steer', steerId: string): void;
 }>();
 
-const createSession = async (val: string, delivery: 'inject' | 'after' = 'after') => {
+// options ride along with this one send only: a send that returns early (or
+// steers into the running turn) drops them instead of leaving them behind.
+const createSession = async (
+  val: string,
+  delivery: 'inject' | 'after' = 'after',
+  options: SendMessageOptions = {},
+) => {
+  if (props.composerLocked) {
+    return;
+  }
   if (!val.trim()) {
     MessagePlugin.info(t('input.messages.enterContent'));
     return;
@@ -2055,7 +2107,7 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
 
   // Embed 渠道由后端绑定 agent/KB，勿走平台侧 agent 列表与就绪校验
   if (props.embeddedMode) {
-    emit('send-msg', val, selectedModelId.value || '', [], [], []);
+    emit('send-msg', val, selectedModelId.value || '', [], [], [], options);
     clearvalue();
     void focusInput();
     return;
@@ -2134,7 +2186,7 @@ const createSession = async (val: string, delivery: 'inject' | 'after' = 'after'
   const imageFiles = uploadedImages.value.map(img => img.file);
   const attachmentFiles = uploadedAttachments.value;
 
-  emit('send-msg', val, selectedModelId.value, mentionedItems, imageFiles, attachmentFiles);
+  emit('send-msg', val, selectedModelId.value, mentionedItems, imageFiles, attachmentFiles, options);
 
   // Clean up image previews
   uploadedImages.value.forEach(img => URL.revokeObjectURL(img.preview));
@@ -2373,6 +2425,7 @@ const steerShortcutLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ Ent
 const firstQueuedSteer = computed(() => props.queuedSteers.find(item =>
   item.delivery === 'after' && !item.pending && !item.promoting && !item.failed));
 const injectCurrentInput = () => {
+  if (props.composerLocked) return;
   if (!props.isReplying || !props.canSteer) return;
   if (query.value.trim()) void createSession(query.value, 'inject');
   else if (firstQueuedSteer.value) emit('promote-steer', firstQueuedSteer.value.steer_id);
@@ -2422,6 +2475,7 @@ const onKeydown = (val: string, event: { e: KeyboardEvent }) => {
   const delivery = chatSubmitShortcut(event.e, props.isReplying && props.canSteer);
   if (delivery) {
     event.e.preventDefault();
+    if (props.composerLocked) return;
     if (delivery === 'inject' && props.isReplying && props.canSteer) injectCurrentInput();
     else void createSession(val, delivery);
   }
@@ -2664,10 +2718,10 @@ onBeforeRouteUpdate((to, from, next) => {
 
 defineExpose({
   focusInput,
-  triggerSend(text: string) {
+  triggerSend(text: string, options: SendMessageOptions = {}) {
     if (!text.trim()) return;
     query.value = text;
-    nextTick(() => createSession(text));
+    nextTick(() => createSession(text, 'after', options));
   },
   /**
    * Puts text in the composer WITHOUT sending it. Session fork uses this so
@@ -2681,7 +2735,7 @@ defineExpose({
 
 </script>
 <template>
-  <div class="answers-input" :class="{ 'is-embedded': embeddedMode }" @drop="onDrop" @dragover="onDragOver">
+  <div class="answers-input" :class="{ 'is-embedded': embeddedMode, 'is-compact': compact }" @drop="onDrop" @dragover="onDragOver">
     <!-- Hidden file input for image upload -->
     <input ref="imageInputRef" type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple
       style="display:none" @change="handleImageSelect" />
@@ -2748,7 +2802,7 @@ defineExpose({
       </div>
 
       <!-- 实际输入框 -->
-      <t-textarea ref="textareaRef" v-model="query" :placeholder="inputPlaceholder" name="description" :autosize="true"
+      <t-textarea ref="textareaRef" v-model="query" :placeholder="t('input.placeholder')" name="description" :autosize="true"
         @keydown="onKeydown" @input="onInput" @compositionstart="onCompositionStart" @compositionend="onCompositionEnd"
         @paste="onPaste" />
 
@@ -2966,6 +3020,34 @@ defineExpose({
               </div>
             </div>
           </t-tooltip>
+          <t-popup v-if="reasoningLevels.length > 0" v-model:visible="showReasoningSelector"
+            trigger="click" placement="top-right" :disabled="composerLocked"
+            :overlay-inner-style="{ padding: '4px', borderRadius: 'var(--app-radius-lg)' }"
+            @visible-change="handleReasoningVisibleChange">
+            <button type="button" class="model-selector-trigger reasoning-effort-trigger"
+              :disabled="composerLocked" :class="{ disabled: composerLocked }"
+              :aria-label="`${$t('modelSettings.debug.reasoningEffort')}: ${$t(levelLabelKey(displayedReasoningLevel))}`"
+              :title="$t('modelSettings.debug.reasoningEffort')" aria-haspopup="menu" :aria-expanded="showReasoningSelector"
+              @keydown.esc="showReasoningSelector = false">
+              <span class="model-selector-name">{{ $t(levelLabelKey(displayedReasoningLevel)) }}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" class="model-dropdown-arrow"
+                :class="{ rotate: showReasoningSelector }">
+                <path d="M2.5 4.5L6 8L9.5 4.5H2.5Z" />
+              </svg>
+            </button>
+            <template #content>
+              <div class="reasoning-effort-menu" role="menu" :aria-label="$t('modelSettings.debug.reasoningEffort')"
+                @keydown.esc="showReasoningSelector = false">
+                <div class="reasoning-effort-title" role="presentation">{{ $t('modelSettings.debug.reasoningEffort') }}</div>
+                <button v-for="level in reasoningLevels" :key="level" type="button" role="menuitemradio"
+                  class="reasoning-effort-option" :class="{ selected: level === displayedReasoningLevel }"
+                  :aria-checked="level === displayedReasoningLevel" @click="selectReasoningLevel(level)">
+                  <span>{{ $t(levelLabelKey(level)) }}</span>
+                  <t-icon v-if="level === displayedReasoningLevel" name="check" size="14px" />
+                </button>
+              </div>
+            </template>
+          </t-popup>
         </div>
 
         <Teleport to="body">
@@ -3013,7 +3095,7 @@ defineExpose({
           </t-tooltip>
           <t-tooltip v-else :content="`${isReplying && canSteer ? $t('input.steerAfter') : $t('input.send')} · Enter`">
             <button type="button" @click="createSession(query)" class="control-btn send-btn" data-guide="chat-send"
-              :disabled="!query.trim()" :class="{ 'disabled': !query.trim() }"
+              :disabled="!query.trim() || composerLocked" :class="{ 'disabled': !query.trim() || composerLocked }"
               :aria-label="isReplying && canSteer ? $t('input.steerAfter') : $t('input.send')">
               <t-icon name="arrow-up" />
             </button>
@@ -3318,7 +3400,7 @@ const getImgSrc = (url: string) => {
 :deep(.t-textarea__inner) {
   width: 100%;
   max-height: 152px !important;
-  min-height: 72px !important;
+  min-height: var(--composer-input-min-height, 72px) !important;
   resize: none;
   color: var(--td-text-color-primary);
   font-size: var(--app-text-xl);
@@ -3367,6 +3449,24 @@ const getImgSrc = (url: string) => {
 
   &.is-embedded {
     justify-content: flex-end;
+  }
+}
+
+.answers-input.is-compact {
+  --composer-input-min-height: 56px;
+
+  .rich-input-container :deep(.t-textarea__inner) {
+    padding: 12px 14px;
+  }
+
+  .control-bar {
+    margin: 0 12px 8px;
+    padding-top: 4px;
+  }
+
+  .control-icon {
+    width: 16px;
+    height: 16px;
   }
 }
 
@@ -3805,6 +3905,58 @@ const getImgSrc = (url: string) => {
 }
 
 /* 模型显示样式 */
+.model-selector-trigger.reasoning-effort-trigger {
+  flex-shrink: 0;
+  min-width: 0;
+  box-sizing: content-box;
+  background: transparent;
+  font: inherit;
+}
+
+.reasoning-effort-menu {
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reasoning-effort-title {
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  border-bottom: .5px solid var(--td-component-stroke);
+  color: var(--td-text-color-secondary);
+  font-size: var(--app-text-sm);
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.reasoning-effort-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--td-text-color-secondary);
+  font: inherit;
+  font-size: var(--app-text-sm);
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover, &:focus-visible {
+    background: var(--td-bg-color-secondarycontainer-hover);
+  }
+
+  &.selected {
+    background: var(--td-bg-color-secondarycontainer);
+    color: var(--td-brand-color);
+  }
+}
+
 .model-display {
   display: flex;
   align-items: center;

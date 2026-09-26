@@ -1,4 +1,9 @@
 export default {
+  toolbox: {
+    "title": "Инструменты",
+    "description": "Управляйте навыками, внешними инструментами и подключением браузера для агентов.",
+    "unavailable": "В текущем рабочем пространстве нет доступных инструментов."
+  },
   localBrowser: {
     pipOpen: "Открыть плавающее окно",
     pipReturn: "Вернуть предпросмотр в чат",
@@ -63,9 +68,9 @@ export default {
     "helpHint": "Требуется проверка или разрешение. Нажмите предпросмотр для перехода.",
 
     "settingsTitle": "Подключение браузера",
-    "settingsDescription": "Подключите локальный Chrome через BrowserSkill, чтобы управлять реальными страницами из диалогов.",
+    "settingsDescription": "Подключите локальный Chrome или Edge через BrowserSkill, чтобы управлять реальными страницами из диалогов.",
     "openSettings": "Открыть настройки",
-    "settingsHint": "Подключите BrowserSkill в личных настройках, чтобы использовать локальный браузер.",
+    "settingsHint": "Подключите BrowserSkill в разделе «Инструменты», чтобы использовать локальный браузер.",
     "unavailable": "Локальный браузер не включён на сервере. Обратитесь к администратору.",
 
     "source": "Источник браузера",
@@ -78,26 +83,40 @@ export default {
     "pause": "Приостановить браузер",
     "start": "Начать задачу",
     "stop": "Завершить задачу браузера",
-    "pairHint": "Вставьте ссылку в раздел удалённого подключения расширения и проверьте сервер.",
+    "resumeShort": "Продолжить",
+    "pauseShort": "Пауза",
+    "stopShort": "Завершить",
+    "pairHint": "Откройте в расширении «Настройки подключения → Удалённое подключение», вставьте ссылку и подтвердите сервер. Ссылка действует 5 минут и используется один раз.",
     "copyPairing": "Скопировать ссылку",
     "copied": "Скопировано",
-    "windowHint": "Задачи работают в отмеченной группе вкладок. Для существующих вкладок требуется разрешение.",
+    "windowHint": "Задачи выполняются в отдельном окне браузера. Заимствование существующих вкладок требует вашего разрешения.",
     "preview": "Предпросмотр локального браузера",
     "waiting": "Ожидание страницы задачи",
-    "startHint": "Запрос браузера создаёт фоновые вкладки задачи.",
+    "startHint": "Запрос к браузеру создаёт отдельное окно агента.",
     "revoke": "Отозвать доступ устройства",
     "revokeConfirm": "После отзыва потребуется повторное подключение, чтобы снова использовать локальный браузер.",
     "failed": "Операция не удалась. Повторите попытку.",
-    "productDescription": "Задачи браузера в вашем Chrome",
+    "productDescription": "Расширение Chrome и Edge с открытым исходным кодом: агент открывает страницы, читает их и выполняет действия в вашем браузере.",
     "offline": "Не в сети",
     "notPaired": "Не подключён",
     "lastSeen": "Последнее подключение",
     "readyHint": "Готово. Вернитесь в диалог и опишите задачу для браузера.",
-    "reconnectHint": "Авторизация сохранена. Откройте Chrome и BrowserSkill для автоматического подключения.",
+    "capabilitiesTitle": "Агент может",
+    "sidebarStatus": "Показывать статус подключения на боковой панели",
+    "reconnectHint": "Авторизация сохранена. Откройте браузер и BrowserSkill для автоматического подключения.",
     "replaceDevice": "Сменить браузер",
     "installExtension": "Установите BrowserSkill",
-    "installHint": "Скачайте расширение для этого сервера и установите в Chrome.",
-    "downloadExtension": "Скачать расширение",
+    "storeInstall": "Интернет-магазин Chrome",
+    "edgeStoreInstall": "Надстройки Edge",
+    "extensionMinVersion": "Требуется BrowserSkill v{version} или новее. Поддерживаются Chrome и Edge.",
+    "extensionOutdated": "Версия расширения v{current} устарела. Обновите до v{version} или новее.",
+    "manualInstall": "Установить вручную (альтернатива)",
+    "storeInstallHint": "Установите BrowserSkill из Интернет-магазина Chrome или надстроек Edge, затем вернитесь сюда для сопряжения.",
+    "installHint": "Если магазин недоступен или версия несовместима, скачайте подходящий пакет и установите его вручную.",
+    "downloadExtension": "Скачать совместимый пакет",
+    "officialExtension": "Официальное расширение (Интернет-магазин Chrome)",
+    "installGuide": "Как установить скачанный пакет?",
+    "pairGuide": "Как использовать ссылку сопряжения?",
     "pairBrowser": "Подключите браузер",
     "packageUnavailable": "Запросите совместимое расширение у администратора.",
     "manualCopy": "Скопируйте ссылку ниже. Она действует 5 минут и используется один раз.",
@@ -105,17 +124,32 @@ export default {
     "copyAgain": "Копировать ещё раз",
     "usageTitle": "Как пользоваться",
     "usageStep1Title": "Установите расширение",
-    "usageStep1Text": "Распакуйте пакет, включите режим разработчика на странице расширений Chrome и загрузите папку.",
+    "usageStep1Text": "Распакуйте ZIP, введите chrome://extensions (в Edge — edge://extensions) в адресной строке, включите режим разработчика, нажмите «Загрузить распакованное расширение» и выберите папку расширения.",
     "usageStep2Title": "Подключите браузер",
-    "usageStep2Text": "Скопируйте ссылку и вставьте её в раздел удалённого подключения расширения. Одно подключение используется во всех диалогах пространства.",
+    "usageStep2Text": "Вставьте ссылку в «Настройки подключения → Удалённое подключение» расширения и подтвердите сервер. Одно подключение используется во всех диалогах пространства.",
     "usageStep3Title": "Опишите задачу в диалоге",
-    "usageStep3Text": "Включите локальный браузер в поле ввода и опишите веб-задачу. Она выполняется в отмеченной группе вкладок.",
+    "usageStep3Text": "Перед отправкой веб-задачи включите локальный браузер в поле ввода диалога. Подключение не включает эту опцию автоматически. Задачи выполняются в отдельном окне агента.",
     "usageStep4Title": "Просматривайте и продолжайте через предпросмотр",
     "usageStep4Text": "В диалоге появится миниатюра. Нажмите её, чтобы перейти к вкладке задачи. Прерванные задачи остаются на паузе после переподключения — продолжите через предпросмотр. Для существующих вкладок нужно разрешение.",
     "running": "Выполняется",
     "locateWindow": "Показать браузер",
     "reconnectShort": "Ожидание подключения",
 },
+  resourceSort: {
+    title: 'Сортировка',
+    updatedTime: 'Время обновления',
+    updatedTimeDescription: 'Вариант по умолчанию.',
+    createdTime: 'Время создания',
+    createdTimeDescription: 'Показать недавно или давно созданные элементы',
+    name: 'Название',
+    nameDescription: 'Быстро найти элемент по известному названию',
+    recentlyUpdated: 'Сначала обновлённые',
+    earliestUpdated: 'Сначала давно обновлённые',
+    recentlyCreated: 'Сначала новые',
+    earliestCreated: 'Сначала старые',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   platformApiKeys: {
     title: 'Платформенные API-ключи',
     description: 'Учетные данные для автоматизации между рабочими пространствами. Для API пространства используйте X-Tenant-ID.',
@@ -1270,6 +1304,9 @@ export default {
       sessionModeUser: 'По пользователю (по умолчанию)',
       sessionModeThread: 'По потоку',
       sessionModeHint: 'Режим пользователя: отдельный диалог для каждого пользователя. /clear для нового диалога. Режим потока: отдельный диалог для каждого потока. Несколько человек могут общаться в одном потоке.',
+      replyLanguage: 'Язык ответов',
+      replyLanguageDefault: 'Использовать системный язык',
+      replyLanguageHint: 'Фиксирует язык ответов агента для этого канала. Если не задан, используется язык развёртывания по умолчанию.',
       wechatScanBind: 'Сканировать QR-код для привязки WeChat',
       wechatScanning: 'Отсканируйте QR-код в WeChat',
       wechatBindSuccess: 'WeChat успешно привязан',
@@ -1302,6 +1339,12 @@ export default {
       thinkingDesc: 'Динамический инструмент рефлексивного решения проблем',
       todoWrite: 'Планирование',
       todoWriteDesc: 'Создание структурированных исследовательских планов',
+      searchKnowledge: 'Поиск по базе знаний',
+      searchKnowledgeDesc: 'Семантический, ключевой или гибридный поиск по фрагментам базы знаний',
+      readDocument: 'Чтение документа',
+      readDocumentDesc: 'Чтение метаданных и фрагментов документа с постраничной навигацией и поиском внутри документа',
+      listDocuments: 'Список документов',
+      listDocumentsDesc: 'Постраничный просмотр документов базы знаний',
       grepChunks: 'Поиск по ключевым словам',
       grepChunksDesc: 'Быстрый поиск документов и фрагментов с определёнными ключевыми словами',
       knowledgeSearch: 'Семантический поиск',
@@ -1372,7 +1415,7 @@ export default {
       maxTokensAgent: 'Максимум токенов за один раунд рассуждения, включая JSON вызовов инструментов. «По умолчанию»: 4096 без песочницы, 24576 с записью/правкой файлов. «Своё» сохраняет введённое число и больше не меняется.',
       thinking: 'Включить расширенное мышление модели (требуется поддержка модели)',
       conversationSection: 'Настройка параметров многооборотного диалога и перефразирования вопросов',
-      conversationSectionAgent: 'Объём предыдущего диалога в каждом ходе. Умные рассуждения всегда многооборотные',
+      conversationSectionAgent: 'Умные рассуждения всегда многооборотные. Предыдущий диалог хранится в пределах контекстного окна модели, а при его заполнении ранние ходы автоматически сжимаются в сводку',
       multiTurn: 'При включении сохраняется контекст истории диалога',
       historyRounds: 'Количество последних раундов диалога для сохранения в контексте',
       retainRetrievalHistory: 'Сохранять результаты поиска из прошлых ходов. При отключении каждый ход ищет заново',
@@ -1551,7 +1594,10 @@ export default {
     },
     knowledgeChunksList: {
       chunkRange: 'Загружено {fetched} / {total} фрагментов',
-      page: 'Стр. {page}, по {pageSize} на странице'
+      page: 'Стр. {page}, по {pageSize} на странице',
+      offsetRange: 'Фрагменты {from}–{to}',
+      queryMatches: 'Поиск «{query}» в документе: совпадений {count}',
+      queryNoMatch: 'Поиск «{query}» в документе: совпадений нет'
     },
     grepResults: {
       chunkHits: '{count} фрагм.',
@@ -1595,6 +1641,8 @@ export default {
       getRelatedDocuments: 'Поиск связанных документов',
       getDocumentContent: 'Получение содержимого документа',
       wikiReadSourceDoc: 'Читать исходный документ',
+      readDocument: 'Чтение документа',
+      listDocuments: 'Список документов',
       todoWrite: 'Управление планами',
       knowledgeGraphExtract: 'Извлечение графа знаний',
       thinking: 'Размышление',
@@ -1772,6 +1820,9 @@ export default {
   tools: {
     kbRouter: 'Умный выбор баз знаний',
     multiKbSearch: 'Кросс-КБ поиск',
+    searchKnowledge: 'Поиск по базе знаний',
+    readDocument: 'Чтение документа',
+    listDocuments: 'Список документов',
     knowledgeSearch: 'Поиск по базе знаний',
     grepChunks: 'Поиск по текстовому шаблону',
     getChunkDetail: 'Получить детали фрагмента',
@@ -2209,6 +2260,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: 'Добавить сервис MCP',
+    addDesc: 'Подключите внешний сервис MCP, чтобы агенты могли вызывать его инструменты.',
     editTitle: 'Редактировать сервис MCP',
     basicSection: 'Основное',
     connectionSection: 'Подключение',
@@ -2360,6 +2412,8 @@ export default {
       }
     },
     debug: {
+      reasoningEffort: 'Интенсивность размышлений',
+      reasoningEffortDesc: 'Отправляет reasoning_effort с уровнями, которые сообщает каталог модели',
       title: 'Тест модели',
       description: 'Запрос с сохранёнными настройками модели. Перед проверкой сохраните изменения.',
       groupModel: 'Выбор модели',
@@ -2382,15 +2436,11 @@ export default {
       audioFile: 'Аудиофайл',
       chooseFile: 'Выбрать файл',
       parameters: 'Параметры запроса',
-      thinking: 'Режим размышления',
-      thinkingDesc: 'Применяется только к моделям с поддержкой размышления',
       systemPrompt: 'System Prompt',
       systemPromptPlaceholder: 'Необязательно: системный промпт',
       run: 'Запустить тест',
       copyResult: 'Копировать результат',
       history: 'История',
-      thinkOn: 'Размышление вкл.',
-      thinkOff: 'Размышление выкл.',
       runLabel: 'Запуск №{n}',
       success: 'Запрос выполнен',
       failed: 'Запрос не выполнен',
@@ -2398,6 +2448,9 @@ export default {
       requestPreview: 'Просмотр запроса',
       requestFailed: 'Не удалось выполнить тест модели',
       metrics: {
+        api: 'Протокол',
+        thinkingFormat: 'Формат размышлений',
+        requestedReasoningEffort: 'Запрошенная интенсивность',
         dimension: 'Размерность вектора',
         resultCount: 'Количество результатов',
         answerChars: 'Символов в ответе',
@@ -2593,6 +2646,55 @@ export default {
     onlineEdit: 'Онлайн редактирование',
     deleteRecord: 'Удалить запись'
   },
+  uploadTasks: {
+    panelLabel: 'Загрузки',
+    titleUploading: 'Загрузка {done} из {total}',
+    titleParsing: 'Разбор {done} из {total}',
+    titleDone: 'Готово',
+    titleDoneWithIssues: 'Готово: {ok}, не завершено: {bad}',
+    titleCancelled: 'Загрузка отменена',
+    destination: 'Куда: {name}',
+    destinationMany: 'Куда: баз знаний — {count}',
+    remaining: 'осталось около {time}',
+    eta: {
+      seconds: '{n} с',
+      minutes: '{n} мин',
+      hours: '{n} ч'
+    },
+    hintUploading: 'Не закрывайте и не обновляйте страницу до завершения загрузки',
+    hintParsing: 'Все файлы загружены. Разбор продолжится в фоне — страницу можно закрыть',
+    legend: {
+      ready: 'Доступно для поиска',
+      active: 'В работе',
+      waiting: 'В очереди',
+      failed: 'Ошибка',
+      duplicate: 'Уже есть'
+    },
+    filterAll: 'Все',
+    filterIssues: 'Не завершено',
+    phaseWaiting: 'В очереди',
+    phaseSaving: 'Сохранение…',
+    phasePending: 'Ожидает разбора',
+    phaseParsing: 'Разбор',
+    phaseFinalizing: 'Доступно для поиска, идёт оптимизация',
+    phaseReady: 'Готово',
+    phaseUploadFailed: 'Ошибка загрузки',
+    phaseParseFailed: 'Ошибка разбора',
+    phaseDuplicate: 'Такой файл уже есть',
+    phaseCancelled: 'Отменено',
+    phaseDeleted: 'Удалено',
+    cancel: 'Отменить',
+    cancelAll: 'Отменить все',
+    retry: 'Повторить',
+    retryFailed: 'Повторить ({count})',
+    open: 'Открыть',
+    collapse: 'Свернуть',
+    expand: 'Развернуть',
+    close: 'Закрыть',
+    closeConfirm: 'Закрытие отменит загрузку оставшихся файлов ({count})',
+    closeConfirmOk: 'Отменить загрузку',
+    closeConfirmKeep: 'Продолжить загрузку'
+  },
   time: {
     today: 'Сегодня',
     yesterday: 'Вчера',
@@ -2691,6 +2793,28 @@ export default {
     languageSaved: 'Настройки языка сохранены'
   },
   model: {
+    reasoning: {
+      levels: {
+        off: 'Выкл',
+        auto: 'Авто',
+        minimal: 'Минимальный',
+        low: 'Низкий',
+        medium: 'Средний',
+        high: 'Высокий',
+        xhigh: 'Очень высокий',
+        max: 'Максимальный',
+      },
+      levelDescriptions: {
+        off: 'Размышления отключены, параметры размышления не отправляются',
+        auto: 'Интенсивность по умолчанию поставщика; модель сама решает, сколько думать',
+        minimal: 'Минимум размышлений, самые быстрые ответы',
+        low: 'Лёгкие размышления',
+        medium: 'Умеренные размышления',
+        high: 'Глубокие размышления, ответы медленнее',
+        xhigh: 'Очень большой бюджет размышлений (только некоторые модели)',
+        max: 'Максимальный бюджет размышлений (только некоторые модели)',
+      },
+    },
     modelName: 'Название модели',
     defaultTag: 'По умолчанию',
     addModelInSettings: 'Перейти в общие настройки для добавления моделей',
@@ -2699,6 +2823,54 @@ export default {
     searchPlaceholder: 'Поиск моделей...',
     builtinTag: 'Built-in',
     editor: {
+      maxOutputTokensLabel: 'Макс. выходных токенов',
+      maxOutputTokensPlaceholder: 'Пусто — значение из каталога',
+      maxOutputTokensDesc: 'Лимит вывода на один ответ. Оставьте пустым, чтобы использовать значение каталога для этой модели.',
+      catalog: {
+        reasoning: 'Рассуждение',
+        vision: 'Зрение',
+        hint: 'Выберите модель из каталога поставщика или введите своё имя модели.',
+      },
+      resolved: {
+        title: 'Как вызывается модель',
+        empty: 'Укажите поставщика и имя модели, чтобы увидеть, как она будет вызвана',
+        failed: 'Не удалось определить',
+        protocol: 'Протокол запроса',
+        catalog: 'Источник возможностей',
+        catalogedYes: 'Встроенный профиль модели',
+        catalogedNo: 'Настройки поставщика (модели нет в каталоге)',
+        endpoint: 'Адрес запроса',
+        thinkingFormat: 'Переключатель размышлений',
+        thinkingLevels: 'Доступная интенсивность',
+        noThinking: 'Модель не умеет размышлять',
+      },
+      advanced: {
+        toggle: 'Дополнительно',
+        api: {
+          label: 'Переопределение протокола',
+          auto: 'Авто (по поставщику / URL)',
+          desc: 'Принудительно задать протокол запросов; обычно не требуется.',
+        },
+        remoteModelName: {
+          label: 'Имя модели у поставщика',
+          placeholder: 'Пусто — совпадает с именем модели',
+          desc: 'ID модели, который реально отправляется поставщику, если отличается от имени выше.',
+        },
+        legacyThinking: {
+          label: 'Формат параметров размышления (устаревший)',
+          catalog: 'Следовать каталогу (рекомендуется)',
+          none: 'Не отправлять параметры размышления',
+          desc: 'У этой модели сохранилась устаревшая настройка thinking_control. Выберите «Следовать каталогу», чтобы решение принимал каталог.',
+        },
+        compat: {
+          label: 'Переопределение совместимости протокола (JSON)',
+          placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
+          desc: 'Заполняйте, только если эндпоинт расходится со значениями каталога, и указывайте лишь изменяемые поля. Пусто — без переопределения.',
+          docLink: 'Описание полей',
+          invalid: 'Некорректный JSON',
+          mustBeObject: 'Должен быть JSON-объект',
+        },
+      },
       addTitle: 'Добавить модель',
       editTitle: 'Редактировать модель',
       sectionType: 'Тип модели',
@@ -2745,8 +2917,6 @@ export default {
       maxConcurrencyLabel: 'Лимит фоновой параллельности',
       maxConcurrencyPlaceholder: '0 — использовать глобальное значение',
       maxConcurrencyDesc: 'Ограничивает число одновременных фоновых вызовов (индексация/обогащение) к этой модели, общее для модели по всем репликам. 0 или пусто — используется глобальное значение по умолчанию; интерактивный чат не затрагивается.',
-      thinkingControlLabel: 'Формат параметров режима размышления',
-      thinkingControlDesc: 'Определяет, как переключатель «Режим размышления» агента записывается в API. При возможности выбирается по поставщику/модели; при несоответствии измените по документации API. При выборе «Не отправлять» переключатель «Режим размышления» агента не действует.',
       dimensionHint: 'Модель выбрана. Нажмите «Определить размерность», чтобы автоматически получить значение.',
       loadModelListFailed: 'Не удалось загрузить список моделей',
       listRefreshed: 'Список обновлён',
@@ -2769,154 +2939,15 @@ export default {
       goToOllamaSettings: 'Открыть настройки',
       providerLabel: 'Провайдер',
       providerPlaceholder: 'Выберите провайдера модели',
-      providers: {
-        novita: {
-          label: 'Novita AI',
-          description: 'moonshotai/kimi-k2.5, zai-org/glm-5, minimax/minimax-m2.7, qwen/qwen3-embedding-0.6b, etc.'
-        },
-        nvidia: {
-          label: 'NVIDIA',
-          description: 'deepseek-ai-deepseek-v3_1, nv-embed-v1, rerank-qa-mistral-4b, etc.'
-        },
-        lkeap: {
-          label: 'Tencent Cloud LKEAP',
-          description: 'DeepSeek-R1, DeepSeek-V3, lke-reranker-base и др.'
-        },
-        longcat: {
-          label: 'LongCat AI',
-          description: 'LongCat-Flash-Chat, LongCat-Flash-Thinking, etc.'
-        },
-        qianfan: {
-          label: 'Baidu Qianfan',
-          description: 'ernie-5.0-thinking-preview, embedding-v1, bce-reranker-base, etc.'
-        },
-        moonshot: {
-          label: 'Moonshot',
-          description: 'kimi-k2-turbo-preview, moonshot-v1-8k-vision-preview, etc.'
-        },
-        qiniu: {
-          label: 'Qiniu Cloud',
-          description: 'deepseek/deepseek-v3.2-251201, z-ai/glm-4.7, etc.'
-        },
-        modelscope: {
-          label: 'ModelScope',
-          description: 'Qwen/Qwen3-8B, Qwen/Qwen3-Embedding-8B, etc.'
-        },
-        gpustack: {
-          label: 'GPUStack',
-          description: 'Choose your deployed model on GPUStack'
-        },
-        gemini: {
-          label: 'Google Gemini',
-          description: 'gemini-3-flash-preview, gemini-2.5-pro, etc.'
-        },
-        mimo: {
-          label: 'MiMo',
-          description: 'mimo-v2-flash'
-        },
-        minimax: {
-          label: 'MiniMax',
-          description: 'MiniMax-M3, MiniMax-M2.7, MiniMax-M2.7-highspeed, etc.'
-        },
-        hunyuan: {
-          label: 'Hunyuan',
-          description: 'hunyuan-pro, hunyuan-standard, hunyuan-embedding, etc.'
-        },
-        deepseek: {
-          label: 'DeepSeek',
-          description: 'deepseek-chat, deepseek-reasoner, etc.'
-        },
-        volcengine: {
-          label: 'Volcengine',
-          description: 'doubao-1-5-pro-32k-250115, doubao-embedding-vision-250615, etc.'
-        },
-        jina: {
-          label: 'Jina',
-          description: 'jina-clip-v1, jina-embeddings-v2-base-zh, etc.'
-        },
-        siliconflow: {
-          label: 'SiliconFlow',
-          description: 'deepseek-ai/DeepSeek-V3.1, etc.'
-        },
-        generic: {
-          label: 'Пользовательский (OpenAI-совместимый)',
-          description: 'Generic API endpoint'
-        },
-        requesty: {
-          label: 'Requesty',
-          description: 'openai/gpt-4o-mini, anthropic/claude-sonnet-4-5, etc.'
-        },
-        openrouter: {
-          label: 'OpenRouter',
-          description: 'openai/gpt-5.2-chat, google/gemini-3-flash-preview, etc.'
-        },
-        litellm: {
-          label: 'LiteLLM',
-          description: 'Self-hosted прокси к 100+ провайдерам (OpenAI, Anthropic, Gemini, Bedrock и др.). Замените URL-заглушку; localhost нужно добавить в SSRF_WHITELIST.'
-        },
-        zhipu: {
-          label: 'Zhipu BigModel',
-          description: 'glm-4.7, embedding-3, rerank, etc.'
-        },
-        aliyun: {
-          label: 'Aliyun DashScope',
-          description: 'qwen-plus, tongyi-embedding-vision-plus, qwen3-rerank, etc.'
-        },
-        azure_openai: {
-          label: 'Azure OpenAI',
-          description: 'Сервис OpenAI на платформе Microsoft Azure'
-        },
-        anthropic: {
-          label: 'Anthropic',
-          description: 'Claude models via native Anthropic Messages API'
-        },
-        openai: {
-          label: 'OpenAI',
-          description: 'gpt-5.2, gpt-5-mini, etc.'
-        }
-      },
+      providerDocs: 'Документация моделей {provider}',
       validation: {
+        extraFieldRequired: 'Заполните {name}',
         modelNameRequired: 'Введите название модели',
         modelNameEmpty: 'Название модели не может быть пустым',
         modelNameMax: 'Название модели не может превышать 100 символов',
         baseUrlRequired: 'Введите Base URL',
         baseUrlEmpty: 'Base URL не может быть пустым',
         baseUrlInvalid: 'Недопустимый Base URL, введите корректный адрес'
-      },
-      thinkingControl: {
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark; Tencent LKEAP (DeepSeek V3 и др.; по умолчанию для LKEAP; для R1 — «Не отправлять»)'
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope: qwen3, qwen-plus, qwen-max, qwen-turbo'
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'Пользовательские OpenAI-совместимые шлюзы, NVIDIA NIM, vLLM / локальный Qwen'
-        },
-        none: {
-          label: 'Не отправлять параметры размышления',
-          hint: 'Переключатель «Режим размышления» агента не действует; параметры размышления не отправляются в запросе'
-        }
-      },
-      volcengine: {
-        accessKeyLabel: 'Access Key ID',
-        accessKeyPlaceholder: 'Volcengine Access Key ID',
-        secretKeyLabel: 'Secret Access Key',
-        secretKeyPlaceholder: 'Volcengine Secret Access Key',
-        rerankCredentialHint: 'Rerank использует подпись VikingDB AK/SK, а не Ark API key. Рекомендуемая модель: doubao-seed-rerank.'
-      },
-      lkeap: {
-        secretIdLabel: 'SecretId',
-        secretIdPlaceholder: 'Tencent Cloud API SecretId',
-        secretKeyLabel: 'SecretKey',
-        secretKeyPlaceholder: 'Tencent Cloud API SecretKey',
-        regionLabel: 'Region',
-        regionPlaceholder: 'ap-guangzhou',
-        regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
-        rerankCredentialHint: 'Rerank uses Tencent Cloud API signature (not the OpenAI-style LKEAP API key). Create SecretId/SecretKey in the CAM console.'
       },
       modelNamePlaceholder: {
         local: 'например: llama2:latest',
@@ -2937,6 +2968,7 @@ export default {
   },
   error: {
     networkError: 'Ошибка сети, проверьте подключение',
+    requestTimeout: 'Время ожидания запроса истекло. Для больших файлов или медленного соединения повторите попытку',
     invalidCredentials: 'Неверное имя пользователя или пароль',
     tokenRefreshFailed: 'Не удалось обновить токен',
     pleaseRelogin: 'Пожалуйста, войдите снова',
@@ -3759,10 +3791,27 @@ export default {
         authRevoked: 'Сессия больше не действительна, терминал отключён. Войдите снова и переподключитесь.',
     },
     questionMinimapTitle: 'Вопросы',
+    questionMinimapPosition: 'Реплика {current} из {total}',
     questionMinimapAriaLabel: 'Содержание вопросов',
     questionMinimapAttachmentPlaceholder: '(Вложение)',
     referenceChunkCount: '{count} фрагмент(ов)',
     fallbackHint: 'В базе знаний не найдено релевантного содержимого. Выше представлен прямой ответ модели.',
+    truncatedHint: 'Ответ обрезан на лимите вывода модели за один ответ. Выше — то, что было создано до обрыва.',
+    rewind: {
+      tooltip: 'Откатить сюда',
+      confirmBody: 'Сообщения после этой точки будут удалены. Откат от вопроса также убирает сам вопрос и возвращает его во ввод. Рабочая область откатится, если есть контрольная точка. Отменить действие нельзя.',
+      confirmButton: 'Откатить',
+      cancelButton: 'Отмена',
+      success: 'Сессия откачена',
+      busy: 'Дождитесь окончания текущего ответа, прежде чем откатывать',
+      noCheckpoint: 'Нельзя откатить: есть живая рабочая область, но нет достижимой контрольной точки',
+      sandboxReplaced: 'Нельзя откатить: песочница заменена, старая контрольная точка недоступна',
+      reloadFailed: 'Диалог откачен, но историю не удалось перезагрузить. Обновите страницу, если пропали более ранние сообщения',
+      failed: 'Не удалось откатить. Попробуйте ещё раз',
+      skipped: 'Диалог откачен, рабочая область не изменена',
+      skipNoSandbox: 'Диалог откачен, рабочая область не изменена (нет привязанной песочницы)',
+      skipNoCheckpoint: 'Диалог откачен, рабочая область не изменена (нет контрольной точки для отката)',
+    },
     requestInfoTitle: 'Request info',
     requestInfoRequestId: 'Request ID',
     requestInfoMessageId: 'Message ID',
@@ -3858,6 +3907,7 @@ export default {
     processError: 'Ошибка обработки',
     sessionExcerpt: 'Выдержка из сессии',
     noAnswerContent: '(Нет содержимого ответа)',
+    manualSourcesHeading: 'Источники',
     noMatchFound: 'Совпадений не найдено',
     deleteSessionFailed: 'Ошибка удаления, попробуйте позже!',
     imageTooMany: 'Максимум 5 изображений',
@@ -4248,6 +4298,9 @@ export default {
       revisionDiffContent: 'Содержимое',
       revisionDiffEmpty: 'Нет различий в заголовке, резюме и содержимом с текущей версией',
       revisionLoadFailed: 'Не удалось загрузить историю версий',
+      revisionNotRetained: 'Снимок этой версии не сохранён или был очищен',
+      revisionNotRetainedRange: 'v{ver} · полное содержимое',
+      revisionNotRetainedHint: 'Снимок предыдущей версии (v{prev}) не сохранён — для версий до обновления снимки не записывались, а старые могли быть очищены. Показано полное содержимое v{ver} с нуля.',
       revertBtn: 'Откатить к этой версии',
       revertConfirm: 'Откатить к v{ver}? Текущее содержимое сначала будет сохранено в историю.',
       revertSuccess: 'Выполнен откат к v{ver}',
@@ -4502,6 +4555,8 @@ export default {
       end: 'Более ранних записей нет',
       loadFailed: 'Не удалось загрузить историю',
       systemActor: 'Система',
+      actorWithAPIKey: '{actor} · API Key · {name}',
+      actorAPIKey: 'API Key · {name}',
       knowledgeBase: 'База знаний',
       countItems: '{count} элем.',
       titleWithCount: '{title} и ещё {count}',
@@ -4605,6 +4660,8 @@ export default {
         targetType: 'Тип объекта',
         targetId: 'ID объекта',
         actorId: 'ID инициатора',
+        apiKeyName: 'Имя API-ключа',
+        apiKeyId: 'ID API-ключа',
         details: 'Подробности'
       },
       columns: {
@@ -4755,16 +4812,6 @@ export default {
     portalGroupCount: 'баз знаний: {count}',
     portalRoleBadge: 'Моя роль: {role}',
     uninitializedBanner: 'Некоторые базы знаний не инициализированы. Сначала настройте модели в разделе настроек, чтобы добавлять документы.',
-    uploadProgress: {
-      uploadingTitle: 'Загрузка документов папки в «{name}»',
-      detail: 'Готово {completed} из {total} файлов',
-      keepPageOpen: 'Пожалуйста, не закрывайте страницу, пока идет загрузка.',
-      completedTitle: 'Загрузка для «{name}» завершена',
-      completedDetail: 'Загружено {total} файлов. Обновляем список, чтобы показать статус разбора...',
-      refreshing: 'Обновляем список и статусы разбора...',
-      errorTip: 'Часть файлов загрузить не удалось. Проверьте уведомления.',
-      unknownKb: 'База знаний {id}'
-    },
     features: {
       knowledgeGraph: 'Граф знаний включен',
       multimodal: 'Мультимодальность включена',
@@ -4831,6 +4878,9 @@ export default {
   createChat: {
     title: 'Привет, я WeKnora — ваши знания всегда под рукой',
     newSessionTitle: 'Новая сессия',
+    openProject: 'Выбрать проект',
+    clearProject: 'Снять привязку',
+    pickFailed: 'Не удалось открыть выбранный путь',
     messages: {
       createFailed: 'Не удалось создать сессию',
       createError: 'Не удалось создать сессию, попробуйте позже'
@@ -4838,11 +4888,7 @@ export default {
   },
   input: {
     addModel: 'Добавить модель',
-    placeholder: 'Задайте вопрос напрямую модели',
-    placeholderWithContext: 'Введите вопрос, ответ будет основан на выбранных выше базах знаний/файлах',
-    placeholderWebOnly: 'Введите вопрос, ответ будет основан на веб-поиске',
-    placeholderKbAndWeb: 'Введите вопрос, ответ будет основан на базе знаний и веб-поиске',
-    placeholderAgent: 'Спросить {name}',
+    placeholder: 'Задайте вопрос или опишите задачу…',
     agentMode: 'Умный анализ',
     normalMode: 'Быстрый ответ',
     normalModeDesc: 'RAG-вопросы и ответы по базе знаний',
@@ -4904,7 +4950,6 @@ export default {
     }
   },
   manualEditor: {
-    description: 'Пишите знания в Markdown с предпросмотром в реальном времени',
     defaultTitlePrefix: 'Новый документ',
     noDocumentKnowledgeBases: 'Нет доступных баз знаний типа "документ". Пожалуйста, создайте одну сначала',
     actions: {
@@ -4919,12 +4964,13 @@ export default {
     status: {
       draftTag: 'Статус: Черновик',
       publishedTag: 'Статус: Опубликовано',
-      lastUpdated: 'Последнее обновление: {time}'
+      lastUpdated: 'Последнее обновление: {time}',
+      counter: 'Символов: {chars} · Строк: {lines}'
     },
     form: {
-      knowledgeBaseLabel: 'Целевая база знаний',
       knowledgeBasePlaceholder: 'Выберите базу знаний',
       titleLabel: 'Заголовок знания',
+      knowledgeBaseLabel: 'Целевая база знаний',
       titlePlaceholder: 'Введите заголовок',
       contentPlaceholder: 'Поддерживается Markdown. Используйте # заголовки, списки, блоки кода и т.д.'
     },
@@ -4946,7 +4992,6 @@ export default {
       currentKnowledgeBase: 'Текущая база знаний'
     },
     section: {
-      basic: 'Основная информация',
       content: 'Содержимое'
     },
     title: {
@@ -4956,9 +5001,17 @@ export default {
     preview: {
       empty: 'Пока нет содержимого'
     },
+    shortcuts: {
+      title: 'Горячие клавиши',
+      continueList: 'Продолжить список',
+      indent: 'Отступ / Shift+Tab — назад'
+    },
     view: {
-      editLabel: 'Вернуться к редактированию',
-      previewLabel: 'Предпросмотр'
+      edit: 'Редактор',
+      split: 'Разделить',
+      preview: 'Предпросмотр',
+      splitUnavailable: 'Расширьте панель или включите полный экран, чтобы разделить вид',
+      groupLabel: 'Вид редактора'
     },
     toolbar: {
       bold: 'Жирный',
@@ -4976,7 +5029,9 @@ export default {
       link: 'Вставить ссылку',
       image: 'Вставить изображение',
       table: 'Вставить таблицу',
-      horizontalRule: 'Горизонтальная линия'
+      horizontalRule: 'Горизонтальная линия',
+      headingGroup: 'Заголовок',
+      insertGroup: 'Вставить'
     },
     table: {
       column1: 'Колонка 1',
@@ -5022,6 +5077,8 @@ export default {
       discard: 'Отменить изменения',
       keepEditing: 'Продолжить редактирование',
     },
+    fullscreen: 'Полный экран',
+    exitFullscreen: 'Выйти из полного экрана',
     save: 'Сохранить',
     delete: 'Удалить',
     edit: 'Редактировать',
@@ -6024,6 +6081,23 @@ export default {
       installAccepted: 'Установка начата',
       installPartial: 'Установка начата на части песочниц. {failed} не удалось запустить.',
       installOutdated: 'Отличается от каталога',
+      upgrade: 'Обновить',
+      upgradeCount: 'Обновить ({count})',
+      upgradeTitle: 'Обновление навыка',
+      upgradeDrawerDesc: 'Обновить «{name}» в выбранных песочницах до версии из каталога. До завершения обновления песочница продолжает использовать текущую версию, а неудачное обновление её не затрагивает.',
+      upgradeAvailable: 'Доступно обновление',
+      upgradeFromTo: 'Обновление {from} → {to}',
+      upgradeAccepted: 'Обновление начато',
+      noSandboxToUpgrade: 'Нет песочниц для обновления.',
+      upgradeRowTitle: 'Доступна новая версия',
+      upgradeRowHint: 'В этой песочнице версия отличается от каталога. Она продолжает работать до завершения обновления, а неудачное обновление её не затрагивает.',
+      upgradeRowHintVersions: 'В этой песочнице {from}, в каталоге {to}. {from} продолжает работать до завершения обновления, а неудачное обновление её не затрагивает.',
+      upgradeRowHintFailed: 'Установка в этой песочнице не удалась, а каталог уже содержит другую версию. Обновление установит версию из каталога.',
+      upgradeRowHintFailedVersions: 'Установка {from} в этой песочнице не удалась, а в каталоге {to}. Обновление установит {to}.',
+      servedWhileUpgrading: 'Обновляется; работает {version}',
+      servedWhileUpgradingPlain: 'Обновляется; работает предыдущая версия',
+      servedAfterFailure: 'Обновление не удалось; работает {version}',
+      servedAfterFailurePlain: 'Обновление не удалось; работает предыдущая версия',
       loadFailed: 'Не удалось загрузить',
     },
     mcpService: 'Сервис MCP',
@@ -6278,10 +6352,16 @@ export default {
       preview: 'Предпросмотр',
       previewBack: 'Назад к списку',
       collecting: 'Сохранение сгенерированных файлов…',
+      delete: 'Удалить',
+      deleteTitle: 'Удалить этот файл?',
+      deleteConfirm: '«{name}» и сохранённое содержимое будут удалены безвозвратно. Отменить нельзя.',
+      deleted: 'Файл удалён',
+      deleteFailed: 'Не удалось удалить, повторите попытку.',
       download: 'Скачать',
       downloadFailed: 'Не удалось скачать, повторите попытку.',
       inlinePreviewHint: 'Нажмите для просмотра',
       inlineMissing: 'Файл недоступен',
+      inlineDeleted: 'Файл удалён',
     },
     updatePlan: 'Обновить план',
     webSearchFound: 'Найдено <strong>{count}</strong> результатов веб‑поиска',
@@ -6326,6 +6406,8 @@ export default {
       capabilityUnconfigured: 'Not set'
     },
     editor: {
+      reasoningEffortUnsupported: 'Выбранная модель не поддерживает размышления; все варианты, кроме «Выкл», игнорируются.',
+      reasoningEffortAlwaysOn: 'Выбранная модель всегда размышляет, её нельзя отключить — можно менять только уровень усилий.',
       createTitle: 'Create Agent',
       editTitle: 'Edit Agent',
       buttons: {
@@ -6441,6 +6523,7 @@ export default {
       goSandboxSettings: 'Управление песочницами',
       goSkillSettings: 'Управление навыками',
       installToThisSandbox: 'Установить в эту песочницу',
+      upgradeOnThisSandbox: 'Обновить навык в этой песочнице до версии из каталога',
       installShort: 'Установить',
       viewInstallProgress: 'Смотреть ход',
       skillNotInstalled: 'Не установлен',
@@ -6473,6 +6556,7 @@ export default {
     shareScope: {
       title: 'Share Scope',
       desc: 'Space members have read-only access to this agent and will use it according to your current configuration; your changes to the agent will sync to shared spaces. To allow space members to edit knowledge base content, share the knowledge base to the space.',
+      skillSecretsWarning: 'This agent uses skills. When space members use it, the skills run in this workspace\'s sandbox with the environment variables admins configured for them (such as API keys), and members can have the agent reveal those values. Share it only if that is acceptable.',
       knowledgeBase: 'Knowledge bases',
       chatModel: 'Chat model',
       rerankModel: 'Rerank model',
@@ -6541,6 +6625,15 @@ export default {
     root: 'Обработка знаний',
     attempt: 'Попытка {n}',
     retry: 'Повторить парсинг',
+    notRun: 'Не выполнялся',
+    stageFailed: 'Этап «{stage}» завершился с ошибкой',
+    copyError: 'Скопировать детали ошибки',
+    stat: {
+      duration: 'Длительность',
+      attempt: 'Попытка',
+      tasks: 'Фоновые задачи',
+      tasksValue: 'выполняется {running} · с ошибкой {failed} · готово {completed}'
+    },
     refresh: 'Refresh now',
     copy: 'Copy',
     copyDetails: 'Скопировать детали',
@@ -6560,8 +6653,9 @@ export default {
     minutesAgo: '{n}m ago',
     noActivity: 'Нет активности парсинга',
     totalDuration: 'Всего: {d}',
-    total: 'Всего {d}',
     errorCode: {
+      TASK_STALLED: 'Остановлено из-за отсутствия прогресса',
+      TASK_STALLED_SUGGESTION: 'Обработка не продвигалась дольше порога, и в очереди не осталось задач, поэтому она помечена как ошибочная. Нажмите «Повторить»; если это повторяется, проверьте сервис, от которого зависит этап (разбор документов, модель или векторное хранилище).',
       UNKNOWN_SUGGESTION: 'Проверьте логи приложения для подробностей.'
     },
     status: {
@@ -6612,11 +6706,17 @@ export default {
       overview: 'Overview',
       raw: 'Raw JSON'
     },
+    stall: {
+      title: 'Нет прогресса {minutes} мин.; обработка могла зависнуть',
+      hint: 'Можно подождать или остановить разбор и пересобрать документ. Если прогресса так и не будет, документ будет автоматически помечен как ошибочный.',
+      hintAtStage: 'Обработка остановилась на этапе «{stage}». Можно подождать или остановить разбор и пересобрать документ. Если прогресса так и не будет, документ будет автоматически помечен как ошибочный.',
+      queuedTitle: 'Нет прогресса {minutes} мин.; задачи ещё ждут в очереди',
+      queuedHint: 'Задачи этого документа ещё в очереди, обычно из-за накопившихся задач. Обработка продолжится сама, обычно ничего делать не нужно.'
+    },
     head: {
+      lastProgress: 'Последний прогресс',
       stagesDone: 'Main stages',
       stagesProgress: 'Current stage',
-      postprocessTasks: 'Postprocess: {running} running / {failed} failed / {completed} completed',
-      completedWithActiveTrace: 'Processing completed, but {n} trace task(s) remain active',
       attempt: 'Attempt',
       updated: 'Updated'
     },
@@ -6687,18 +6787,37 @@ export default {
     }
   },
   knowledgeBase: {
+    tagAddAction: 'Добавить теги',
+    documentCount: 'Документов: {count}',
+    filters: 'Фильтры',
+    clearFilters: 'Сбросить фильтры',
+
     title: 'База знаний',
     fileContent: 'Содержимое файла',
     name: 'Название',
     description: 'Описание',
     settings: 'Настройки',
+    sort: {
+      title: 'Сортировка',
+      updatedTime: 'Время обновления',
+      updatedTimeDescription: 'Сортировка по времени последнего изменения файла.',
+      createdTime: 'Время загрузки/создания',
+      createdTimeDescription: 'По умолчанию. Просматривайте самые новые или самые ранние материалы.',
+      fileName: 'Имя файла',
+      fileNameDescription: 'Быстро находите файл, имя которого вам известно.',
+      recentlyUpdated: 'Недавно обновлённые',
+      earliestUpdated: 'Обновлённые раньше',
+      newestCreated: 'Сначала новые',
+      earliestCreated: 'Сначала старые',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagUpdateSuccess: 'Тег успешно обновлен',
     tagEditDialogHeading: 'Редактировать теги',
-    tagEditSearch: 'Поиск тегов...',
-    tagEditSelectedSection: 'Выбранные',
-    tagEditAvailableSection: 'Доступные',
-    tagEditNoSelected: 'Ничего не выбрано',
     folderTree: {
+      totalDocuments: 'Всего документов: {count}',
+      countHint: 'В этой папке: {direct}, с подпапками: {total}',
+      filteredCount: 'Найдено документов: {count}',
       title: 'Папки',
       rootRow: 'Корень',
       rootRowTip: 'Корневая папка базы знаний; документы без подпапки находятся здесь',
@@ -6739,10 +6858,13 @@ export default {
     tagManageListSection: 'Список тегов',
     tagManageDocCount: '{count} документов',
     tagManageFaqCount: '{count} записей FAQ',
+    tagPickerSelected: 'Выбранные',
+    tagPickerUnselected: 'Не выбранные',
     tagSelectedCount: 'Выбрано: {count}',
-    tagNewPlaceholder: 'Название нового тега, Enter для добавления',
+    tagPickerSearch: "Найти или создать тег",
+    tagPickerInUse: "Тег используется. Сначала удалите его связи с документами.",
+    tagPickerDeleteConfirm: "Удалить тег «{name}»?",
     untagged: 'Без тега',
-    tagClearAction: 'Очистить выбор',
     tagCreateAction: 'Создать тег',
     tagSearchPlaceholder: 'Введите название тега',
     tagNamePlaceholder: 'Введите название тега',
@@ -6757,13 +6879,6 @@ export default {
     tagLabel: 'Тег',
     tagPlaceholder: 'Выберите теги',
     noTags: 'Нет тегов',
-    uploadSuccess: 'Файл успешно загружен!',
-    uploadFailed: 'Ошибка загрузки файла!',
-    fileExists: 'Файл уже существует',
-    uploadAllSuccess: 'Успешно загружено {count} файлов!',
-    uploadPartialSuccess: 'Загрузка завершена: успешно {success}, ошибка {fail}',
-    uploadAllFailed: 'Все файлы не удалось загрузить',
-    uploadingFolder: 'Загрузка {total} файлов из папки...',
     videosFilteredNoVLM: 'Пропущено {count} видеофайлов (загрузка видео не поддерживается)',
     unsupportedTypesHint: 'Некоторые типы документов ({types}) не имеют доступного парсера и не могут быть обработаны',
     goToParserSettings: 'Настроить',
@@ -6940,9 +7055,6 @@ export default {
     batchTag: 'Пакетная метка',
     batchTagDialogHeading: 'Пакетное назначение меток',
     batchTagSubtitle: 'Установить метки для {count} выбранных документов (заменит существующие метки)',
-    batchTagSelectedSection: 'Выбранные',
-    batchTagAvailableSection: 'Доступные',
-    batchTagNoSelected: 'Ничего не выбрано',
     batchTagSuccess: 'Метки применены к {count} документам',
     batchTagFailed: 'Ошибка пакетного назначения меток',
     confirmBatchReparseDocument: 'Пересобрать {count} выбранных документов? Существующее содержимое будет удалено, и каждый документ будет обработан заново.',
@@ -6953,6 +7065,10 @@ export default {
     statusCompleted: 'Завершено',
     statusProcessing: 'Обработка',
     statusFinalizing: 'Оптимизация',
+    statusStalled: 'Возможно, завис',
+    stalledHint: 'Нет прогресса {minutes} мин.; обработка могла зависнуть. Откройте трассировку, чтобы увидеть, где она остановилась, или остановите разбор и пересоберите документ.',
+    statusQueued: 'В очереди',
+    queuedHint: 'Нет прогресса {minutes} мин., но задачи документа ещё ждут в очереди — обычно из-за накопившихся задач. Обработка продолжится сама.',
     statusFailed: 'Ошибка',
     statusCancelled: 'Отменено',
     statusDraft: 'Черновик',
@@ -6994,9 +7110,6 @@ export default {
     operationNotSupportedForType: 'Эта операция не поддерживается для текущего типа базы знаний',
     allFilesSkippedNoEngine: 'Все выбранные файлы были пропущены из-за отсутствия парсера',
     filesSkippedNoEngine: '{count} файл(ов) пропущено из-за отсутствия парсера',
-    allUploadSuccess: 'Все файлы загружены ({count})',
-    partialUploadSuccess: 'Частичная загрузка (успешно: {success}, ошибки: {fail})',
-    allUploadFailed: 'Все файлы не удалось загрузить ({count})',
     deleteSuccess: 'Знание удалено!',
     chunkLoadFailed: 'Не удалось загрузить фрагменты',
     infoCard: {
@@ -7314,6 +7427,7 @@ export default {
     deleteSession: 'Удалить диалог',
     renamePlaceholder: 'Введите название диалога',
     unpinSuccess: 'Диалог откреплён',
+    temporaryWorkspace: 'Временная рабочая область',
     sessionIdCopied: 'ID сессии скопирован',
     linkCopied: 'Ссылка на диалог скопирована',
     copyFailed: 'Не удалось скопировать. Проверьте разрешение браузера на доступ к буферу обмена.',
@@ -7333,10 +7447,58 @@ export default {
       references: 'Источники'
     }
   },
+  artifactLibrary: {
+    title: 'Артефакты',
+    subtitle: 'Файлы, созданные агентами во всех ваших диалогах',
+    typeFilter: 'Фильтр по типу',
+    searchPlaceholder: 'Поиск по имени файла',
+    categories: {
+      all: 'Все',
+      document: 'Документы',
+      spreadsheet: 'Таблицы',
+      presentation: 'Презентации',
+      image: 'Изображения',
+      web: 'Веб-страницы',
+      data: 'Данные'
+    },
+    groups: {
+      today: 'Сегодня',
+      yesterday: 'Вчера',
+      last7Days: 'Последние 7 дней',
+      last30Days: 'Последние 30 дней',
+      earlier: 'Ранее'
+    },
+    total: 'Файлов: {count}',
+    versions: 'Версий: {count}',
+    preview: 'Предпросмотр',
+    delete: 'Удалить',
+    deleteTitle: 'Удалить этот файл?',
+    deleteConfirm: '«{name}» и сохранённое содержимое будут удалены безвозвратно. Отменить нельзя.',
+    deleteConfirmVersions: 'Все версии файла «{name}» ({count}) и их содержимое будут удалены безвозвратно. Отменить нельзя.',
+    deleted: 'Файл удалён',
+    deleteFailed: 'Не удалось удалить, повторите попытку.',
+    download: 'Скачать',
+    downloadFailed: 'Не удалось скачать файл. Повторите попытку позже',
+    openSession: 'Открыть диалог',
+    untitledSession: 'Диалог без названия',
+    loadMore: 'Загрузить ещё',
+    loadFailed: 'Не удалось загрузить артефакты',
+    retry: 'Повторить',
+    clearFilters: 'Сбросить фильтры',
+    empty: {
+      title: 'Артефактов пока нет',
+      description: 'Попросите агента подготовить отчёт, таблицу или презентацию — файлы появятся здесь'
+    },
+    noMatches: {
+      title: 'Нет подходящих файлов',
+      description: 'Попробуйте другое ключевое слово или тип файла'
+    }
+  },
   menu: {
     sessionInProgress: 'Диалог выполняется',
     knowledgeBase: 'База знаний',
     agents: 'Агенты',
+    artifacts: 'Артефакты',
     organizations: 'Общие пространства',
     newChat: 'Новый диалог',
     settings: 'Настройки системы',

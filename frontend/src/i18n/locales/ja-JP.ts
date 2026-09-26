@@ -1,4 +1,24 @@
 export default {
+  toolbox: {
+    "title": "ツールボックス",
+    "description": "エージェントのスキル、外部ツール、ブラウザー接続を管理します。",
+    "unavailable": "現在のワークスペースで利用できるツールはありません。"
+  },
+  resourceSort: {
+    title: '並び替え',
+    updatedTime: '更新日時',
+    updatedTimeDescription: '既定の並び順です。',
+    createdTime: '作成日時',
+    createdTimeDescription: '新しく作成した項目や古い項目を確認',
+    name: '名前',
+    nameDescription: '名前が分かっている項目をすばやく検索',
+    recentlyUpdated: '更新が新しい順',
+    earliestUpdated: '更新が古い順',
+    recentlyCreated: '作成が新しい順',
+    earliestCreated: '作成が古い順',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   localBrowser: {
     pipOpen: "プレビューを別ウィンドウで表示",
     pipReturn: "会話内のプレビューに戻す",
@@ -63,9 +83,9 @@ export default {
     "helpHint": "確認または許可が必要です。プレビューをクリックして移動してください。",
 
     "settingsTitle": "ブラウザー接続",
-    "settingsDescription": "BrowserSkill で手元の Chrome を接続すると、会話から実際のウェブページを操作できます。",
+    "settingsDescription": "BrowserSkill で手元の Chrome または Edge を接続すると、会話から実際のウェブページを操作できます。",
     "openSettings": "接続設定を開く",
-    "settingsHint": "個人設定で BrowserSkill を接続すると、ここでローカルブラウザーを利用できます。",
+    "settingsHint": "ツールボックスで BrowserSkill を接続すると、ここでローカルブラウザーを利用できます。",
     "unavailable": "サーバーでローカルブラウザーが有効になっていません。管理者に連絡してください。",
 
     "source": "ブラウザーの接続先",
@@ -78,26 +98,40 @@ export default {
     "pause": "操作を一時停止",
     "start": "タスクを開始",
     "stop": "ブラウザータスクを終了",
-    "pairHint": "拡張機能の「リモート接続」にリンクを貼り付け、サーバーを確認します。",
+    "resumeShort": "再開",
+    "pauseShort": "一時停止",
+    "stopShort": "終了",
+    "pairHint": "拡張機能の「接続設定 → リモート接続」にリンクを貼り付け、サーバーを確認します。リンクは 5 分間有効で、1 回限り使用できます。",
     "copyPairing": "ペアリングリンクをコピー",
     "copied": "コピーしました",
-    "windowHint": "タスクはラベル付きのタブグループで実行されます。既存タブには許可が必要です。",
+    "windowHint": "タスクは独立したブラウザーのタスクウィンドウで実行されます。既存のタブを借りるには許可が必要です。",
     "preview": "ローカルブラウザーのプレビュー",
     "waiting": "タスクのページを待っています",
-    "startHint": "ブラウザーのタスクを送ると、バックグラウンドにタスクタブを作成します。",
+    "startHint": "ブラウザーへのリクエストで独立したタスクウィンドウが作成されます。",
     "revoke": "デバイスの認証を取り消す",
     "revokeConfirm": "取り消すと、ローカルブラウザーを使うには再度ペアリングが必要です。",
     "failed": "操作に失敗しました。再試行してください。",
-    "productDescription": "Chrome でブラウザータスクを実行",
+    "productDescription": "エージェントがブラウザーでページを開き、内容を読み取り、操作できるオープンソースの Chrome / Edge 拡張機能です。",
     "offline": "オフライン",
     "notPaired": "未ペアリング",
     "lastSeen": "最終接続",
     "readyHint": "準備完了。会話に戻り、ブラウザーで行うタスクを伝えてください。",
-    "reconnectHint": "認証は保存されています。Chrome と拡張機能を開くと自動的に再接続します。",
+    "capabilitiesTitle": "エージェントができること",
+    "sidebarStatus": "サイドバーに接続状態を表示",
+    "reconnectHint": "認証は保存されています。ブラウザーと拡張機能を開くと自動的に再接続します。",
     "replaceDevice": "ブラウザーを変更",
     "installExtension": "BrowserSkill をインストール",
-    "installHint": "このサーバー用の拡張機能を Chrome にインストールします。",
-    "downloadExtension": "拡張機能をダウンロード",
+    "storeInstall": "Chrome ウェブストア",
+    "edgeStoreInstall": "Edge アドオン",
+    "extensionMinVersion": "BrowserSkill v{version} 以降が必要です。Chrome と Edge に対応しています。",
+    "extensionOutdated": "拡張機能 v{current} は古いバージョンです。v{version} 以降に更新してください。",
+    "manualInstall": "手動インストール（代替手段）",
+    "storeInstallHint": "Chrome ウェブストアまたは Edge アドオンから BrowserSkill をインストールし、ここに戻ってペアリングしてください。",
+    "installHint": "ストアにアクセスできない場合やバージョンに互換性がない場合は、対応パッケージをダウンロードして手動でインストールできます。",
+    "downloadExtension": "対応パッケージをダウンロード",
+    "officialExtension": "公式拡張機能（Chrome ウェブストア）",
+    "installGuide": "ダウンロードしたパッケージのインストール方法",
+    "pairGuide": "ペアリングリンクの使い方",
     "pairBrowser": "ブラウザーを接続",
     "packageUnavailable": "対応する拡張機能パッケージを管理者から入手してください。",
     "manualCopy": "下のリンクをコピーしてください。有効期限は 5 分、使用は 1 回限りです。",
@@ -105,21 +139,69 @@ export default {
     "copyAgain": "再コピー",
     "usageTitle": "使い方",
     "usageStep1Title": "拡張機能をインストール",
-    "usageStep1Text": "拡張を解凍し、Chrome の拡張機能ページでデベロッパーモードを有効にして読み込みます。",
+    "usageStep1Text": "ZIP を解凍し、ブラウザーのアドレスバーに chrome://extensions（Edge では edge://extensions）と入力します。「デベロッパーモード」を有効にし、「パッケージ化されていない拡張機能を読み込む」から解凍した拡張機能フォルダーを選択します。",
     "usageStep2Title": "ブラウザーをペアリング",
-    "usageStep2Text": "ペアリングリンクをコピーし、拡張機能の「リモート接続」に貼り付けてサーバーを確認します。同じスペースの会話で共有されます。",
+    "usageStep2Text": "ペアリングリンクを拡張機能の「接続設定 → リモート接続」に貼り付け、サーバーを確認します。同じスペースのすべての会話で共有されます。",
     "usageStep3Title": "会話でタスクを伝える",
-    "usageStep3Text": "入力欄でローカルブラウザーをオンにし、行うウェブタスクを伝えてください。ラベル付きのタブグループで実行されます。",
+    "usageStep3Text": "ウェブタスクを送る前に、会話の入力欄で「ローカルブラウザー」をオンにしてください。ペアリングだけでは自動でオンになりません。タスクは独立したタスクウィンドウで実行されます。",
     "usageStep4Title": "プレビューで確認・再開",
     "usageStep4Text": "会話に小さなプレビューが表示されます。クリックするとタスクタブに移動できます。中断したタスクは再接続後も一時停止するので、プレビューから再開してください。既存タブには許可が必要です。",
     "running": "実行中",
     "locateWindow": "ブラウザーを表示",
     "reconnectShort": "再接続を待機中",
 },
+  artifactLibrary: {
+    title: '成果物',
+    subtitle: 'すべての会話でエージェントが生成したファイルをまとめて表示します',
+    typeFilter: '種類で絞り込む',
+    searchPlaceholder: 'ファイル名を検索',
+    categories: {
+      all: 'すべて',
+      document: 'ドキュメント',
+      spreadsheet: 'スプレッドシート',
+      presentation: 'プレゼンテーション',
+      image: '画像',
+      web: 'Web ページ',
+      data: 'データ'
+    },
+    groups: {
+      today: '今日',
+      yesterday: '昨日',
+      last7Days: '過去 7 日間',
+      last30Days: '過去 30 日間',
+      earlier: 'それ以前'
+    },
+    total: '{count} 件のファイル',
+    versions: '{count} バージョン',
+    preview: 'プレビュー',
+    delete: '削除',
+    deleteTitle: 'このファイルを削除しますか？',
+    deleteConfirm: '「{name}」と保存されている内容を完全に削除します。元に戻せません。',
+    deleteConfirmVersions: '「{name}」の全 {count} バージョンと保存されている内容を完全に削除します。元に戻せません。',
+    deleted: 'ファイルを削除しました',
+    deleteFailed: '削除に失敗しました。再試行してください。',
+    download: 'ダウンロード',
+    downloadFailed: 'ダウンロードに失敗しました。しばらくしてから再試行してください',
+    openSession: '会話を開く',
+    untitledSession: '無題の会話',
+    loadMore: 'さらに読み込む',
+    loadFailed: '成果物を読み込めませんでした',
+    retry: '再試行',
+    clearFilters: '絞り込みを解除',
+    empty: {
+      title: '成果物はまだありません',
+      description: '会話でエージェントにレポートや表、スライドを作成させると、ここに表示されます'
+    },
+    noMatches: {
+      title: '一致するファイルがありません',
+      description: '別のキーワードや種類をお試しください'
+    }
+  },
   menu: {
     sessionInProgress: '会話中',
     knowledgeBase: 'ナレッジベース',
     agents: 'エージェント',
+    artifacts: '成果物',
     organizations: '共有スペース',
     newChat: '新しいチャット',
     settings: 'システム設定',
@@ -154,6 +236,7 @@ export default {
     deleteSession: '会話を削除',
     renamePlaceholder: '会話のタイトルを入力してください',
     unpinSuccess: '会話のピン留めを解除しました',
+    temporaryWorkspace: '一時ワークスペース',
     sessionIdCopied: 'セッションIDをコピーしました',
     linkCopied: '会話リンクをコピーしました',
     copyFailed: 'コピーに失敗しました。ブラウザのクリップボード権限を確認してください。',
@@ -444,6 +527,11 @@ export default {
     sharedTooltip: '共有スペース経由で外部ワークスペースからアクセス'
   },
   knowledgeBase: {
+    tagAddAction: 'タグを追加',
+    documentCount: '{count} 件のドキュメント',
+    filters: '絞り込み',
+    clearFilters: '絞り込みをクリア',
+
     title: 'ナレッジベース',
     fileContent: 'ファイル内容',
     accessInfo: {
@@ -483,12 +571,26 @@ export default {
     description: '説明',
     settings: '設定',
     tagUpdateSuccess: 'タグを更新しました',
+    sort: {
+      title: '並び替え',
+      updatedTime: '更新日時',
+      updatedTimeDescription: 'ファイルに最後の変更が加えられた日時で並べ替えます',
+      createdTime: 'アップロード・作成日時',
+      createdTimeDescription: '既定の並び順です。新しく追加した資料や古い資料を確認',
+      fileName: 'ファイル名',
+      fileNameDescription: '名前が分かっているファイルをすばやく検索',
+      recentlyUpdated: '更新が新しい順',
+      earliestUpdated: '更新が古い順',
+      newestCreated: 'アップロードが新しい順',
+      earliestCreated: 'アップロードが古い順',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagEditDialogHeading: 'タグを編集',
-    tagEditSearch: 'タグを検索...',
-    tagEditSelectedSection: '選択中',
-    tagEditAvailableSection: '選択可能',
-    tagEditNoSelected: '未選択',
     folderTree: {
+      totalDocuments: '全 {count} 件',
+      countHint: 'このフォルダ内 {direct} 件、サブフォルダを含めて {total} 件',
+      filteredCount: '{count} 件一致',
       title: 'フォルダ',
       rootRow: 'ルート',
       rootRowTip: 'ナレッジベースのルート。サブフォルダに属さないドキュメントはここに置かれます',
@@ -529,10 +631,13 @@ export default {
     tagManageListSection: 'タグ',
     tagManageDocCount: '{count}件のドキュメント',
     tagManageFaqCount: '{count}件のFAQ',
+    tagPickerSelected: '選択済み',
+    tagPickerUnselected: '未選択',
     tagSelectedCount: '{count}件選択中',
-    tagNewPlaceholder: '新しいタグ名を入力し、Enterキーで追加',
+    tagPickerSearch: "タグを検索または作成",
+    tagPickerInUse: "使用中のタグです。先にドキュメントとの関連付けを解除してください。",
+    tagPickerDeleteConfirm: "タグ「{name}」を削除しますか？",
     untagged: 'タグなし',
-    tagClearAction: '選択を解除',
     tagCreateAction: 'タグを作成',
     tagSearchPlaceholder: 'タグ名で絞り込み',
     tagNamePlaceholder: 'タグ名を入力してください',
@@ -547,13 +652,6 @@ export default {
     tagLabel: 'タグ',
     tagPlaceholder: 'タグを選択',
     noTags: 'タグなし',
-    uploadSuccess: 'ファイルをアップロードしました。',
-    uploadFailed: 'ファイルのアップロードに失敗しました。',
-    fileExists: 'ファイルは既に存在します',
-    uploadAllSuccess: '{count}件のファイルをアップロードしました。',
-    uploadPartialSuccess: 'アップロード完了: 成功{success}件、失敗{fail}件',
-    uploadAllFailed: 'すべてのファイルのアップロードに失敗しました',
-    uploadingFolder: 'フォルダ内の{total}件のファイルをアップロード中...',
     videosFilteredNoVLM: '{count}件の動画ファイルをスキップしました（動画のアップロードには対応していません）',
     unsupportedTypesHint: '一部のドキュメント形式（{types}）は利用できる解析エンジンがないため、アップロードしても解析できません',
     goToParserSettings: '設定を開く',
@@ -730,9 +828,6 @@ export default {
     batchTag: '一括タグ付け',
     batchTagDialogHeading: '一括タグ付け',
     batchTagSubtitle: '選択した{count}件のドキュメントにタグを設定します（既存のタグは置き換えられます）',
-    batchTagSelectedSection: '選択中',
-    batchTagAvailableSection: '選択可能',
-    batchTagNoSelected: '未選択',
     batchTagSuccess: '{count}件のドキュメントにタグを設定しました',
     batchTagFailed: '一括タグ付けに失敗しました',
     confirmBatchReparseDocument: '選択した{count}件のドキュメントを再構築しますか？既存の内容は削除され、各ドキュメントが再解析されます。',
@@ -743,6 +838,10 @@ export default {
     statusCompleted: '完了',
     statusProcessing: '処理中',
     statusFinalizing: '最適化中',
+    statusStalled: '停止の可能性',
+    stalledHint: '{minutes} 分間進捗がありません。停止している可能性があります。トレースで停止箇所を確認するか、解析を停止してドキュメントを再構築してください。',
+    statusQueued: '待機中',
+    queuedHint: '{minutes} 分間進捗がありませんが、タスクはまだキューで待機しています。通常はバックログによるもので、自動的に再開されます。',
     statusFailed: '失敗',
     statusCancelled: 'キャンセル済み',
     statusDraft: '下書き',
@@ -780,9 +879,6 @@ export default {
     operationNotSupportedForType: 'この操作は現在のナレッジベースのタイプでは利用できません',
     allFilesSkippedNoEngine: '利用可能な解析エンジンがないため、選択したすべてのファイルをスキップしました',
     filesSkippedNoEngine: '利用可能な解析エンジンがないため、{count}件のファイルをスキップしました',
-    allUploadSuccess: 'すべてのファイルをアップロードしました（{count}件）',
-    partialUploadSuccess: '一部のファイルをアップロードしました（成功: {success}件、失敗: {fail}件）',
-    allUploadFailed: 'すべてのファイルのアップロードに失敗しました（{count}件）',
     deleteSuccess: 'ナレッジを削除しました。',
     chunkLoadFailed: 'チャンクの読み込みに失敗しました'
   },
@@ -856,6 +952,15 @@ export default {
     },
     attempt: '{n}回目の試行',
     retry: '再解析',
+    notRun: '未実行',
+    stageFailed: '{stage}が失敗しました',
+    copyError: 'エラー情報をコピー',
+    stat: {
+      duration: '所要時間',
+      attempt: '試行',
+      tasks: 'バックグラウンドタスク',
+      tasksValue: '実行中 {running} · 失敗 {failed} · 完了 {completed}'
+    },
     refresh: '今すぐ更新',
     copy: 'コピー',
     copyDetails: '詳細をコピー',
@@ -875,12 +980,17 @@ export default {
     minutesAgo: '{n}分前',
     noActivity: '解析の記録はまだありません',
     totalDuration: '合計: {d}',
-    total: '合計{d}',
+    stall: {
+      title: '{minutes} 分間進捗がありません。停止している可能性があります',
+      hint: 'このまま待つか、解析を停止してドキュメントを再構築できます。進捗がないままの場合は自動的に失敗としてマークされます。',
+      hintAtStage: '「{stage}」段階で止まっています。このまま待つか、解析を停止してドキュメントを再構築できます。進捗がないままの場合は自動的に失敗としてマークされます。',
+      queuedTitle: '{minutes} 分間進捗がありません。キューで待機中です',
+      queuedHint: 'このドキュメントのタスクはまだキューで待機しています。通常はバックログによるもので、自動的に再開されるため、操作は不要です。'
+    },
     head: {
+      lastProgress: '最終進捗',
       stagesDone: '主要ステージ',
       stagesProgress: '現在のステージ',
-      postprocessTasks: '後処理: 実行中{running}件／失敗{failed}件／完了{completed}件',
-      completedWithActiveTrace: '処理は完了しましたが、{n}件のトレースタスクがまだ実行中です',
       attempt: '試行',
       updated: '更新'
     },
@@ -933,6 +1043,8 @@ export default {
       cancelled: 'キャンセル済み'
     },
     errorCode: {
+      TASK_STALLED: '進捗がないため自動停止しました',
+      TASK_STALLED_SUGGESTION: 'しきい値を超えても進捗がなく、キューにも対応するタスクがないため失敗としてマークされました。「再試行」を押してください。繰り返し発生する場合は、この段階が依存するサービス（文書解析、モデル、ベクトルストア）を確認してください。',
       UNKNOWN_SUGGESTION: '詳細はアプリケーションログを確認してください。'
     }
   },
@@ -948,10 +1060,16 @@ export default {
       preview: 'プレビュー',
       previewBack: '一覧に戻る',
       collecting: '生成されたファイルを保存中…',
+      delete: '削除',
+      deleteTitle: 'このファイルを削除しますか？',
+      deleteConfirm: '「{name}」と保存されている内容を完全に削除します。元に戻せません。',
+      deleted: 'ファイルを削除しました',
+      deleteFailed: '削除に失敗しました。再試行してください。',
       download: 'ダウンロード',
       downloadFailed: 'ダウンロードに失敗しました。再試行してください。',
       inlinePreviewHint: 'クリックしてプレビュー',
       inlineMissing: 'ファイルを利用できません',
+      inlineDeleted: 'ファイルは削除されました',
     },
     updatePlan: 'プランを更新',
     webSearchFound: 'Web検索結果を<strong>{count}</strong>件見つけました',
@@ -1026,6 +1144,7 @@ export default {
     shareScope: {
       title: '共有範囲',
       desc: 'スペースのメンバーはこのエージェントを読み取り専用で利用し、現在の設定がそのまま適用されます。エージェントへの変更は共有先のスペースにも反映されます。スペースのメンバーがナレッジベースの内容を編集できるようにするには、ナレッジベースをスペースに共有してください。',
+      skillSecretsWarning: 'このエージェントはスキルを使用します。スペースのメンバーが利用すると、スキルはこのワークスペースのサンドボックスで、管理者が設定した環境変数（API キーなど）とともに実行され、メンバーはエージェントにその値を出力させることができます。これを許容できる場合にのみ共有してください。',
       knowledgeBase: 'ナレッジベース',
       chatModel: 'チャットモデル',
       rerankModel: 'リランクモデル',
@@ -1059,6 +1178,8 @@ export default {
       enabled: 'エージェントを有効化しました'
     },
     editor: {
+      reasoningEffortUnsupported: '選択中のモデルは思考に対応していません。「オフ」以外は無視されます。',
+      reasoningEffortAlwaysOn: '選択中のモデルは常に思考します。オフにはできず、強度のみ調整できます。',
       createTitle: 'エージェントを作成',
       editTitle: 'エージェントを編集',
       buttons: {
@@ -1175,6 +1296,7 @@ export default {
       goSandboxSettings: 'サンドボックスを管理',
       goSkillSettings: 'スキルを管理',
       installToThisSandbox: 'このサンドボックスにインストール',
+      upgradeOnThisSandbox: 'このサンドボックスのスキルをカタログのバージョンにアップグレード',
       installShort: 'インストール',
       viewInstallProgress: '進捗を表示',
       skillNotInstalled: '未インストール',
@@ -1670,6 +1792,23 @@ export default {
       installAccepted: 'インストールを開始しました',
       installPartial: '一部のサンドボックスで開始しました。{failed}件では開始できませんでした。',
       installOutdated: 'カタログと差異あり',
+      upgrade: 'アップグレード',
+      upgradeCount: '{count} 件をアップグレード',
+      upgradeTitle: 'スキルをアップグレード',
+      upgradeDrawerDesc: '選択したサンドボックス上の{name}をカタログのバージョンにアップグレードします。完了するまで各サンドボックスは現在のバージョンを使い続け、失敗しても影響はありません。',
+      upgradeAvailable: 'アップグレード可能',
+      upgradeFromTo: 'アップグレード可能 {from} → {to}',
+      upgradeAccepted: 'アップグレードを開始しました',
+      noSandboxToUpgrade: 'アップグレードが必要なサンドボックスはありません。',
+      upgradeRowTitle: '新しいバージョンがあります',
+      upgradeRowHint: 'このサンドボックスのバージョンはカタログと異なります。アップグレードが完了するまで現在のバージョンを使い続け、失敗しても影響はありません。',
+      upgradeRowHintVersions: 'このサンドボックスは {from}、カタログは {to} です。アップグレードが完了するまで {from} を使い続け、失敗しても影響はありません。',
+      upgradeRowHintFailed: 'このサンドボックスへのインストールは成功しておらず、カタログは別のバージョンになっています。アップグレードするとカタログのバージョンをインストールします。',
+      upgradeRowHintFailedVersions: 'このサンドボックスへの {from} のインストールは成功しておらず、カタログは {to} です。アップグレードすると {to} をインストールします。',
+      servedWhileUpgrading: 'アップグレード中。{version} を使用中',
+      servedWhileUpgradingPlain: 'アップグレード中。以前のバージョンを使用中',
+      servedAfterFailure: 'アップグレード失敗。{version} を使用中',
+      servedAfterFailurePlain: 'アップグレード失敗。以前のバージョンを使用中',
       loadFailed: '読み込みに失敗しました',
     },
     mcpService: 'MCPサービス',
@@ -2410,6 +2549,8 @@ export default {
       discard: '変更を破棄',
       keepEditing: '編集を続ける',
     },
+    fullscreen: '全画面',
+    exitFullscreen: '全画面を終了',
     save: '保存',
     delete: '削除',
     edit: '編集',
@@ -2512,11 +2653,21 @@ export default {
       link: 'リンクを挿入',
       image: '画像を挿入',
       table: '表を挿入',
-      horizontalRule: '水平線'
+      horizontalRule: '水平線',
+      headingGroup: '見出し',
+      insertGroup: '挿入'
+    },
+    shortcuts: {
+      title: 'ショートカット',
+      continueList: 'リストを続ける',
+      indent: 'インデント / Shift+Tab で解除'
     },
     view: {
-      editLabel: '編集に戻る',
-      previewLabel: '内容をプレビュー'
+      edit: '編集',
+      split: '分割',
+      preview: 'プレビュー',
+      splitUnavailable: '幅が足りません。ドロワーを広げるか全画面にすると分割できます',
+      groupLabel: 'エディタ表示'
     },
     preview: {
       empty: 'まだ内容がありません'
@@ -2525,9 +2676,7 @@ export default {
       edit: 'Markdownナレッジを編集',
       create: 'Markdownナレッジを作成'
     },
-    description: 'Markdownでナレッジを記述し、リアルタイムでプレビューできます',
     section: {
-      basic: '基本情報',
       content: '内容'
     },
     labels: {
@@ -2549,9 +2698,9 @@ export default {
       published: 'ナレッジを公開し、インデックス作成を開始しました'
     },
     form: {
-      knowledgeBaseLabel: '対象のナレッジベース',
       knowledgeBasePlaceholder: 'ナレッジベースを選択',
       titleLabel: 'ナレッジのタイトル',
+      knowledgeBaseLabel: '対象のナレッジベース',
       titlePlaceholder: 'タイトルを入力',
       contentPlaceholder: 'Markdownに対応しています。#見出し、リスト、コードブロックなどが使えます。'
     },
@@ -2559,7 +2708,8 @@ export default {
     status: {
       draftTag: 'ステータス: 下書き',
       publishedTag: 'ステータス: 公開済み',
-      lastUpdated: '最終更新: {time}'
+      lastUpdated: '最終更新: {time}',
+      counter: '{chars} 文字 · {lines} 行'
     },
     loading: {
       content: '内容を読み込み中...',
@@ -2573,11 +2723,7 @@ export default {
   },
   input: {
     addModel: 'モデルを追加',
-    placeholder: 'モデルに直接質問できます',
-    placeholderWithContext: '質問を入力してください。上で選択したナレッジベース／ファイルに基づいて回答します',
-    placeholderWebOnly: '質問を入力してください。Web検索に基づいて回答します',
-    placeholderKbAndWeb: '質問を入力してください。ナレッジベースとWeb検索に基づいて回答します',
-    placeholderAgent: '{name}に質問',
+    placeholder: '質問や依頼内容を入力…',
     agentMode: 'スマート推論',
     normalMode: 'クイック回答',
     normalModeDesc: 'ナレッジベースに基づくRAG Q&A',
@@ -2641,6 +2787,9 @@ export default {
   createChat: {
     title: 'こんにちは、WeKnoraです。あなたのナレッジを、すぐそばに',
     newSessionTitle: '新しいセッション',
+    openProject: 'プロジェクトを選択',
+    clearProject: '解除',
+    pickFailed: '選択したパスを開けませんでした',
     messages: {
       createFailed: 'セッションの作成に失敗しました',
       createError: 'セッションの作成に失敗しました。しばらくしてから再試行してください'
@@ -2713,16 +2862,6 @@ export default {
       questionGeneration: '質問生成',
       wiki: 'Wiki'
     },
-    uploadProgress: {
-      uploadingTitle: '「{name}」にフォルダ内のドキュメントをアップロード中',
-      detail: '{completed}/{total}ファイル完了',
-      keepPageOpen: 'アップロード中はこのページを開いたままにしてください。',
-      completedTitle: '「{name}」へのアップロードが完了しました',
-      completedDetail: '{total}件のファイルをすべてアップロードしました。解析ステータスを表示するため一覧を更新しています...',
-      refreshing: '解析ステータスを表示するため一覧を更新しています...',
-      errorTip: '一部のファイルのアップロードに失敗しました。通知を確認してください。',
-      unknownKb: 'ナレッジベース{id}'
-    }
   },
   embedPublish: {
     create: '埋め込みチャネルを作成',
@@ -2876,6 +3015,8 @@ export default {
         targetType: '対象の種類',
         targetId: '対象ID',
         actorId: '実行者ID',
+        apiKeyName: 'APIキー名',
+        apiKeyId: 'APIキーID',
         details: '詳細'
       },
       drawer: {
@@ -2885,6 +3026,8 @@ export default {
         targetChange: '変更内容'
       },
       systemActor: 'システム',
+      actorWithAPIKey: '{actor} · API Key · {name}',
+      actorAPIKey: 'API Key · {name}',
       knowledgeBase: 'ナレッジベース',
       countItems: '{count}件',
       titleWithCount: '{title}ほか{count}件',
@@ -3129,6 +3272,9 @@ export default {
       revisionDiffContent: '本文',
       revisionDiffEmpty: '現在の版とタイトル・要約・本文に差分はありません',
       revisionLoadFailed: '改訂履歴の読み込みに失敗しました',
+      revisionNotRetained: 'このバージョンのスナップショットは保持されていないか、整理済みです',
+      revisionNotRetainedRange: 'v{ver} · 全体の内容',
+      revisionNotRetainedHint: '前の版（v{prev}）のスナップショットは保持されていません（アップグレード前の版はスナップショットが記録されず、古いスナップショットは自動整理される場合があります）。v{ver}の全体の内容を最初から表示しています。',
       revertBtn: 'このバージョンに戻す',
       revertConfirm: 'v{ver}に戻しますか？現在の内容は先にスナップショットとして保存されるため、この復元自体も取り消せます。',
       revertSuccess: 'v{ver}に戻しました',
@@ -3633,10 +3779,27 @@ export default {
         authRevoked: 'ログイン状態が無効になったため、ターミナルが切断されました。再度サインインしてから接続してください。',
     },
     questionMinimapTitle: 'Q&A',
+    questionMinimapPosition: '全 {total} ターン中 {current} ターン目',
     questionMinimapAriaLabel: '質問一覧',
     questionMinimapAttachmentPlaceholder: '（添付ファイル）',
     referenceChunkCount: '{count}件のチャンク',
     fallbackHint: 'ナレッジベースから関連する内容が見つかりませんでした。上記はモデルの直接回答です。',
+    truncatedHint: 'モデルの1回あたりの出力上限で回答が途中で打ち切られました。上記は打ち切り前に生成された内容です。',
+    rewind: {
+      tooltip: 'ここに巻き戻す',
+      confirmBody: 'これより後の会話を削除します。質問から巻き戻すとその質問自体も消え、入力欄に戻します。チェックポイントがあればワークスペースも戻します。この操作は元に戻せません。',
+      confirmButton: '巻き戻す',
+      cancelButton: 'キャンセル',
+      success: '巻き戻しました',
+      busy: 'このターンの回答が終わるまで待ってから巻き戻してください',
+      noCheckpoint: '巻き戻せません。ライブのワークスペースはありますが、到達できるチェックポイントがありません',
+      sandboxReplaced: '巻き戻せません。サンドボックスが置き換わったため、古いチェックポイントに到達できません',
+      reloadFailed: '会話は巻き戻しましたが、履歴を再読み込みできませんでした。古いメッセージが欠けている場合は更新してください',
+      failed: '巻き戻しに失敗しました。もう一度お試しください',
+      skipped: '会話は巻き戻しましたが、ワークスペースは変更していません',
+      skipNoSandbox: '会話は巻き戻しましたが、ワークスペースは変更していません（サンドボックスがありません）',
+      skipNoCheckpoint: '会話は巻き戻しましたが、ワークスペースは変更していません（戻せるチェックポイントがありません）',
+    },
     requestInfoTitle: 'リクエスト情報',
     requestInfoRequestId: 'Request ID',
     requestInfoMessageId: 'メッセージID',
@@ -3732,6 +3895,7 @@ export default {
     processError: '処理エラー',
     sessionExcerpt: 'セッション抜粋',
     noAnswerContent: '（回答内容なし）',
+    manualSourcesHeading: '参照元',
     noMatchFound: '一致する内容が見つかりません',
     deleteSessionFailed: '削除に失敗しました。しばらくしてから再試行してください！',
     imageTooMany: '画像は最大5枚までです',
@@ -4459,6 +4623,7 @@ export default {
   },
   error: {
     networkError: 'ネットワークエラーです。接続を確認してください',
+    requestTimeout: 'リクエストがタイムアウトしました。大きなファイルや低速な回線では再試行してください',
     invalidCredentials: 'ユーザ名またはパスワードが正しくありません',
     tokenRefreshFailed: 'トークンの更新に失敗しました',
     pleaseRelogin: '再度ログインしてください',
@@ -4500,6 +4665,28 @@ export default {
     }
   },
   model: {
+    reasoning: {
+      levels: {
+        off: 'オフ',
+        auto: '自動',
+        minimal: '最小',
+        low: '低',
+        medium: '中',
+        high: '高',
+        xhigh: '超高',
+        max: '最大',
+      },
+      levelDescriptions: {
+        off: '思考を無効化し、思考パラメータを送信しません',
+        auto: 'ベンダー既定の強度。思考量はモデルが決めます',
+        minimal: '最小限の思考、最速の応答',
+        low: '軽い思考',
+        medium: '中程度の思考',
+        high: '深い思考、応答は遅くなります',
+        xhigh: '超高の思考予算（一部モデルのみ）',
+        max: '最大の思考予算（一部モデルのみ）',
+      },
+    },
     modelName: 'モデル名',
     defaultTag: 'デフォルト',
     addModelInSettings: 'モデルを追加するにはシステム設定を開いてください',
@@ -4507,6 +4694,54 @@ export default {
     selectModelPlaceholder: 'モデルを選択',
     searchPlaceholder: 'モデルを検索...',
     editor: {
+      maxOutputTokensLabel: '最大出力トークン',
+      maxOutputTokensPlaceholder: '空欄でカタログ既定値',
+      maxOutputTokensDesc: '1 回の応答の出力上限。空欄ならこのモデルのカタログ既定値を使用します。',
+      catalog: {
+        reasoning: '推論',
+        vision: '画像',
+        hint: 'ベンダーのカタログから選ぶか、カスタムのモデル名を入力できます。',
+      },
+      resolved: {
+        title: '実際の呼び出し方',
+        empty: 'ベンダーとモデル名を入力すると、このモデルの呼び出し方を表示します',
+        failed: '解決に失敗',
+        protocol: 'リクエストプロトコル',
+        catalog: '能力の取得元',
+        catalogedYes: '内蔵モデルプロファイル',
+        catalogedNo: 'ベンダー既定（カタログ未収録）',
+        endpoint: 'リクエスト先',
+        thinkingFormat: '思考切替の送り方',
+        thinkingLevels: '選択できる思考強度',
+        noThinking: 'このモデルは思考できません',
+      },
+      advanced: {
+        toggle: '詳細設定',
+        api: {
+          label: 'プロトコル上書き',
+          auto: '自動（ベンダー / URL から推定）',
+          desc: 'リクエストプロトコルを強制します。通常は変更不要です。',
+        },
+        remoteModelName: {
+          label: 'リモートモデル名',
+          placeholder: '空欄でモデル名と同じ',
+          desc: '上のモデル名と異なる場合に、実際にベンダーへ送るモデル ID。',
+        },
+        legacyThinking: {
+          label: '思考パラメータ形式（旧設定）',
+          catalog: 'カタログ既定に従う（推奨）',
+          none: '思考パラメータを送信しない',
+          desc: 'このモデルには旧版の thinking_control 設定が残っています。「カタログ既定に従う」を選ぶとカタログが決定します。',
+        },
+        compat: {
+          label: 'プロトコル互換上書き（JSON）',
+          placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
+          desc: 'エンドポイントの挙動がカタログ既定値と異なる場合のみ、変更するフィールドだけを記入します。空欄で上書きなし。',
+          docLink: 'フィールドの説明',
+          invalid: 'JSON が不正です',
+          mustBeObject: 'JSON オブジェクトが必要です',
+        },
+      },
       addTitle: 'モデルを追加',
       editTitle: 'モデルを編集',
       sectionType: 'モデルタイプ',
@@ -4541,23 +4776,6 @@ export default {
       baseUrlPlaceholderAsr: '例: https://api.openai.com/v1',
       apiKeyOptional: 'APIキー（任意）',
       apiKeyPlaceholder: 'APIキーを入力してください',
-      lkeap: {
-        secretIdLabel: 'SecretId',
-        secretIdPlaceholder: 'Tencent Cloud APIのSecretId',
-        secretKeyLabel: 'SecretKey',
-        secretKeyPlaceholder: 'Tencent Cloud APIのSecretKey',
-        regionLabel: 'リージョン',
-        regionPlaceholder: 'ap-guangzhou',
-        regionDesc: 'RunRerankはap-beijing、ap-guangzhouなどに対応しています。デフォルト値: ap-guangzhou',
-        rerankCredentialHint: 'リランクはTencent CloudのAPI署名（OpenAI形式のLKEAP APIキーではありません）を使用します。SecretId/SecretKeyはCAMコンソールで作成してください。'
-      },
-      volcengine: {
-        accessKeyLabel: 'Access Key ID',
-        accessKeyPlaceholder: 'VolcengineのAccess Key ID',
-        secretKeyLabel: 'Secret Access Key',
-        secretKeyPlaceholder: 'VolcengineのSecret Access Key',
-        rerankCredentialHint: 'リランクはArkのAPIキーではなく、VikingDBのAK/SK署名を使用します。推奨モデル: doubao-seed-rerank。'
-      },
       customHeadersLabel: 'カスタムリクエストヘッダー（任意）',
       customHeadersDesc: 'リモートモデルAPIへのリクエストに追加するHTTPヘッダーです（企業ゲートウェイの認証やトレースなどに利用）。Authorization / Content-Typeなどの予約ヘッダーは無視されます。',
       customHeadersAdd: 'ヘッダーを追加',
@@ -4585,26 +4803,6 @@ export default {
       maxConcurrencyLabel: 'バックグラウンドの並列実行上限',
       maxConcurrencyPlaceholder: '0 = グローバルのデフォルト値を使用',
       maxConcurrencyDesc: 'このモデルへのバックグラウンド（取り込み・エンリッチメント）呼び出しの並列数を制限します。モデルごとにすべてのレプリカで共有されます。0または空欄の場合はグローバルのデフォルト値が使われます。対話型のチャットには影響しません。',
-      thinkingControlLabel: '思考モードのリクエスト形式',
-      thinkingControlDesc: 'エージェントの「思考モード」のオン/オフをAPIにどう送信するかを設定します。可能な場合はベンダやモデルに応じて自動選択されます。お使いのAPIドキュメントに合わせて変更してください。「送信しない」を選ぶと、エージェントの思考モードの切り替えは効果がありません。',
-      thinkingControl: {
-        none: {
-          label: '思考関連のフィールドを送信しない',
-          hint: 'エージェントの「思考モード」の切り替えは効果がなく、リクエストに思考パラメータは送信されません'
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: 'OpenAI互換のカスタムゲートウェイ、NVIDIA NIM、vLLM / ローカルのQwen'
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope: qwen3、qwen-plus、qwen-max、qwen-turbo'
-        },
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark、Tencent LKEAP（DeepSeek V3など。LKEAPのデフォルト値。R1では「送信しない」を使用）'
-        }
-      },
       dimensionHint: 'モデルを選択しました。「次元数を検出」をクリックするとベクトル次元数を自動取得できます。',
       loadModelListFailed: 'モデル一覧の読み込みに失敗しました',
       listRefreshed: '一覧を更新しました',
@@ -4626,6 +4824,7 @@ export default {
       ollamaNotSupportRerank: 'Ollamaはリランクモデルに対応していません。リモートAPIを使用してください',
       goToOllamaSettings: '設定を開く',
       validation: {
+        extraFieldRequired: '{name} を入力してください',
         modelNameRequired: 'モデル名を入力してください',
         modelNameEmpty: 'モデル名は空にできません',
         modelNameMax: 'モデル名は100文字以内で入力してください',
@@ -4635,112 +4834,7 @@ export default {
       },
       providerLabel: 'プロバイダ',
       providerPlaceholder: 'モデルプロバイダを選択',
-      providers: {
-        openai: {
-          label: 'OpenAI',
-          description: 'gpt-5.2、gpt-5-miniなど'
-        },
-        anthropic: {
-          label: 'Anthropic',
-          description: 'ネイティブのAnthropic Messages API経由のClaudeモデル'
-        },
-        azure_openai: {
-          label: 'Azure OpenAI',
-          description: 'Microsoft AzureでホストされるOpenAIサービス'
-        },
-        aliyun: {
-          label: 'Aliyun DashScope',
-          description: 'qwen-plus、tongyi-embedding-vision-plus、qwen3-rerankなど'
-        },
-        zhipu: {
-          label: 'Zhipu BigModel',
-          description: 'glm-4.7、embedding-3、rerankなど'
-        },
-        openrouter: {
-          label: 'OpenRouter',
-          description: 'openai/gpt-5.2-chat、google/gemini-3-flash-previewなど'
-        },
-        litellm: {
-          label: 'LiteLLM',
-          description: '100以上のプロバイダ（OpenAI、Anthropic、Gemini、Bedrockなど）へのセルフホスト型プロキシです。プレースホルダのURLを置き換えてください。ループバックのホストにはSSRF_WHITELISTの設定が必要です。'
-        },
-        requesty: {
-          label: 'Requesty',
-          description: 'openai/gpt-4o-mini、anthropic/claude-sonnet-4-5など'
-        },
-        generic: {
-          label: 'カスタム（OpenAI互換）',
-          description: '汎用のAPIエンドポイント'
-        },
-        siliconflow: {
-          label: 'SiliconFlow',
-          description: 'deepseek-ai/DeepSeek-V3.1など'
-        },
-        jina: {
-          label: 'Jina',
-          description: 'jina-clip-v1、jina-embeddings-v2-base-zhなど'
-        },
-        volcengine: {
-          label: 'Volcengine',
-          description: 'doubao-1-5-pro-32k-250115、doubao-embedding-vision-250615など'
-        },
-        deepseek: {
-          label: 'DeepSeek',
-          description: 'deepseek-chat、deepseek-reasonerなど'
-        },
-        hunyuan: {
-          label: 'Hunyuan',
-          description: 'hunyuan-pro、hunyuan-standard、hunyuan-embeddingなど'
-        },
-        minimax: {
-          label: 'MiniMax',
-          description: 'MiniMax-M3、MiniMax-M2.7、MiniMax-M2.7-highspeedなど'
-        },
-        mimo: {
-          label: 'MiMo',
-          description: 'mimo-v2-flash'
-        },
-        gemini: {
-          label: 'Google Gemini',
-          description: 'gemini-3-flash-preview、gemini-2.5-proなど'
-        },
-        gpustack: {
-          label: 'GPUStack',
-          description: 'GPUStackにデプロイ済みのモデルを選択してください'
-        },
-        modelscope: {
-          label: 'ModelScope',
-          description: 'Qwen/Qwen3-8B、Qwen/Qwen3-Embedding-8Bなど'
-        },
-        qiniu: {
-          label: 'Qiniu Cloud',
-          description: 'deepseek/deepseek-v3.2-251201、z-ai/glm-4.7など'
-        },
-        moonshot: {
-          label: 'Moonshot',
-          description: 'kimi-k2-turbo-preview、moonshot-v1-8k-vision-previewなど'
-        },
-        qianfan: {
-          label: 'Baidu Qianfan',
-          description: 'ernie-5.0-thinking-preview、embedding-v1、bce-reranker-baseなど'
-        },
-        longcat: {
-          label: 'LongCat AI',
-          description: 'LongCat-Flash-Chat、LongCat-Flash-Thinkingなど'
-        },
-        lkeap: {
-          label: 'Tencent Cloud LKEAP',
-          description: 'DeepSeek-R1、DeepSeek-V3、lke-reranker-baseなど'
-        },
-        nvidia: {
-          label: 'NVIDIA',
-          description: 'deepseek-ai-deepseek-v3_1、nv-embed-v1、rerank-qa-mistral-4bなど'
-        },
-        novita: {
-          label: 'Novita AI',
-          description: 'moonshotai/kimi-k2.5、zai-org/glm-5、minimax/minimax-m2.7、qwen/qwen3-embedding-0.6bなど'
-        }
-      }
+      providerDocs: '{provider} のモデルドキュメントを見る',
     },
     builtinTag: '組み込み'
   },
@@ -4846,6 +4940,55 @@ export default {
     uploadFolder: 'フォルダをアップロード',
     onlineEdit: 'オンライン編集',
     deleteRecord: '記録を削除'
+  },
+  uploadTasks: {
+    panelLabel: 'アップロード',
+    titleUploading: 'アップロード中 {done}/{total}',
+    titleParsing: '解析中 {done}/{total}',
+    titleDone: 'すべて完了',
+    titleDoneWithIssues: '{ok}件完了、{bad}件未完了',
+    titleCancelled: 'アップロードをキャンセルしました',
+    destination: 'アップロード先：{name}',
+    destinationMany: 'アップロード先：{count}件のナレッジベース',
+    remaining: '残り約{time}',
+    eta: {
+      seconds: '{n}秒',
+      minutes: '{n}分',
+      hours: '{n}時間'
+    },
+    hintUploading: 'アップロードが完了するまでページを閉じたり再読み込みしたりしないでください',
+    hintParsing: 'すべてのファイルをアップロードしました。解析はバックグラウンドで続くため、このページを離れても問題ありません',
+    legend: {
+      ready: '検索可能',
+      active: '処理中',
+      waiting: '待機中',
+      failed: '失敗',
+      duplicate: '既存'
+    },
+    filterAll: 'すべて',
+    filterIssues: '未完了',
+    phaseWaiting: 'アップロード待ち',
+    phaseSaving: '保存中…',
+    phasePending: '解析待ち',
+    phaseParsing: '解析中',
+    phaseFinalizing: '検索可能・バックグラウンドで最適化中',
+    phaseReady: '完了',
+    phaseUploadFailed: 'アップロード失敗',
+    phaseParseFailed: '解析失敗',
+    phaseDuplicate: '同じファイルが既にあります',
+    phaseCancelled: 'キャンセル済み',
+    phaseDeleted: '削除済み',
+    cancel: 'キャンセル',
+    cancelAll: 'すべてキャンセル',
+    retry: '再試行',
+    retryFailed: '{count}件を再試行',
+    open: '開く',
+    collapse: '折りたたむ',
+    expand: '展開',
+    close: '閉じる',
+    closeConfirm: '閉じると、残り{count}件のアップロードがキャンセルされます',
+    closeConfirmOk: 'アップロードをキャンセル',
+    closeConfirmKeep: 'アップロードを続ける'
   },
   agentSettings: {
     modelRecommendation: {
@@ -5057,6 +5200,8 @@ export default {
       }
     },
     debug: {
+      reasoningEffort: '思考強度',
+      reasoningEffortDesc: 'モデルカタログが報告するレベルで reasoning_effort を送信します',
       title: 'モデルテスト',
       description: '保存済みのモデル設定でリクエストを送信します。編集中の変更は保存後に反映されます。',
       groupModel: 'モデルを選択',
@@ -5079,15 +5224,11 @@ export default {
       audioFile: '音声ファイル',
       chooseFile: 'ファイルを選択',
       parameters: 'リクエストパラメータ',
-      thinking: '思考モード',
-      thinkingDesc: '思考に対応したモデルにのみ適用されます',
       systemPrompt: 'システムプロンプト',
       systemPromptPlaceholder: 'システムプロンプト（任意）',
       run: 'テストを実行',
       copyResult: '結果をコピー',
       history: '履歴',
-      thinkOn: '思考オン',
-      thinkOff: '思考オフ',
       runLabel: '実行 #{n}',
       success: 'リクエストに成功しました',
       failed: 'リクエストに失敗しました',
@@ -5095,6 +5236,9 @@ export default {
       requestPreview: 'リクエストのプレビュー',
       requestFailed: 'モデルテストのリクエストに失敗しました',
       metrics: {
+        api: 'プロトコル',
+        thinkingFormat: '思考形式',
+        requestedReasoningEffort: '要求した強度',
         dimension: '次元数',
         resultCount: '結果件数',
         answerChars: '回答文字数',
@@ -5198,6 +5342,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: 'MCPサービスを追加',
+    addDesc: '外部の MCP サービスを接続すると、エージェントがそのツールを呼び出せます。',
     editTitle: 'MCPサービスを編集',
     basicSection: '基本',
     connectionSection: '接続',
@@ -5654,6 +5799,9 @@ export default {
   },
   tools: {
     multiKbSearch: 'ナレッジベース横断検索',
+    searchKnowledge: 'ナレッジベースを検索',
+    readDocument: 'ドキュメントを読む',
+    listDocuments: 'ドキュメント一覧',
     knowledgeSearch: 'ナレッジベース検索',
     grepChunks: 'テキストパターン検索',
     getChunkDetail: 'チャンク詳細の取得',
@@ -5805,6 +5953,8 @@ export default {
       getRelatedDocuments: '関連ドキュメントを検索',
       getDocumentContent: 'ドキュメント内容を取得',
       wikiReadSourceDoc: 'ソースドキュメントを精読',
+      readDocument: 'ドキュメントを読む',
+      listDocuments: 'ドキュメント一覧',
       todoWrite: '計画管理',
       knowledgeGraphExtract: 'ナレッジグラフ抽出',
       thinking: '思考',
@@ -5882,7 +6032,10 @@ export default {
     },
     knowledgeChunksList: {
       chunkRange: '{fetched} / {total}チャンクを読み込みました',
-      page: '{page}ページ目、1ページあたり{pageSize}件'
+      page: '{page}ページ目、1ページあたり{pageSize}件',
+      offsetRange: 'チャンク {from}–{to}',
+      queryMatches: '文書内検索「{query}」: {count}件一致',
+      queryNoMatch: '文書内検索「{query}」: 一致なし'
     },
     attachmentParsing: {
       parsedSummary: '{count}件の添付ファイルを解析しました',
@@ -6047,7 +6200,7 @@ export default {
       maxTokensAgent: '推論の各ラウンドで生成される最大トークン数（ツール呼び出しのJSONを含む）。デフォルトは、サンドボックスなしの場合4096、サンドボックスがファイルの書き込みや編集を行える場合は24576です。カスタム値は入力したとおりに保存され、以降変更されません。',
       thinking: '拡張思考機能を有効にします（モデルの対応が必要）',
       conversationSection: 'マルチターン会話とクエリのリライトに関するパラメータを設定します',
-      conversationSectionAgent: '各ターンで引き継ぐ過去の会話の量。スマート推論は常にマルチターンです',
+      conversationSectionAgent: 'スマート推論は常にマルチターンです。過去の会話はモデルのコンテキストウィンドウに収まる範囲で保持され、超えると古い部分が自動的に要約されます',
       multiTurn: '有効にすると、過去の会話のコンテキストが保持されます',
       historyRounds: 'コンテキストとして保持する直近の会話ラウンド数',
       retainRetrievalHistory: '過去のターンのナレッジベース検索結果を保持します。無効にすると、ターンごとに再検索します',
@@ -6080,6 +6233,12 @@ export default {
       thinkingDesc: '動的かつ内省的に問題を解決する思考ツール',
       todoWrite: '計画',
       todoWriteDesc: '構造化された調査計画を作成します',
+      searchKnowledge: 'ナレッジベースを検索',
+      searchKnowledgeDesc: 'セマンティック・キーワード・ハイブリッド検索でナレッジベースのチャンクを検索します',
+      readDocument: 'ドキュメントを読む',
+      readDocumentDesc: 'ドキュメントのメタデータとチャンク内容を読み取ります。ページングと文書内検索に対応',
+      listDocuments: 'ドキュメント一覧',
+      listDocumentsDesc: 'ナレッジベース内のドキュメントをページ単位で一覧表示します',
       grepChunks: 'キーワード検索',
       grepChunksDesc: '特定のキーワードを含むドキュメントとチャンクを素早く特定します',
       knowledgeSearch: 'セマンティック検索',
@@ -6217,6 +6376,9 @@ export default {
       sessionModeUser: 'ユーザ単位（デフォルト）',
       sessionModeThread: 'スレッド単位',
       sessionModeHint: 'ユーザモード: 各ユーザが個別の会話を持ちます。/clearで新しく開始できます。スレッドモード: メッセージスレッドごとに個別の会話になります。同じスレッドで複数人が共同作業できます。',
+      replyLanguage: '返信言語',
+      replyLanguageDefault: 'システムのデフォルトを使用',
+      replyLanguageHint: 'このチャネルでエージェントが返信する言語を固定します。未設定の場合はデプロイのデフォルト言語を使用します。',
       wechatScanBind: 'スキャンしてWeChatを連携',
       wechatScanning: 'WeChatでQRコードをスキャンしてください',
       wechatBindSuccess: 'WeChatを連携しました',

@@ -888,7 +888,7 @@ definitions:
           this factor
         type: number
       history_turns:
-        description: Number of history turns to keep in context
+        description: Number of history turns to keep in context. Quick-answer only; smart-reasoning sizes history by context window
         type: integer
       image_storage_provider:
         description: |-
@@ -1460,57 +1460,6 @@ definitions:
       type:
         type: string
     type: object
-  github_com_Tencent_WeKnora_internal_types.IdentityBridgeRequest:
-    properties:
-      email:
-        description: optional; default derived "{uum_user_id}@uum.invalid"
-        type: string
-      role:
-        description: optional; default viewer (least privilege)
-        type: string
-      tenant_id:
-        description: |-
-          TenantID is optional since v2: omitted means tenantless personal-space
-          bootstrap (see identityBridgeService.bridgePersonalSpace). The service
-          validates; a binding:"required" here would reject the omit-case first.
-        type: integer
-      username:
-        description: optional; default derived "uum-{uum_user_id}"
-        type: string
-      uum_department_id:
-        description: optional snapshot / mapping upsert
-        type: string
-      uum_user_id:
-        type: string
-    required:
-    - uum_user_id
-    type: object
-  github_com_Tencent_WeKnora_internal_types.IdentityDisableRequest:
-    properties:
-      tenant_id:
-        type: integer
-      uum_user_id:
-        type: string
-    required:
-    - tenant_id
-    - uum_user_id
-    type: object
-  github_com_Tencent_WeKnora_internal_types.IdentityTransferRequest:
-    properties:
-      from_tenant_id:
-        type: integer
-      role:
-        description: optional; default preserves the current role
-        type: string
-      to_tenant_id:
-        type: integer
-      uum_user_id:
-        type: string
-    required:
-    - from_tenant_id
-    - to_tenant_id
-    - uum_user_id
-    type: object
   github_com_Tencent_WeKnora_internal_types.ImageProcessingConfig:
     properties:
       model_id:
@@ -1718,13 +1667,6 @@ definitions:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.FAQConfig'
         description: FAQConfig stores FAQ specific configuration such as indexing
           strategy
-      generated_profile:
-        allOf:
-        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfile'
-        description: |-
-          GeneratedProfile is the machine-generated description: a gist, merged
-          topics, typical questions and the aggregate snapshot they came from. It
-          never overwrites the user-authored Description; both are shown to agents.
       id:
         description: Unique identifier of the knowledge base
         type: string
@@ -1772,12 +1714,6 @@ definitions:
         description: ProcessingCount indicates the number of knowledge items being
           processed (for document type knowledge bases)
         type: integer
-      profile_config:
-        allOf:
-        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig'
-        description: |-
-          ProfileConfig controls automatic generation of the knowledge-base
-          description from per-document profiles (document knowledge bases only).
       question_generation_config:
         allOf:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.QuestionGenerationConfig'
@@ -1858,108 +1794,10 @@ definitions:
         description: |-
           IndexingStrategy controls which indexing pipelines are active.
           nil means "no change" when updating (preserves existing strategy).
-      profile_config:
-        allOf:
-        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig'
-        description: |-
-          ProfileConfig controls optional automatic knowledge-base description
-          generation. nil means "no change" when updating.
       wiki_config:
         allOf:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.WikiConfig'
         description: Wiki configuration (only for wiki-enabled knowledge bases)
-    type: object
-  github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfile:
-    properties:
-      aggregate_hash:
-        description: |-
-          AggregateHash identifies the aggregate the gist was generated from. A
-          mismatch with the live aggregate means the text is stale.
-        type: string
-      error:
-        description: Error holds the last generation error when Status is failed.
-        type: string
-      generated_at:
-        description: GeneratedAt records when the text was produced.
-        type: string
-      gist:
-        description: Gist is a short statement of what the knowledge base covers.
-        type: string
-      model_id:
-        description: ModelID records which chat model produced the text.
-        type: string
-      stats:
-        allOf:
-        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileStats'
-        description: Stats is the aggregate snapshot the text was generated from.
-      status:
-        description: Status is one of the KnowledgeBaseProfileStatus* values.
-        type: string
-      topics:
-        description: Topics is the merged topic list (at most KnowledgeBaseProfileMaxTopics).
-        items:
-          type: string
-        type: array
-      typical_questions:
-        description: TypicalQuestions lists questions this knowledge base can answer.
-        items:
-          type: string
-        type: array
-    type: object
-  github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig:
-    properties:
-      custom_instructions:
-        description: |-
-          CustomInstructions is appended to the stable system prompt, e.g. the
-          audience the description should address or terms to keep.
-        type: string
-      enabled:
-        type: boolean
-      model_id:
-        description: ModelID overrides the chat model; empty falls back to the KB
-          summary model.
-        type: string
-    type: object
-  github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileStats:
-    properties:
-      doc_types:
-        description: DocTypes counts documents per model-assigned document type.
-        items:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount'
-        type: array
-      document_count:
-        description: DocumentCount is the number of eligible documents at generation
-          time.
-        type: integer
-      earliest_at:
-        description: EarliestAt and LatestAt bound document creation times.
-        type: string
-      file_types:
-        description: FileTypes counts documents per file extension.
-        items:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount'
-        type: array
-      folders:
-        description: Folders lists the top-level folder names present.
-        items:
-          type: string
-        type: array
-      latest_at:
-        type: string
-      profiled_count:
-        description: ProfiledCount is how many of them carried a document profile.
-        type: integer
-      raw_topics:
-        description: RawTopics counts documents per normalized topic keyword before
-          merging.
-        items:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount'
-        type: array
-      tags:
-        description: Tags counts documents per knowledge-base tag.
-        items:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount'
-        type: array
     type: object
   github_com_Tencent_WeKnora_internal_types.KnowledgeBaseShareResponse:
     properties:
@@ -2827,13 +2665,6 @@ definitions:
     - ModelTypeKnowledgeQA
     - ModelTypeVLLM
     - ModelTypeASR
-  github_com_Tencent_WeKnora_internal_types.NamedCount:
-    properties:
-      count:
-        type: integer
-      name:
-        type: string
-    type: object
   github_com_Tencent_WeKnora_internal_types.OBSEngineConfig:
     properties:
       access_key:
@@ -3099,6 +2930,13 @@ definitions:
           10)'
         type: integer
     type: object
+  github_com_Tencent_WeKnora_internal_types.QuestionOrigin:
+    properties:
+      knowledge_base_id:
+        type: string
+      knowledge_id:
+        type: string
+    type: object
   github_com_Tencent_WeKnora_internal_types.QuestionSuggestionConfig:
     properties:
       follow_ups:
@@ -3147,44 +2985,6 @@ definitions:
       weight:
         description: Weight is the queue's scheduling weight inside its pool.
         type: integer
-    type: object
-  github_com_Tencent_WeKnora_internal_types.RankingConfig:
-    properties:
-      mmr_lambda:
-        description: |-
-          MMRLambda trades relevance against redundancy in MMR selection
-          (1.0 = pure relevance, no diversity penalty). Default: 0.7.
-        type: number
-      recency_half_life_days:
-        description: |-
-          RecencyHalfLifeDays is the half-life of the exponential recency decay:
-          a document updated N days ago scores 2^(-N/RecencyHalfLifeDays).
-          Default: 180.
-        type: integer
-      recency_weight:
-        description: |-
-          RecencyWeight applies to the document-recency signal. Default: 0 —
-          the signal is plumbed and logged but inert until a corpus with real
-          time spread justifies a weight.
-        type: number
-      rerank_weight:
-        description: |-
-          Weight semantics: every weight field independently means "unset → use
-          the legacy default"; zero is not expressible (v1 limitation). The
-          source term is a constant offset per knowledge source, so it cannot
-          reorder candidates that share a source — zeroing it is unnecessary for
-          KB-only candidate sets.
-          RerankWeight applies to the rerank model's relevance score. Default: 0.6.
-        type: number
-      retrieval_weight:
-        description: 'RetrievalWeight applies to the fused retrieval (RRF) score.
-          Default: 0.3.'
-        type: number
-      source_weight:
-        description: |-
-          SourceWeight applies to the knowledge-source term (a constant offset
-          that discounts web_search hits). Default: 0.1.
-        type: number
     type: object
   github_com_Tencent_WeKnora_internal_types.RegisterRequest:
     properties:
@@ -3284,12 +3084,6 @@ definitions:
         description: 'KeywordThreshold is the minimum keyword match score (0-1, default:
           0.3)'
         type: number
-      ranking:
-        allOf:
-        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.RankingConfig'
-        description: |-
-          Ranking is the optional weighted-ranking configuration for the rerank
-          composite score (二开特性, nil = legacy hardcoded behavior).
       rerank_model_id:
         description: RerankModelID is the ID of the rerank model to use (required
           for search)
@@ -3598,14 +3392,7 @@ definitions:
           is handled separately in the merge stage.
         type: boolean
       tag_ids:
-        description: |-
-          TagIDs filters retrieval by tags. HybridSearch applies it per KB type:
-          for document-type KBs (including all-document multi-KB scopes) the
-          service resolves the tags to a knowledge whitelist via
-          knowledge_tag_relations before retrieval — an empty resolution yields
-          an empty result, not a whole-KB search. For FAQ or mixed scopes the
-          tags pass through as an index-level chunks.tag_id filter. An empty
-          (or absent) list never filters.
+        description: Tag IDs for filtering (used for FAQ priority filtering)
         items:
           type: string
         type: array
@@ -3779,9 +3566,6 @@ definitions:
         type: boolean
       agent_id:
         type: string
-      kb_routing_enabled:
-        description: 二开特性：自动选库开关随会话快照持久（与联网搜索同机制）
-        type: boolean
       knowledge_base_ids:
         items:
           type: string
@@ -3811,9 +3595,6 @@ definitions:
           type: string
         type: array
       web_search_enabled:
-        type: boolean
-      weighted_ranking_enabled:
-        description: 二开特性：精准排序（rerank）开关随会话快照持久
         type: boolean
     type: object
   github_com_Tencent_WeKnora_internal_types.ShareKnowledgeBaseRequest:
@@ -4170,12 +3951,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.RetrieverEngines'
         description: Retriever engines
-      space_type:
-        description: |-
-          SpaceType classifies the tenant for portal aggregation (v2, migration 20260827095630):
-          personal / team / all (company-wide public space). Defaults to team so
-          pre-existing tenants keep their semantics unchanged.
-        type: string
       status:
         description: Status
         type: string
@@ -4311,6 +4086,13 @@ definitions:
         type: integer
       completion_tokens:
         type: integer
+      context_token_scale:
+        description: |-
+          ContextTokenScale is provider prompt tokens per cl100k-estimated token,
+          measured over the turn's rounds. Persisted with the turn so the next
+          turn's history loading and first compaction check are calibrated before
+          any provider count of their own. Zero when the turn measured none.
+        type: number
       prompt_tokens:
         type: integer
       total_tokens:
@@ -4386,15 +4168,6 @@ definitions:
       success:
         description: Whether the tool executed successfully
         type: boolean
-    type: object
-  github_com_Tencent_WeKnora_internal_types.UUMDepartmentRequest:
-    properties:
-      department_name:
-        type: string
-      tenant_id:
-        type: integer
-    required:
-    - tenant_id
     type: object
   github_com_Tencent_WeKnora_internal_types.UpdateMemberRoleRequest:
     properties:
@@ -4733,7 +4506,6 @@ definitions:
     - exa
     - metaso
     - bocha
-    - doubao
     - serply
     type: string
     x-enum-varnames:
@@ -4750,7 +4522,6 @@ definitions:
     - WebSearchProviderTypeExa
     - WebSearchProviderTypeMetaso
     - WebSearchProviderTypeBocha
-    - WebSearchProviderTypeDoubao
     - WebSearchProviderTypeSerply
   github_com_Tencent_WeKnora_internal_types.WikiConfig:
     properties:
@@ -5312,21 +5083,6 @@ definitions:
         type: integer
       total_pages:
         type: integer
-    type: object
-  github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest:
-    properties:
-      activate_now:
-        type: boolean
-      reason:
-        type: string
-      role:
-        $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole'
-      tenant_id:
-        type: integer
-      uum_user_id:
-        type: string
-      valid_until:
-        type: string
     type: object
   gorm.DeletedAt:
     properties:
@@ -6445,18 +6201,6 @@ definitions:
     required:
     - role
     type: object
-  internal_handler.createSpaceRequest:
-    properties:
-      description:
-        type: string
-      name:
-        type: string
-      space_type:
-        type: string
-    required:
-    - name
-    - space_type
-    type: object
   internal_handler.createTenantRequest:
     properties:
       description:
@@ -6589,13 +6333,6 @@ definitions:
     - name
     - provider
     type: object
-  internal_handler.updateGrantRequest:
-    properties:
-      role:
-        $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole'
-      valid_until:
-        type: string
-    type: object
   internal_handler.updateLastFAQImportResultDisplayStatusRequest:
     properties:
       display_status:
@@ -6628,15 +6365,6 @@ definitions:
           login, not here. Nil = field omitted from the PATCH and stays
           untouched.
         type: integer
-    type: object
-  internal_handler.updateSpaceRequest:
-    properties:
-      description:
-        type: string
-      name:
-        type: string
-      space_type:
-        type: string
     type: object
   internal_handler_session.AttachmentUpload:
     properties:
@@ -6678,19 +6406,6 @@ definitions:
       disable_title:
         description: Whether to disable auto title generation
         type: boolean
-      enable_kb_routing:
-        description: |-
-          EnableKBRouting (二开特性, default off): with no explicit KB selection,
-          auto-route the query to the most relevant KBs by content-centroid
-          similarity. Explicit selections are never overridden.
-        type: boolean
-      enable_weighted_ranking:
-        description: |-
-          EnableWeightedRanking (二开特性 "多维度加权排序", default off): switch the
-          rerank composite score from the legacy hardcoded formula to the
-          configurable weights in Ranking (falls back to tenant config, then to
-          the legacy constants). Off = exact legacy behavior.
-        type: boolean
       images:
         description: Attached images for multimodal chat
         items:
@@ -6722,15 +6437,11 @@ definitions:
       query:
         description: Query text for knowledge base search
         type: string
-      ranking:
-        $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.RankingConfig'
-      rerank_model_id:
-        description: |-
-          RerankModelID is a request-level rerank-model override (二开: the chat
-          pipeline otherwise leaves RerankModelID empty unless an agent sets one,
-          silently skipping the whole rerank stage). "auto" picks the first
-          available rerank model; empty = today's behavior.
-        type: string
+      question_origin:
+        allOf:
+        - $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.QuestionOrigin'
+        description: QuestionOrigin is the knowledge source of a picked suggested
+          question.
       skill_names:
         description: Per-request Skills selected via @mention
         items:
@@ -6904,257 +6615,6 @@ info:
   title: WeKnora API
   version: "1.0"
 paths:
-  /admin/grants:
-    get:
-      description: 按 uum_user_id / tenant_id / status 过滤授权记录（含 pending 预授权与 revoked/expired
-        历史）。
-      parameters:
-      - description: 按工号过滤
-        in: query
-        name: uum_user_id
-        type: string
-      - description: 按空间过滤
-        in: query
-        name: tenant_id
-        type: integer
-      - description: pending|active|expired|revoked
-        in: query
-        name: status
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-      security:
-      - Bearer: []
-      summary: 授权查询（v2 管理端）
-      tags:
-      - 空间授权管理
-    post:
-      consumes:
-      - application/json
-      description: upsert 语义（一人一空间一行）。activate_now=false 进 pending（预授权：工号无需已建号）；true
-        直接生效（未建号用户在首登时落成员关系）。
-      parameters:
-      - description: 授权请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 新建/更新授权（v2 管理端）
-      tags:
-      - 空间授权管理
-  /admin/grants/{id}:
-    delete:
-      description: 移除成员关系——用户下一请求即 403（逐请求成员校验），无需吊销 token。幂等。
-      parameters:
-      - description: 授权ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 回收授权（v2 管理端）
-      tags:
-      - 空间授权管理
-    get:
-      parameters:
-      - description: 授权ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 授权详情（v2 管理端）
-      tags:
-      - 空间授权管理
-    put:
-      consumes:
-      - application/json
-      description: role 变更同步成员角色；valid_until 延长可复活 expired 授权。
-      parameters:
-      - description: 授权ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 更新字段
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateGrantRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 改角色/有效期（v2 管理端）
-      tags:
-      - 空间授权管理
-  /admin/grants/{id}/approve:
-    put:
-      description: pending → active；未建号的预授权在用户首次登录时落成员关系。幂等。
-      parameters:
-      - description: 授权ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 审批通过（v2 管理端）
-      tags:
-      - 空间授权管理
-  /admin/spaces:
-    get:
-      description: 列出全部空间（租户）及其 space_type。系统管理员专属。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 空间清单（v2 管理端）
-      tags:
-      - 空间授权管理
-    post:
-      consumes:
-      - application/json
-      description: 创建团队/全员空间（personal 由用户首登自动创建）。不 bootstrap Owner——成员关系只经 grants
-        流转（治理冻结）。
-      parameters:
-      - description: 空间信息
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.createSpaceRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 创建空间（v2 管理端）
-      tags:
-      - 空间授权管理
-  /admin/spaces/{tenant_id}:
-    put:
-      consumes:
-      - application/json
-      description: 改名 / 改描述 / 改 space_type。
-      parameters:
-      - description: 空间（租户）ID
-        in: path
-        name: tenant_id
-        required: true
-        type: integer
-      - description: 更新字段
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.updateSpaceRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 更新空间（v2 管理端）
-      tags:
-      - 空间授权管理
   /agent-chat/{session_id}:
     post:
       consumes:
@@ -8841,223 +8301,6 @@ paths:
       summary: 获取FAQ导入进度
       tags:
       - FAQ管理
-  /identity/bridge:
-    post:
-      consumes:
-      - application/json
-      description: 声明式接口：确保 UUM 用户持有目标部门租户的访问权并返回该租户的 JWT 登录响应（Web 门户通道）。已映射→登录；未映射→自愈补登或建号（tenantless
-        + 部门成员，默认 viewer）。幂等。事件顺序约束：同一用户的 transfer/disable 必须先于新的 bridge 调用被处理。认证：platform
-        key（system_identity_bridge capability）+ 必带 X-Tenant-ID（仅满足门禁，逻辑以 body 为准）
-      parameters:
-      - description: 桥接请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityBridgeRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 登录响应（token/refresh_token/user/memberships + is_new_user）
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: UUM 身份桥接（建号/换票）
-      tags:
-      - UUM身份桥接
-  /identity/departments/{department_id}:
-    put:
-      consumes:
-      - application/json
-      description: UUM 部门 ↔ WeKnora 部门租户的权威 1:1 映射（双向唯一，冲突返回 409）；同对重复调用更新部门名
-      parameters:
-      - description: UUM 部门ID
-        in: path
-        name: department_id
-        required: true
-        type: string
-      - description: 绑定信息
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.UUMDepartmentRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 映射详情
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: 绑定/更新 UUM 部门映射
-      tags:
-      - UUM身份桥接
-  /identity/disable:
-    post:
-      consumes:
-      - application/json
-      description: 两步组合禁用：置 is_active=false + 吊销该用户全部 access/refresh token（仅阻止登录会让已签发
-        JWT 继续有效至多 24h）
-      parameters:
-      - description: 禁用请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityDisableRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 禁用成功
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: 禁用 UUM 桥接用户
-      tags:
-      - UUM身份桥接
-  /identity/mapping/{uum_user_id}:
-    get:
-      description: 按 uum_user_id + tenant_id 查询映射（tenant_id 为 query 参数，必填）
-      parameters:
-      - description: UUM 用户ID
-        in: path
-        name: uum_user_id
-        required: true
-        type: string
-      - description: 部门租户ID
-        in: query
-        name: tenant_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 映射详情
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: 查询 UUM 用户映射
-      tags:
-      - UUM身份桥接
-  /identity/mapping/by-user/{user_id}:
-    get:
-      description: 按 user_id 查询其全部映射行
-      parameters:
-      - description: WeKnora 用户ID
-        in: path
-        name: user_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 映射列表
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: 查询 WeKnora 用户的 UUM 映射列表
-      tags:
-      - UUM身份桥接
-  /identity/transfer:
-    post:
-      consumes:
-      - application/json
-      description: 成员关系迁移到新部门租户（默认保留原角色）；旧映射行删除、全部 token 吊销（强制重新 bridge）；历史 KB/文档/会话留在原部门租户。兼任场景不走此接口（用原生成员管理直接加人）。幂等：源映射不存在且目标映射已存在时直接返回现有映射
-      parameters:
-      - description: 调岗请求
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityTransferRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 迁移后的映射
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - ApiKeyAuth: []
-      summary: UUM 用户调岗（跨部门租户迁移）
-      tags:
-      - UUM身份桥接
   /im-channels/{id}:
     delete:
       description: 删除指定 IM 渠道
@@ -10437,8 +9680,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。tag_ids
-        按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。
+      description: 在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。
       parameters:
       - description: 知识库ID
         in: path
@@ -10480,8 +9722,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。tag_ids
-        按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。
+      description: 在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。
       parameters:
       - description: 知识库ID
         in: path
@@ -10956,33 +10197,6 @@ paths:
       summary: 置顶/取消置顶知识库
       tags:
       - 知识库
-  /knowledge-bases/{id}/profile/generate:
-    post:
-      description: 基于文档画像聚合，立即重新生成知识库的 AI 描述（不覆盖手写描述）
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 生成的知识库画像
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 知识库类型不支持或未配置模型
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 生成知识库描述
-      tags:
-      - 知识库
   /knowledge-bases/{id}/shares:
     get:
       description: 获取知识库的所有共享记录
@@ -11104,313 +10318,6 @@ paths:
       summary: 更新共享权限
       tags:
       - 知识库共享
-  /knowledge-bases/{id}/tag-tree:
-    get:
-      description: 获取知识库的完整层级标签树（嵌套结构）
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 标签树（嵌套数组）
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 获取标签树
-      tags:
-      - 标签树管理
-  /knowledge-bases/{id}/tag-tree/nodes:
-    get:
-      description: 平铺返回知识库的标签树节点；parent_id 过滤直接子节点（"root" 或留空表示根级）
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 父节点ID（root=根级；缺省返回全部节点）
-        in: query
-        name: parent_id
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 节点列表（平铺）
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 请求参数错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 获取标签树节点列表
-      tags:
-      - 标签树管理
-    post:
-      consumes:
-      - application/json
-      description: 创建标签树节点；新节点即叶子并自动创建原生标签；首个子节点加入时父叶子自动降级（硬删其原生标签并解除文档关联）
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点信息
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            name:
-              type: string
-            parent_id:
-              type: string
-            sort_order:
-              type: integer
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 创建的节点
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: 父节点不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: 同级重名
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 创建标签树节点
-      tags:
-      - 标签树管理
-  /knowledge-bases/{id}/tag-tree/nodes/{node_id}:
-    delete:
-      description: 物理硬删除节点及其整棵子树，并级联清理叶子原生标签（knowledge_tags）、文档打标关系（knowledge_tag_relations）与
-        FAQ 分块标签（chunks.tag_id）；文档本身保留仅解除分类；不可恢复
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点ID
-        in: path
-        name: node_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 级联删除统计
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: 节点不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 删除标签树节点
-      tags:
-      - 标签树管理
-    get:
-      description: 获取单个标签树节点
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点ID
-        in: path
-        name: node_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 节点详情
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: 节点不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 获取标签树节点详情
-      tags:
-      - 标签树管理
-    put:
-      consumes:
-      - application/json
-      description: 更新节点名称和/或排序；重命名会重算子树路径并同步叶子节点的原生标签名
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点ID
-        in: path
-        name: node_id
-        required: true
-        type: string
-      - description: 更新信息
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            name:
-              type: string
-            sort_order:
-              type: integer
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 更新后的节点
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: 节点不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: 重名冲突
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 更新标签树节点
-      tags:
-      - 标签树管理
-  /knowledge-bases/{id}/tag-tree/nodes/{node_id}/leaves:
-    get:
-      description: 检索预过滤专用：叶子节点返回自身 tag_id，父节点按物化路径收集所有子孙叶子 tag_id；结果可直接传入 hybrid-search
-        的 tag_ids。注意：空列表表示该节点下无叶子标签，检索应返回空结果而非取消过滤
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点ID
-        in: path
-        name: node_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 叶子 tag_id 列表
-          schema:
-            additionalProperties: true
-            type: object
-        "404":
-          description: 节点不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 获取节点下的叶子标签ID列表
-      tags:
-      - 标签树管理
-  /knowledge-bases/{id}/tag-tree/nodes/{node_id}/move:
-    post:
-      consumes:
-      - application/json
-      description: 将节点移动到新父级（parent_id 留空表示移到根级）；拒绝环与同级重名；目标父级为叶子时自动降级
-      parameters:
-      - description: 知识库ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: 节点ID
-        in: path
-        name: node_id
-        required: true
-        type: string
-      - description: 目标父节点（空=根级）
-        in: body
-        name: request
-        required: true
-        schema:
-          properties:
-            parent_id:
-              type: string
-          type: object
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 移动后的节点
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: 参数错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "404":
-          description: 目标不存在
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "409":
-          description: 重名冲突
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      - ApiKeyAuth: []
-      summary: 移动标签树节点
-      tags:
-      - 标签树管理
   /knowledge-bases/{id}/tags:
     get:
       consumes:
@@ -15354,31 +14261,6 @@ paths:
       summary: 搜索可加入的空间
       tags:
       - 组织管理
-  /portal/knowledge-bases:
-    get:
-      description: GET /portal/knowledge-bases：全部活跃 memberships 的知识库 ∪ 经组织共享分发的内容（含
-        space_type=all 全员空间），注入 tenant_name/space_type/my_role 供门户分组。系统管理员返回全平台非临时库。
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: 聚合知识库列表
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: 未认证
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-        "500":
-          description: 服务器错误
-          schema:
-            $ref: '#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError'
-      security:
-      - Bearer: []
-      summary: 门户聚合知识库列表（二开，决策 019）
-      tags:
-      - 门户
   /sandbox-configs:
     get:
       description: List workspace sandbox backend configs with credentials masked.

@@ -1,4 +1,9 @@
 export default {
+  toolbox: {
+    "title": "도구함",
+    "description": "에이전트의 스킬, 외부 도구 및 브라우저 연결을 관리합니다.",
+    "unavailable": "현재 워크스페이스에서 사용할 수 있는 도구가 없습니다."
+  },
   localBrowser: {
     pipOpen: "미리보기 팝업 열기",
     pipReturn: "대화 내 미리보기로 돌아가기",
@@ -63,9 +68,9 @@ export default {
     "helpHint": "인증 또는 권한 승인이 필요합니다. 미리보기를 클릭하여 이동하세요.",
 
     "settingsTitle": "브라우저 연결",
-    "settingsDescription": "BrowserSkill로 내 Chrome을 연결하면 대화에서 실제 웹페이지를 조작할 수 있습니다.",
+    "settingsDescription": "BrowserSkill로 내 Chrome 또는 Edge를 연결하면 대화에서 실제 웹페이지를 조작할 수 있습니다.",
     "openSettings": "연결 설정 열기",
-    "settingsHint": "개인 설정에서 BrowserSkill을 연결하면 로컬 브라우저를 사용할 수 있습니다.",
+    "settingsHint": "도구함에서 BrowserSkill을 연결하면 로컬 브라우저를 사용할 수 있습니다.",
     "unavailable": "서버에서 로컬 브라우저가 활성화되지 않았습니다. 관리자에게 문의하세요.",
 
     "source": "브라우저 연결 대상",
@@ -78,26 +83,40 @@ export default {
     "pause": "조작 일시 중지",
     "start": "작업 시작",
     "stop": "브라우저 작업 종료",
-    "pairHint": "확장 프로그램의 원격 연결에 링크를 붙여넣고 서버를 확인하세요.",
+    "resumeShort": "재개",
+    "pauseShort": "일시 중지",
+    "stopShort": "종료",
+    "pairHint": "확장 프로그램의 연결 설정 → 원격 연결에 페어링 링크를 붙여넣고 서버를 확인하세요. 링크는 5분 동안 한 번만 사용할 수 있습니다.",
     "copyPairing": "페어링 링크 복사",
     "copied": "복사됨",
-    "windowHint": "작업은 표시된 탭 그룹에서 실행됩니다. 기존 탭에는 권한이 필요합니다.",
+    "windowHint": "작업은 별도의 브라우저 작업 창에서 실행됩니다. 기존 탭을 빌리려면 권한이 필요합니다.",
     "preview": "로컬 브라우저 미리보기",
     "waiting": "작업 페이지를 기다리는 중",
-    "startHint": "브라우저 작업을 보내면 백그라운드에 작업 탭을 만듭니다.",
+    "startHint": "브라우저 요청을 보내면 별도의 작업 창이 생성됩니다.",
     "revoke": "기기 인증 취소",
     "revokeConfirm": "취소하면 다시 연결해야 로컬 브라우저를 사용할 수 있습니다.",
     "failed": "작업에 실패했습니다. 다시 시도하세요.",
-    "productDescription": "내 Chrome에서 브라우저 작업 실행",
+    "productDescription": "에이전트가 브라우저에서 페이지를 열고 내용을 읽고 작업을 수행할 수 있게 해 주는 오픈소스 Chrome / Edge 확장 프로그램입니다.",
     "offline": "오프라인",
     "notPaired": "연결 설정 필요",
     "lastSeen": "최근 연결",
     "readyHint": "준비되었습니다. 대화로 돌아가 브라우저 작업을 요청하세요.",
-    "reconnectHint": "인증이 저장되어 있습니다. Chrome과 확장 프로그램을 열면 자동으로 다시 연결됩니다.",
+    "capabilitiesTitle": "에이전트가 할 수 있는 작업",
+    "sidebarStatus": "사이드바에 연결 상태 표시",
+    "reconnectHint": "인증이 저장되어 있습니다. 브라우저와 확장 프로그램을 열면 자동으로 다시 연결됩니다.",
     "replaceDevice": "브라우저 변경",
     "installExtension": "BrowserSkill 설치",
-    "installHint": "이 서버용 확장 프로그램을 다운로드하여 Chrome에 설치하세요.",
-    "downloadExtension": "확장 프로그램 다운로드",
+    "storeInstall": "Chrome 웹 스토어",
+    "edgeStoreInstall": "Edge 추가 기능",
+    "extensionMinVersion": "BrowserSkill v{version} 이상이 필요합니다. Chrome과 Edge를 지원합니다.",
+    "extensionOutdated": "확장 프로그램 v{current}이(가) 오래되었습니다. v{version} 이상으로 업데이트하세요.",
+    "manualInstall": "수동 설치 (대안)",
+    "storeInstallHint": "Chrome 웹 스토어 또는 Edge 추가 기능에서 BrowserSkill을 설치한 후 여기로 돌아와 페어링하세요.",
+    "installHint": "스토어에 접근할 수 없거나 버전이 호환되지 않으면 호환 패키지를 다운로드하여 수동으로 설치할 수 있습니다.",
+    "downloadExtension": "호환 패키지 다운로드",
+    "officialExtension": "공식 확장 프로그램 (Chrome 웹 스토어)",
+    "installGuide": "다운로드한 패키지는 어떻게 설치하나요?",
+    "pairGuide": "페어링 링크는 어떻게 사용하나요?",
     "pairBrowser": "브라우저 연결",
     "packageUnavailable": "관리자에게 호환되는 확장 프로그램 패키지를 요청하세요.",
     "manualCopy": "아래 링크를 복사하세요. 5분 동안 한 번만 사용할 수 있습니다.",
@@ -105,17 +124,32 @@ export default {
     "copyAgain": "다시 복사",
     "usageTitle": "사용 방법",
     "usageStep1Title": "확장 프로그램 설치",
-    "usageStep1Text": "확장 압축을 풀고 Chrome 확장 프로그램 페이지에서 개발자 모드를 켜 로드하세요.",
+    "usageStep1Text": "ZIP 파일의 압축을 풀고 브라우저 주소창에 chrome://extensions(Edge는 edge://extensions)를 입력하세요. 개발자 모드를 켜고 압축해제된 확장 프로그램을 로드합니다를 선택한 뒤 압축을 푼 확장 프로그램 폴더를 선택하세요.",
     "usageStep2Title": "브라우저 연결",
-    "usageStep2Text": "페어링 링크를 복사해 확장 프로그램의 원격 연결에 붙여넣고 서버를 확인하세요. 한 번 연결하면 공간 내 모든 대화에서 공유됩니다.",
+    "usageStep2Text": "페어링 링크를 확장 프로그램의 연결 설정 → 원격 연결에 붙여넣고 서버를 확인하세요. 한 번 연결하면 공간 내 모든 대화에서 공유됩니다.",
     "usageStep3Title": "대화에서 작업 요청",
-    "usageStep3Text": "입력창에서 로컬 브라우저를 켜고 웹 작업을 요청하세요. 표시된 탭 그룹에서 실행됩니다.",
+    "usageStep3Text": "웹 작업을 보내기 전에 대화 입력창에서 로컬 브라우저를 켜세요. 페어링만으로 자동 활성화되지는 않습니다. 작업은 별도의 작업 창에서 실행됩니다.",
     "usageStep4Title": "미리보기로 확인하고 이어가기",
     "usageStep4Text": "대화에 작은 미리보기가 나타납니다. 클릭하면 작업 탭으로 이동합니다. 중단된 작업은 다시 연결해도 일시정지 상태이므로 미리보기에서 계속하세요. 기존 탭에는 권한이 필요합니다.",
     "running": "실행 중",
     "locateWindow": "브라우저 표시",
     "reconnectShort": "재연결 대기 중",
 },
+  resourceSort: {
+    title: '정렬',
+    updatedTime: '업데이트 시간',
+    updatedTimeDescription: '기본 옵션입니다.',
+    createdTime: '생성 시간',
+    createdTimeDescription: '최근 또는 가장 먼저 생성된 항목을 확인합니다',
+    name: '이름',
+    nameDescription: '이름을 알고 있는 항목을 빠르게 찾습니다',
+    recentlyUpdated: '최근 업데이트',
+    earliestUpdated: '오래된 업데이트',
+    recentlyCreated: '최근 생성',
+    earliestCreated: '가장 먼저 생성',
+    nameAscending: 'A–Z',
+    nameDescending: 'Z–A',
+  },
   platformApiKeys: {
     title: '플랫폼 API 키',
     description: '워크스페이스 간 자동화를 위한 플랫폼 자격 증명입니다. 워크스페이스 API에는 X-Tenant-ID를 사용하세요.',
@@ -1270,6 +1304,9 @@ export default {
       sessionModeUser: '사용자별 (기본)',
       sessionModeThread: '스레드별',
       sessionModeHint: '사용자 모드: 각 사용자별 독립 대화. /clear로 새 대화 시작. 스레드 모드: 메시지 스레드별 독립 대화. 같은 스레드에서 여러 명이 함께 대화 가능.',
+      replyLanguage: '응답 언어',
+      replyLanguageDefault: '시스템 기본값 사용',
+      replyLanguageHint: '이 채널의 에이전트 응답 언어를 고정합니다. 설정하지 않으면 배포 기본 언어를 사용합니다.',
       wechatScanBind: 'QR 코드를 스캔하여 WeChat 연결',
       wechatScanning: 'WeChat으로 QR 코드를 스캔하세요',
       wechatBindSuccess: 'WeChat이 연결되었습니다',
@@ -1302,6 +1339,12 @@ export default {
       thinkingDesc: '동적이고 반성적인 문제 해결 사고 도구',
       todoWrite: '계획 수립',
       todoWriteDesc: '구조화된 연구 계획 생성',
+      searchKnowledge: '지식베이스 검색',
+      searchKnowledgeDesc: '의미, 키워드 또는 하이브리드 방식으로 지식베이스 청크 검색',
+      readDocument: '문서 읽기',
+      readDocumentDesc: '문서 메타데이터와 청크 내용을 읽으며 페이징과 문서 내 검색 지원',
+      listDocuments: '문서 목록 보기',
+      listDocumentsDesc: '지식베이스의 문서를 페이지 단위로 나열',
       grepChunks: '키워드 검색',
       grepChunksDesc: '특정 키워드를 포함하는 문서와 청크를 빠르게 찾기',
       knowledgeSearch: '의미 검색',
@@ -1372,7 +1415,7 @@ export default {
       maxTokensAgent: '각 추론 라운드에서 생성할 최대 토큰 수(도구 호출 JSON 포함). 「기본값」은 샌드박스 없으면 4096, 파일 쓰기/편집이 가능하면 24576입니다. 「사용자 지정」은 입력한 값을 그대로 저장합니다.',
       thinking: '모델의 확장 사고 기능 활성화 (모델 지원 필요)',
       conversationSection: '다중 턴 대화 및 질문 재작성 관련 매개변수 설정',
-      conversationSectionAgent: '매 턴에 실어 보낼 이전 대화 분량 설정 (스마트 추론은 항상 다중 턴)',
+      conversationSectionAgent: '스마트 추론은 항상 다중 턴입니다. 이전 대화는 모델의 컨텍스트 창 범위까지 유지되며, 초과하면 오래된 내용이 자동으로 요약됩니다',
       multiTurn: '활성화하면 대화 기록 컨텍스트가 유지됩니다',
       historyRounds: '컨텍스트로 유지할 최근 대화 라운드 수',
       retainRetrievalHistory: '이전 턴의 지식베이스 검색 결과를 유지합니다. 끄면 매 턴 새로 검색합니다',
@@ -1551,7 +1594,10 @@ export default {
     },
     knowledgeChunksList: {
       chunkRange: '{fetched} / {total} 청크 로드됨',
-      page: '{page}페이지, 페이지당 {pageSize}개'
+      page: '{page}페이지, 페이지당 {pageSize}개',
+      offsetRange: '청크 {from}–{to}',
+      queryMatches: '문서 내 검색 "{query}": {count}건 일치',
+      queryNoMatch: '문서 내 검색 "{query}": 일치 없음'
     },
     grepResults: {
       chunkHits: '청크 {count}개',
@@ -1595,6 +1641,8 @@ export default {
       getRelatedDocuments: '관련 문서 찾기',
       getDocumentContent: '문서 내용 가져오기',
       wikiReadSourceDoc: '원본 문서 읽기',
+      readDocument: '문서 읽기',
+      listDocuments: '문서 목록 보기',
       todoWrite: '계획 관리',
       knowledgeGraphExtract: '지식 그래프 추출',
       thinking: '사고',
@@ -1772,6 +1820,9 @@ export default {
   tools: {
     kbRouter: '지식베이스 스마트 선택',
     multiKbSearch: '크로스 KB 검색',
+    searchKnowledge: '지식베이스 검색',
+    readDocument: '문서 읽기',
+    listDocuments: '문서 목록 보기',
     knowledgeSearch: '지식베이스 검색',
     grepChunks: '텍스트 패턴 검색',
     getChunkDetail: '청크 상세 조회',
@@ -2209,6 +2260,7 @@ export default {
 },
   mcpServiceDialog: {
     addTitle: 'MCP 서비스 추가',
+    addDesc: '외부 MCP 서비스를 연결하면 에이전트가 해당 도구를 호출할 수 있습니다.',
     editTitle: 'MCP 서비스 편집',
     basicSection: '기본',
     connectionSection: '연결',
@@ -2360,6 +2412,8 @@ export default {
       }
     },
     debug: {
+      reasoningEffort: '사고 강도',
+      reasoningEffortDesc: '모델 카탈로그가 보고한 수준으로 reasoning_effort를 보냅니다',
       title: '모델 테스트',
       description: '저장된 모델 설정으로 요청을 보냅니다. 편집 중인 변경 사항은 저장 후 반영됩니다.',
       groupModel: '모델 선택',
@@ -2382,15 +2436,11 @@ export default {
       audioFile: '오디오 파일',
       chooseFile: '파일 선택',
       parameters: '요청 매개변수',
-      thinking: '사고 모드',
-      thinkingDesc: '사고 모드를 지원하는 모델에만 적용됩니다',
       systemPrompt: 'System Prompt',
       systemPromptPlaceholder: '선택 사항, 시스템 프롬프트 입력',
       run: '테스트 실행',
       copyResult: '결과 복사',
       history: '기록',
-      thinkOn: '사고 켜짐',
-      thinkOff: '사고 꺼짐',
       runLabel: '{n}번째 실행',
       success: '호출 성공',
       failed: '호출 실패',
@@ -2398,6 +2448,9 @@ export default {
       requestPreview: '요청 미리보기',
       requestFailed: '모델 테스트 요청 실패',
       metrics: {
+        api: '프로토콜',
+        thinkingFormat: '사고 형식',
+        requestedReasoningEffort: '요청한 강도',
         dimension: '벡터 차원',
         resultCount: '결과 수',
         answerChars: '답변 문자 수',
@@ -2593,6 +2646,55 @@ export default {
     onlineEdit: '온라인 편집',
     deleteRecord: '기록 삭제'
   },
+  uploadTasks: {
+    panelLabel: '업로드',
+    titleUploading: '업로드 중 {done}/{total}',
+    titleParsing: '파싱 중 {done}/{total}',
+    titleDone: '모두 완료',
+    titleDoneWithIssues: '{ok}개 완료, {bad}개 미완료',
+    titleCancelled: '업로드가 취소되었습니다',
+    destination: '업로드 위치: {name}',
+    destinationMany: '업로드 위치: 지식베이스 {count}개',
+    remaining: '약 {time} 남음',
+    eta: {
+      seconds: '{n}초',
+      minutes: '{n}분',
+      hours: '{n}시간'
+    },
+    hintUploading: '업로드가 끝날 때까지 페이지를 닫거나 새로고침하지 마세요',
+    hintParsing: '모든 파일이 업로드되었습니다. 파싱은 백그라운드에서 계속되므로 이 페이지를 떠나도 됩니다',
+    legend: {
+      ready: '검색 가능',
+      active: '처리 중',
+      waiting: '대기 중',
+      failed: '실패',
+      duplicate: '이미 있음'
+    },
+    filterAll: '전체',
+    filterIssues: '미완료',
+    phaseWaiting: '업로드 대기',
+    phaseSaving: '저장 중…',
+    phasePending: '파싱 대기',
+    phaseParsing: '파싱 중',
+    phaseFinalizing: '검색 가능, 백그라운드 최적화 중',
+    phaseReady: '완료',
+    phaseUploadFailed: '업로드 실패',
+    phaseParseFailed: '파싱 실패',
+    phaseDuplicate: '동일한 파일이 이미 있습니다',
+    phaseCancelled: '취소됨',
+    phaseDeleted: '삭제됨',
+    cancel: '취소',
+    cancelAll: '모두 취소',
+    retry: '다시 시도',
+    retryFailed: '{count}개 다시 시도',
+    open: '열기',
+    collapse: '접기',
+    expand: '펼치기',
+    close: '닫기',
+    closeConfirm: '닫으면 남은 {count}개 파일의 업로드가 취소됩니다',
+    closeConfirmOk: '업로드 취소',
+    closeConfirmKeep: '계속 업로드'
+  },
   time: {
     today: '오늘',
     yesterday: '어제',
@@ -2691,6 +2793,28 @@ export default {
     languageSaved: '언어 설정이 저장되었습니다'
   },
   model: {
+    reasoning: {
+      levels: {
+        off: '끄기',
+        auto: '자동',
+        minimal: '최소',
+        low: '낮음',
+        medium: '중간',
+        high: '높음',
+        xhigh: '매우 높음',
+        max: '최대',
+      },
+      levelDescriptions: {
+        off: '사고를 끄고 사고 파라미터를 보내지 않습니다',
+        auto: '공급사 기본 강도, 사고량은 모델이 결정합니다',
+        minimal: '최소 사고, 가장 빠른 응답',
+        low: '가벼운 사고',
+        medium: '중간 강도 사고',
+        high: '깊은 사고, 응답이 느려집니다',
+        xhigh: '매우 높은 사고 예산(일부 모델만)',
+        max: '최대 사고 예산(일부 모델만)',
+      },
+    },
     modelName: '모델 이름',
     defaultTag: '기본값',
     addModelInSettings: '전역 설정에서 모델 추가하기',
@@ -2699,6 +2823,54 @@ export default {
     searchPlaceholder: '모델 검색...',
     builtinTag: '내장',
     editor: {
+      maxOutputTokensLabel: '최대 출력 토큰',
+      maxOutputTokensPlaceholder: '비워 두면 카탈로그 기본값',
+      maxOutputTokensDesc: '응답 1회의 출력 상한입니다. 비워 두면 이 모델의 카탈로그 기본값을 사용합니다.',
+      catalog: {
+        reasoning: '추론',
+        vision: '비전',
+        hint: '공급사 카탈로그에서 선택하거나 사용자 지정 모델 이름을 입력할 수 있습니다.',
+      },
+      resolved: {
+        title: '실제 호출 방식',
+        empty: '공급사와 모델 이름을 입력하면 이 모델이 어떻게 호출되는지 표시합니다',
+        failed: '해석 실패',
+        protocol: '요청 프로토콜',
+        catalog: '기능 출처',
+        catalogedYes: '내장 모델 프로필',
+        catalogedNo: '공급사 기본값(카탈로그 미수록)',
+        endpoint: '요청 엔드포인트',
+        thinkingFormat: '사고 전환 전달 방식',
+        thinkingLevels: '선택 가능한 사고 강도',
+        noThinking: '이 모델은 사고를 지원하지 않습니다',
+      },
+      advanced: {
+        toggle: '고급',
+        api: {
+          label: '프로토콜 재정의',
+          auto: '자동(공급사 / URL 기준)',
+          desc: '요청 프로토콜을 강제합니다. 일반적으로 변경할 필요가 없습니다.',
+        },
+        remoteModelName: {
+          label: '원격 모델 이름',
+          placeholder: '비워 두면 모델 이름과 동일',
+          desc: '위 모델 이름과 다를 때 실제로 공급사에 보내는 모델 ID입니다.',
+        },
+        legacyThinking: {
+          label: '사고 파라미터 형식(레거시)',
+          catalog: '카탈로그 기본값 따르기(권장)',
+          none: '사고 파라미터를 보내지 않음',
+          desc: '이 모델에는 이전 버전의 thinking_control 설정이 남아 있습니다. "카탈로그 기본값 따르기"를 선택하면 카탈로그가 결정합니다.',
+        },
+        compat: {
+          label: '프로토콜 호환 재정의(JSON)',
+          placeholder: "{'{'} \"max_tokens_field\": \"max_tokens\" {'}'}",
+          desc: '엔드포인트 동작이 카탈로그 기본값과 다를 때만 변경할 필드만 입력합니다. 비워 두면 재정의하지 않습니다.',
+          docLink: '필드 설명 보기',
+          invalid: '잘못된 JSON',
+          mustBeObject: 'JSON 객체여야 합니다',
+        },
+      },
       addTitle: '모델 추가',
       editTitle: '모델 편집',
       sectionType: '모델 유형',
@@ -2745,8 +2917,6 @@ export default {
       maxConcurrencyLabel: '백그라운드 동시 실행 상한',
       maxConcurrencyPlaceholder: '0이면 전역 기본값 사용',
       maxConcurrencyDesc: '문서 인덱싱/보강 등 백그라운드 작업이 이 모델을 호출하는 동시 실행 수를 제한합니다(모델별로 모든 복제본이 공유). 0 또는 비워 두면 전역 기본값을 사용하며, 대화형 채팅에는 영향을 주지 않습니다.',
-      thinkingControlLabel: '사고 모드 매개변수 형식',
-      thinkingControlDesc: '에이전트 「사고 모드」 켜기/끄기 시 API에 어떻게 기록할지 결정합니다. 벤더/모델에 따라 미리 선택되며, 실제 API와 다르면 문서에 맞게 수정하세요. 「전송 안 함」을 선택하면 에이전트 「사고 모드」 스위치가 효과가 없습니다.',
       dimensionHint: '모델이 선택되었습니다. "차원 감지" 버튼을 클릭하여 벡터 차원을 자동으로 가져옵니다',
       loadModelListFailed: '모델 목록 로드 실패',
       listRefreshed: '목록이 새로고침되었습니다',
@@ -2769,154 +2939,15 @@ export default {
       goToOllamaSettings: '설정 보기',
       providerLabel: '프로바이더',
       providerPlaceholder: '모델 프로바이더 선택',
-      providers: {
-        novita: {
-          label: 'Novita AI',
-          description: 'moonshotai/kimi-k2.5, zai-org/glm-5, minimax/minimax-m2.7, qwen/qwen3-embedding-0.6b 등'
-        },
-        nvidia: {
-          label: 'NVIDIA',
-          description: 'deepseek-ai-deepseek-v3_1, nv-embed-v1, rerank-qa-mistral-4b, etc.'
-        },
-        lkeap: {
-          label: '텐센트 클라우드 LKEAP',
-          description: 'DeepSeek-R1, DeepSeek-V3, lke-reranker-base 등'
-        },
-        longcat: {
-          label: 'LongCat AI',
-          description: 'LongCat-Flash-Chat, LongCat-Flash-Thinking, etc.'
-        },
-        qianfan: {
-          label: 'Baidu Qianfan',
-          description: 'ernie-5.0-thinking-preview, embedding-v1, bce-reranker-base, etc.'
-        },
-        moonshot: {
-          label: 'Moonshot',
-          description: 'kimi-k2-turbo-preview, moonshot-v1-8k-vision-preview, etc.'
-        },
-        qiniu: {
-          label: 'Qiniu Cloud',
-          description: 'deepseek/deepseek-v3.2-251201, z-ai/glm-4.7, etc.'
-        },
-        modelscope: {
-          label: 'ModelScope',
-          description: 'Qwen/Qwen3-8B, Qwen/Qwen3-Embedding-8B, etc.'
-        },
-        gpustack: {
-          label: 'GPUStack',
-          description: 'Choose your deployed model on GPUStack'
-        },
-        gemini: {
-          label: 'Google Gemini',
-          description: 'gemini-3-flash-preview, gemini-2.5-pro 등'
-        },
-        mimo: {
-          label: 'MiMo',
-          description: 'mimo-v2-flash'
-        },
-        minimax: {
-          label: 'MiniMax',
-          description: 'MiniMax-M3, MiniMax-M2.7, MiniMax-M2.7-highspeed 등'
-        },
-        hunyuan: {
-          label: 'Hunyuan',
-          description: 'hunyuan-pro, hunyuan-standard, hunyuan-embedding 등'
-        },
-        deepseek: {
-          label: 'DeepSeek',
-          description: 'deepseek-chat, deepseek-reasoner 등'
-        },
-        volcengine: {
-          label: 'Volcengine',
-          description: 'doubao-1-5-pro-32k-250115, doubao-embedding-vision-250615 등'
-        },
-        jina: {
-          label: 'Jina',
-          description: 'jina-clip-v1, jina-embeddings-v2-base-zh, etc.'
-        },
-        siliconflow: {
-          label: 'SiliconFlow',
-          description: 'deepseek-ai/DeepSeek-V3.1 등'
-        },
-        generic: {
-          label: '사용자 정의 (OpenAI 호환)',
-          description: 'Generic API endpoint'
-        },
-        requesty: {
-          label: 'Requesty',
-          description: 'openai/gpt-4o-mini, anthropic/claude-sonnet-4-5 등'
-        },
-        openrouter: {
-          label: 'OpenRouter',
-          description: 'openai/gpt-5.2-chat, google/gemini-3-flash-preview 등'
-        },
-        litellm: {
-          label: 'LiteLLM',
-          description: '자체 호스팅 프록시로 OpenAI, Anthropic, Gemini, Bedrock 등 100+ 공급자를 연결합니다. 플레이스홀더 URL을 실제 주소로 바꾸세요. localhost는 SSRF_WHITELIST에 추가해야 합니다.'
-        },
-        zhipu: {
-          label: 'Zhipu BigModel',
-          description: 'glm-4.7, embedding-3, rerank, etc.'
-        },
-        aliyun: {
-          label: 'Aliyun DashScope',
-          description: 'qwen-plus, tongyi-embedding-vision-plus, qwen3-rerank 등'
-        },
-        azure_openai: {
-          label: 'Azure OpenAI',
-          description: 'Microsoft Azure에서 호스팅되는 OpenAI 서비스'
-        },
-        anthropic: {
-          label: 'Anthropic',
-          description: 'Claude models via native Anthropic Messages API'
-        },
-        openai: {
-          label: 'OpenAI',
-          description: 'gpt-5.2, gpt-5-mini 등'
-        }
-      },
+      providerDocs: '{provider} 모델 문서 보기',
       validation: {
+        extraFieldRequired: '{name}을(를) 입력하세요',
         modelNameRequired: '모델 이름을 입력해주세요',
         modelNameEmpty: '모델 이름은 비워둘 수 없습니다',
         modelNameMax: '모델 이름은 100자를 초과할 수 없습니다',
         baseUrlRequired: 'Base URL을 입력해주세요',
         baseUrlEmpty: 'Base URL은 비워둘 수 없습니다',
         baseUrlInvalid: 'Base URL 형식이 올바르지 않습니다. 유효한 URL을 입력해주세요'
-      },
-      thinkingControl: {
-        thinkingType: {
-          label: 'thinking.type',
-          hint: 'Volcengine Ark; Tencent LKEAP (DeepSeek V3 등, LKEAP 기본값; R1은 「전송 안 함」)'
-        },
-        enableThinking: {
-          label: 'enable_thinking',
-          hint: 'Alibaba DashScope: qwen3, qwen-plus, qwen-max, qwen-turbo'
-        },
-        chatTemplateKwargs: {
-          label: 'chat_template_kwargs',
-          hint: '사용자 정의 OpenAI 호환, NVIDIA NIM, vLLM / 로컬 Qwen 배포'
-        },
-        none: {
-          label: '사고 매개변수 전송 안 함',
-          hint: '에이전트 「사고 모드」 스위치가 효과 없음, 요청에 사고 관련 매개변수를 보내지 않음'
-        }
-      },
-      volcengine: {
-        accessKeyLabel: 'Access Key ID',
-        accessKeyPlaceholder: 'Volcengine Access Key ID',
-        secretKeyLabel: 'Secret Access Key',
-        secretKeyPlaceholder: 'Volcengine Secret Access Key',
-        rerankCredentialHint: 'Rerank은 Ark API 키가 아닌 VikingDB AK/SK 서명을 사용합니다. 권장 모델: doubao-seed-rerank.'
-      },
-      lkeap: {
-        secretIdLabel: 'SecretId',
-        secretIdPlaceholder: 'Tencent Cloud API SecretId',
-        secretKeyLabel: 'SecretKey',
-        secretKeyPlaceholder: 'Tencent Cloud API SecretKey',
-        regionLabel: 'Region',
-        regionPlaceholder: 'ap-guangzhou',
-        regionDesc: 'RunRerank supports ap-beijing, ap-guangzhou, etc. Default: ap-guangzhou',
-        rerankCredentialHint: 'Rerank uses Tencent Cloud API signature (not the OpenAI-style LKEAP API key). Create SecretId/SecretKey in the CAM console.'
       },
       modelNamePlaceholder: {
         local: '예: llama2:latest',
@@ -2937,6 +2968,7 @@ export default {
   },
   error: {
     networkError: '네트워크 오류, 연결을 확인해 주세요',
+    requestTimeout: '요청 시간이 초과되었습니다. 파일이 크거나 네트워크가 느린 경우 다시 시도해 주세요',
     invalidCredentials: '사용자 이름 또는 비밀번호가 올바르지 않습니다',
     tokenRefreshFailed: '토큰 갱신 실패',
     pleaseRelogin: '다시 로그인해 주세요',
@@ -3759,10 +3791,27 @@ export default {
         authRevoked: '로그인 상태가 더 이상 유효하지 않아 터미널 연결이 끊어졌습니다. 다시 로그인한 뒤 재연결하세요.',
     },
     questionMinimapTitle: '질문',
+    questionMinimapPosition: '전체 {total}턴 중 {current}턴',
     questionMinimapAriaLabel: '질문 목차',
     questionMinimapAttachmentPlaceholder: '(첨부)',
     referenceChunkCount: '{count}개 청크',
     fallbackHint: '지식 베이스에서 관련 내용을 찾지 못했습니다. 위는 모델의 직접 응답입니다.',
+    truncatedHint: '모델의 응답당 출력 한도에서 답변이 잘렸습니다. 위 내용은 잘리기 전까지 생성된 부분입니다.',
+    rewind: {
+      tooltip: '여기로 되돌리기',
+      confirmBody: '이 메시지 이후의 대화를 삭제합니다. 질문에서 되돌리면 해당 질문도 지워지고 입력창에 다시 채워집니다. 체크포인트가 있으면 작업 영역도 되돌립니다. 이 작업은 취소할 수 없습니다.',
+      confirmButton: '되돌리기',
+      cancelButton: '취소',
+      success: '되돌렸습니다',
+      busy: '이번 답변이 끝난 뒤에 되돌리세요',
+      noCheckpoint: '되돌릴 수 없습니다. 라이브 작업 영역은 있지만 도달 가능한 체크포인트가 없습니다',
+      sandboxReplaced: '되돌릴 수 없습니다. 샌드박스가 교체되어 이전 체크포인트에 도달할 수 없습니다',
+      reloadFailed: '대화는 되돌렸지만 기록을 다시 불러오지 못했습니다. 이전 메시지가 없으면 새로고침하세요',
+      failed: '되돌리기에 실패했습니다. 다시 시도하세요',
+      skipped: '대화는 되돌렸지만 작업 영역은 변경하지 않았습니다',
+      skipNoSandbox: '대화는 되돌렸지만 작업 영역은 변경하지 않았습니다(샌드박스가 없음)',
+      skipNoCheckpoint: '대화는 되돌렸지만 작업 영역은 변경하지 않았습니다(되돌릴 체크포인트가 없음)',
+    },
     requestInfoTitle: 'Request info',
     requestInfoRequestId: 'Request ID',
     requestInfoMessageId: 'Message ID',
@@ -3858,6 +3907,7 @@ export default {
     processError: '처리 오류',
     sessionExcerpt: '대화 발췌',
     noAnswerContent: '(답변 내용 없음)',
+    manualSourcesHeading: '참고 출처',
     noMatchFound: '일치하는 내용을 찾을 수 없습니다',
     deleteSessionFailed: '삭제 실패, 나중에 다시 시도해주세요!',
     imageTooMany: '최대 5장까지 업로드 가능합니다',
@@ -4248,6 +4298,9 @@ export default {
       revisionDiffContent: '본문',
       revisionDiffEmpty: '제목, 요약, 본문에서 현재 버전과 차이가 없습니다',
       revisionLoadFailed: '버전 기록을 불러오지 못했습니다',
+      revisionNotRetained: '이 버전의 스냅샷이 보관되어 있지 않거나 정리되었습니다',
+      revisionNotRetainedRange: 'v{ver} · 전체 내용',
+      revisionNotRetainedHint: '이전 버전(v{prev})의 스냅샷이 보관되어 있지 않습니다(업그레이드 이전 버전은 스냅샷이 기록되지 않으며 오래된 스냅샷은 정리될 수 있음). v{ver}의 전체 내용을 처음부터 표시합니다.',
       revertBtn: '이 버전으로 롤백',
       revertConfirm: 'v{ver}(으)로 롤백하시겠습니까? 현재 내용은 먼저 기록으로 저장됩니다.',
       revertSuccess: 'v{ver}(으)로 롤백했습니다',
@@ -4502,6 +4555,8 @@ export default {
       end: '이전 기록이 없습니다',
       loadFailed: '활동 기록을 불러오지 못했습니다',
       systemActor: '시스템',
+      actorWithAPIKey: '{actor} · API Key · {name}',
+      actorAPIKey: 'API Key · {name}',
       knowledgeBase: '지식 베이스',
       countItems: '{count}개 항목',
       titleWithCount: '{title} 외 {count}개',
@@ -4605,6 +4660,8 @@ export default {
         targetType: '대상 유형',
         targetId: '대상 ID',
         actorId: '시작자 ID',
+        apiKeyName: 'API 키 이름',
+        apiKeyId: 'API 키 ID',
         details: '상세'
       },
       columns: {
@@ -4755,16 +4812,6 @@ export default {
     portalGroupCount: '지식 베이스 {count}개',
     portalRoleBadge: '내 역할: {role}',
     uninitializedBanner: '일부 지식베이스가 아직 초기화되지 않았습니다. 지식 문서를 추가하려면 먼저 설정에서 모델 정보를 구성해야 합니다',
-    uploadProgress: {
-      uploadingTitle: '「{name}」에 폴더의 문서 업로드 중',
-      detail: '{completed}/{total}개 파일 완료',
-      keepPageOpen: '페이지를 열어두세요. 업로드가 완료되면 파싱 상태가 자동으로 새로고침됩니다.',
-      completedTitle: '「{name}」 업로드 완료',
-      completedDetail: '총 {total}개 파일이 업로드되었습니다. 파싱 상태를 확인하기 위해 목록을 새로고침하는 중...',
-      refreshing: '목록을 새로고침하고 최신 파싱 상태를 가져오는 중...',
-      errorTip: '일부 파일 업로드에 실패했습니다. 오른쪽 상단의 알림 세부 정보를 확인해주세요.',
-      unknownKb: '지식베이스 {id}'
-    },
     features: {
       knowledgeGraph: '지식 그래프 활성화됨',
       multimodal: '멀티모달 활성화됨',
@@ -4831,6 +4878,9 @@ export default {
   createChat: {
     title: '안녕하세요, WeKnora입니다 — 당신의 지식을 손끝에',
     newSessionTitle: '새 세션',
+    openProject: '프로젝트 선택',
+    clearProject: '바인딩 해제',
+    pickFailed: '선택한 경로를 열 수 없습니다',
     messages: {
       createFailed: '세션 생성 실패',
       createError: '세션 생성 실패, 나중에 다시 시도해주세요'
@@ -4838,11 +4888,7 @@ export default {
   },
   input: {
     addModel: '모델 추가',
-    placeholder: '모델에 직접 질문',
-    placeholderWithContext: '질문을 입력하면 위에서 선택한 지식베이스/파일을 기반으로 답변합니다',
-    placeholderWebOnly: '질문을 입력하면 웹 검색을 결합하여 답변합니다',
-    placeholderKbAndWeb: '질문을 입력하면 지식베이스와 웹 검색을 기반으로 답변합니다',
-    placeholderAgent: '{name} 질문하기',
+    placeholder: '질문이나 작업 내용을 입력하세요…',
     agentMode: 'Agent 모드',
     normalMode: '일반 모드',
     normalModeDesc: '지식베이스 기반 RAG Q&A',
@@ -4904,7 +4950,6 @@ export default {
     }
   },
   manualEditor: {
-    description: 'Markdown으로 지식을 작성하고 실시간 미리보기 지원',
     defaultTitlePrefix: '새 문서',
     noDocumentKnowledgeBases: '사용 가능한 문서형 지식베이스가 없습니다. 먼저 문서형 지식베이스를 생성해주세요',
     actions: {
@@ -4919,12 +4964,13 @@ export default {
     status: {
       draftTag: '현재 상태: 임시 저장',
       publishedTag: '현재 상태: 게시됨',
-      lastUpdated: '최근 업데이트: {time}'
+      lastUpdated: '최근 업데이트: {time}',
+      counter: '{chars}자 · {lines}줄'
     },
     form: {
-      knowledgeBaseLabel: '대상 지식베이스',
       knowledgeBasePlaceholder: '지식베이스를 선택해주세요',
       titleLabel: '지식 제목',
+      knowledgeBaseLabel: '대상 지식베이스',
       titlePlaceholder: '제목을 입력해주세요',
       contentPlaceholder: 'Markdown 구문을 지원합니다. # 제목, 목록, 코드 블록 등을 사용할 수 있습니다'
     },
@@ -4946,7 +4992,6 @@ export default {
       currentKnowledgeBase: '현재 지식베이스'
     },
     section: {
-      basic: '기본 정보',
       content: '지식 내용'
     },
     title: {
@@ -4956,9 +5001,17 @@ export default {
     preview: {
       empty: '내용 없음'
     },
+    shortcuts: {
+      title: '단축키',
+      continueList: '목록 이어쓰기',
+      indent: '들여쓰기 / Shift+Tab 내어쓰기'
+    },
     view: {
-      editLabel: '편집으로 돌아가기',
-      previewLabel: '내용 미리보기'
+      edit: '편집',
+      split: '분할',
+      preview: '미리보기',
+      splitUnavailable: '너비가 부족합니다. 서랍을 넓히거나 전체 화면으로 전환하세요',
+      groupLabel: '편집기 보기'
     },
     toolbar: {
       bold: '굵게',
@@ -4976,7 +5029,9 @@ export default {
       link: '링크 삽입',
       image: '이미지 삽입',
       table: '표 삽입',
-      horizontalRule: '구분선'
+      horizontalRule: '구분선',
+      headingGroup: '제목',
+      insertGroup: '삽입'
     },
     table: {
       column1: '열1',
@@ -5022,6 +5077,8 @@ export default {
       discard: '변경 사항 버리기',
       keepEditing: '계속 편집',
     },
+    fullscreen: '전체 화면',
+    exitFullscreen: '전체 화면 종료',
     save: '저장',
     delete: '삭제',
     edit: '편집',
@@ -6024,6 +6081,23 @@ export default {
       installAccepted: '설치를 시작했습니다',
       installPartial: '일부 샌드박스에서 설치를 시작했습니다. {failed}곳은 시작하지 못했습니다.',
       installOutdated: '카탈로그와 버전이 다름',
+      upgrade: '업그레이드',
+      upgradeCount: '{count}개 업그레이드',
+      upgradeTitle: '스킬 업그레이드',
+      upgradeDrawerDesc: '선택한 샌드박스의 「{name}」을(를) 카탈로그 버전으로 업그레이드합니다. 업그레이드가 끝날 때까지 각 샌드박스는 현재 버전을 계속 사용하며, 실패해도 영향이 없습니다.',
+      upgradeAvailable: '업그레이드 가능',
+      upgradeFromTo: '업그레이드 가능 {from} → {to}',
+      upgradeAccepted: '업그레이드를 시작했습니다',
+      noSandboxToUpgrade: '업그레이드할 샌드박스가 없습니다.',
+      upgradeRowTitle: '새 버전이 있습니다',
+      upgradeRowHint: '이 샌드박스의 버전이 카탈로그와 다릅니다. 업그레이드가 끝날 때까지 현재 버전을 계속 사용하며, 실패해도 영향이 없습니다.',
+      upgradeRowHintVersions: '이 샌드박스는 {from}, 카탈로그는 {to}입니다. 업그레이드가 끝날 때까지 {from}을(를) 계속 사용하며, 실패해도 영향이 없습니다.',
+      upgradeRowHintFailed: '이 샌드박스의 설치가 성공하지 못했고, 카탈로그는 다른 버전입니다. 업그레이드하면 카탈로그 버전을 설치합니다.',
+      upgradeRowHintFailedVersions: '이 샌드박스의 {from} 설치가 성공하지 못했고, 카탈로그는 {to}입니다. 업그레이드하면 {to}을(를) 설치합니다.',
+      servedWhileUpgrading: '업그레이드 중, {version} 사용 중',
+      servedWhileUpgradingPlain: '업그레이드 중, 이전 버전 사용 중',
+      servedAfterFailure: '업그레이드 실패, {version} 사용 중',
+      servedAfterFailurePlain: '업그레이드 실패, 이전 버전 사용 중',
       loadFailed: '불러오지 못했습니다',
     },
     mcpService: 'MCP 서비스',
@@ -6278,10 +6352,16 @@ export default {
       preview: '미리보기',
       previewBack: '목록으로',
       collecting: '생성된 파일을 저장하는 중…',
+      delete: '삭제',
+      deleteTitle: '이 파일을 삭제할까요?',
+      deleteConfirm: '「{name}」과(와) 저장된 내용이 영구적으로 삭제되며 복구할 수 없습니다.',
+      deleted: '파일을 삭제했습니다',
+      deleteFailed: '삭제에 실패했습니다. 다시 시도해 주세요.',
       download: '다운로드',
       downloadFailed: '다운로드에 실패했습니다. 다시 시도해 주세요.',
       inlinePreviewHint: '클릭하여 미리보기',
       inlineMissing: '파일을 사용할 수 없습니다',
+      inlineDeleted: '삭제된 파일',
     },
     updatePlan: '계획 업데이트',
     webSearchFound: '<strong>{count}</strong>개의 웹 검색 결과 발견',
@@ -6326,6 +6406,8 @@ export default {
       capabilityUnconfigured: '미구성'
     },
     editor: {
+      reasoningEffortUnsupported: '선택한 모델은 사고를 지원하지 않습니다. "끄기" 외의 옵션은 무시됩니다.',
+      reasoningEffortAlwaysOn: '선택한 모델은 항상 사고하며 끌 수 없습니다. 강도만 조정할 수 있습니다.',
       createTitle: '에이전트 만들기',
       editTitle: '에이전트 편집',
       buttons: {
@@ -6441,6 +6523,7 @@ export default {
       goSandboxSettings: '샌드박스 관리',
       goSkillSettings: '스킬 관리',
       installToThisSandbox: '이 샌드박스에 설치',
+      upgradeOnThisSandbox: '이 샌드박스의 스킬을 카탈로그 버전으로 업그레이드',
       installShort: '설치',
       viewInstallProgress: '진행 상황',
       skillNotInstalled: '미설치',
@@ -6473,6 +6556,7 @@ export default {
     shareScope: {
       title: '공유 범위 설명',
       desc: '스페이스 구성원은 읽기 전용 모드로 에이전트를 사용하며 현재 구성된 기능과 리소스를 따릅니다. 에이전트에 대한 수정 사항은 공유 공간에 동기화됩니다. 스페이스 구성원이 지식베이스 콘텐츠를 편집할 수 있도록 허용하려면 지식베이스를 스페이스에 공유하세요.',
+      skillSecretsWarning: '이 에이전트는 스킬을 사용합니다. 스페이스 구성원이 사용하면 스킬이 이 워크스페이스의 샌드박스에서 관리자가 설정한 환경 변수(API 키 등)와 함께 실행되며, 구성원은 에이전트가 그 값을 출력하게 할 수 있습니다. 이를 허용할 수 있는 경우에만 공유하세요.',
       knowledgeBase: '지식베이스',
       chatModel: '대화 모델',
       rerankModel: '모델을 재배열하다',
@@ -6541,6 +6625,15 @@ export default {
     root: '지식 처리',
     attempt: '{n}번째 시도',
     retry: '다시 파싱',
+    notRun: '실행 안 됨',
+    stageFailed: '{stage} 단계 실패',
+    copyError: '오류 정보 복사',
+    stat: {
+      duration: '소요 시간',
+      attempt: '시도',
+      tasks: '백그라운드 작업',
+      tasksValue: '실행 중 {running} · 실패 {failed} · 완료 {completed}'
+    },
     refresh: '지금 새로고침',
     copy: '복사',
     copyDetails: '세부정보 복사',
@@ -6560,8 +6653,9 @@ export default {
     minutesAgo: '{n}분 전',
     noActivity: '파싱 활동 없음',
     totalDuration: '총 소요시간: {d}',
-    total: '총 {d}',
     errorCode: {
+      TASK_STALLED: '진행이 없어 자동 중단됨',
+      TASK_STALLED_SUGGESTION: '임계 시간을 넘도록 진행이 없고 대기열에도 해당 작업이 없어 실패로 표시되었습니다. 「다시 시도」를 누르세요. 반복되면 이 단계가 의존하는 서비스(문서 파싱, 모델, 벡터 저장소)를 확인하세요.',
       UNKNOWN_SUGGESTION: '자세한 내용은 애플리케이션 로그를 확인하세요.'
     },
     status: {
@@ -6612,11 +6706,17 @@ export default {
       overview: '개요',
       raw: '원본 JSON'
     },
+    stall: {
+      title: '{minutes}분 동안 진행이 없어 멈췄을 수 있습니다',
+      hint: '계속 기다리거나 파싱을 중지한 뒤 지식을 재구축할 수 있습니다. 계속 진행이 없으면 자동으로 실패 처리됩니다.',
+      hintAtStage: '「{stage}」 단계에서 멈춰 있습니다. 계속 기다리거나 파싱을 중지한 뒤 지식을 재구축할 수 있습니다. 계속 진행이 없으면 자동으로 실패 처리됩니다.',
+      queuedTitle: '{minutes}분 동안 진행이 없습니다. 아직 대기열에서 기다리는 중입니다',
+      queuedHint: '이 문서의 작업이 아직 대기열에 있습니다. 보통 작업 적체 때문이며 자동으로 이어지므로 대개 조치가 필요 없습니다.'
+    },
     head: {
+      lastProgress: '최근 진행',
       stagesDone: '주요 단계',
       stagesProgress: '현재 단계',
-      postprocessTasks: '후처리: 실행 중 {running} / 실패 {failed} / 완료 {completed}',
-      completedWithActiveTrace: '처리는 완료되었지만 {n}개의 Trace 작업이 아직 활성 상태입니다',
       attempt: '시도',
       updated: '갱신'
     },
@@ -6687,18 +6787,37 @@ export default {
     }
   },
   knowledgeBase: {
+    tagAddAction: '태그 추가',
+    documentCount: '문서 {count}개',
+    filters: '필터',
+    clearFilters: '필터 지우기',
+
     title: '지식베이스',
     fileContent: '파일 내용',
     name: '이름',
     description: '설명',
     settings: '설정',
+    sort: {
+      title: '정렬',
+      updatedTime: '업데이트 시간',
+      updatedTimeDescription: '파일이 마지막으로 변경된 시간을 기준으로 정렬합니다.',
+      createdTime: '업로드/생성 시간',
+      createdTimeDescription: '기본 옵션입니다. 새로 추가된 자료나 가장 오래된 자료를 확인합니다.',
+      fileName: '파일 이름',
+      fileNameDescription: '이름을 알고 있는 파일을 빠르게 찾습니다.',
+      recentlyUpdated: '최근 업데이트',
+      earliestUpdated: '가장 오래된 업데이트',
+      newestCreated: '최신 업로드',
+      earliestCreated: '가장 오래된 업로드',
+      nameAscending: 'A–Z',
+      nameDescending: 'Z–A',
+    },
     tagUpdateSuccess: '태그 업데이트 성공',
     tagEditDialogHeading: '태그 편집',
-    tagEditSearch: '태그 검색...',
-    tagEditSelectedSection: '선택된 태그',
-    tagEditAvailableSection: '선택 가능',
-    tagEditNoSelected: '선택 없음',
     folderTree: {
+      totalDocuments: '전체 문서 {count}개',
+      countHint: '현재 폴더 문서 {direct}개, 하위 폴더 포함 {total}개',
+      filteredCount: '일치하는 문서 {count}개',
       title: '폴더',
       rootRow: '루트',
       rootRowTip: '지식 베이스 루트 디렉터리, 하위 폴더에 없는 문서가 여기에 있습니다',
@@ -6739,10 +6858,13 @@ export default {
     tagManageListSection: '태그 목록',
     tagManageDocCount: '문서 {count}개',
     tagManageFaqCount: 'FAQ {count}개',
+    tagPickerSelected: '선택됨',
+    tagPickerUnselected: '선택 안 됨',
     tagSelectedCount: '{count}개 선택됨',
-    tagNewPlaceholder: '새 태그 이름 입력, Enter로 추가',
+    tagPickerSearch: "태그 검색 또는 만들기",
+    tagPickerInUse: "사용 중인 태그입니다. 먼저 문서 연결을 해제하세요.",
+    tagPickerDeleteConfirm: "“{name}” 태그를 삭제할까요?",
     untagged: '태그 없음',
-    tagClearAction: '선택 해제',
     tagCreateAction: '태그 생성',
     tagSearchPlaceholder: '태그 이름 키워드 입력',
     tagNamePlaceholder: '태그 이름을 입력하세요',
@@ -6757,13 +6879,6 @@ export default {
     tagLabel: '태그',
     tagPlaceholder: '태그를 선택하세요',
     noTags: '태그 없음',
-    uploadSuccess: '파일 업로드 성공!',
-    uploadFailed: '파일 업로드 실패!',
-    fileExists: '파일이 이미 존재합니다',
-    uploadAllSuccess: '{count}개 파일 업로드 성공!',
-    uploadPartialSuccess: '업로드 완료: 성공 {success}개, 실패 {fail}개',
-    uploadAllFailed: '모든 파일 업로드 실패',
-    uploadingFolder: '폴더의 {total}개 파일 업로드 중...',
     videosFilteredNoVLM: '{count}개의 동영상 파일을 건너됨 (동영상 업로드 미지원)',
     unsupportedTypesHint: '일부 문서 유형({types})에 사용 가능한 파서 엔진이 없어 처리할 수 없습니다',
     goToParserSettings: '설정으로 이동',
@@ -6940,9 +7055,6 @@ export default {
     batchTag: '일괄 태그',
     batchTagDialogHeading: '일괄 태그 지정',
     batchTagSubtitle: '선택한 {count}개 문서에 태그를 일괄 설정합니다 (기존 태그는 대체됩니다)',
-    batchTagSelectedSection: '선택된 태그',
-    batchTagAvailableSection: '선택 가능',
-    batchTagNoSelected: '선택 없음',
     batchTagSuccess: '{count}개 문서에 태그가 적용되었습니다',
     batchTagFailed: '일괄 태그 실패',
     confirmBatchReparseDocument: '선택한 {count}개 문서를 재구축하시겠습니까? 기존 내용이 삭제되고 각 문서가 다시 파싱됩니다.',
@@ -6953,6 +7065,10 @@ export default {
     statusCompleted: '완료',
     statusProcessing: '처리 중',
     statusFinalizing: '최적화 중',
+    statusStalled: '멈춤 의심',
+    stalledHint: '{minutes}분 동안 진행이 없습니다. 멈췄을 수 있습니다. Trace에서 멈춘 위치를 확인하거나 파싱을 중지한 뒤 지식을 재구축하세요.',
+    statusQueued: '대기 중',
+    queuedHint: '{minutes}분 동안 진행이 없지만 작업이 아직 대기열에서 기다리고 있습니다. 보통 작업 적체 때문이며 곧 자동으로 이어집니다.',
     statusFailed: '실패',
     statusCancelled: '취소됨',
     statusDraft: '초안',
@@ -6994,9 +7110,6 @@ export default {
     operationNotSupportedForType: '현재 지식베이스 유형에서는 이 작업을 지원하지 않습니다',
     allFilesSkippedNoEngine: '선택한 모든 파일이 사용 가능한 파싱 엔진이 없어 건너뛰었습니다',
     filesSkippedNoEngine: '{count}개 파일이 사용 가능한 파싱 엔진이 없어 건너뛰었습니다',
-    allUploadSuccess: '모든 파일 업로드 성공 ({count}개)',
-    partialUploadSuccess: '일부 파일 업로드 성공 (성공: {success}, 실패: {fail})',
-    allUploadFailed: '모든 파일 업로드 실패 ({count}개)',
     deleteSuccess: '지식이 성공적으로 삭제되었습니다!',
     chunkLoadFailed: '청크 로드 실패',
     infoCard: {
@@ -7314,6 +7427,7 @@ export default {
     deleteSession: '대화 삭제',
     renamePlaceholder: '대화 제목을 입력하세요',
     unpinSuccess: '대화 고정이 해제되었습니다',
+    temporaryWorkspace: '임시 작업 영역',
     sessionIdCopied: '세션 ID가 복사되었습니다',
     linkCopied: '대화 링크가 복사되었습니다',
     copyFailed: '복사하지 못했습니다. 브라우저 클립보드 권한을 확인하세요.',
@@ -7333,10 +7447,58 @@ export default {
       references: '참조'
     }
   },
+  artifactLibrary: {
+    title: '산출물',
+    subtitle: '모든 대화에서 에이전트가 생성한 파일을 한곳에 모아 보여줍니다',
+    typeFilter: '유형별 필터',
+    searchPlaceholder: '파일 이름 검색',
+    categories: {
+      all: '전체',
+      document: '문서',
+      spreadsheet: '스프레드시트',
+      presentation: '프레젠테이션',
+      image: '이미지',
+      web: '웹 페이지',
+      data: '데이터'
+    },
+    groups: {
+      today: '오늘',
+      yesterday: '어제',
+      last7Days: '최근 7일',
+      last30Days: '최근 30일',
+      earlier: '이전'
+    },
+    total: '파일 {count}개',
+    versions: '버전 {count}개',
+    preview: '미리보기',
+    delete: '삭제',
+    deleteTitle: '이 파일을 삭제할까요?',
+    deleteConfirm: '「{name}」과(와) 저장된 내용이 영구적으로 삭제되며 복구할 수 없습니다.',
+    deleteConfirmVersions: '「{name}」의 {count}개 버전과 저장된 내용이 모두 영구적으로 삭제되며 복구할 수 없습니다.',
+    deleted: '파일을 삭제했습니다',
+    deleteFailed: '삭제에 실패했습니다. 다시 시도해 주세요.',
+    download: '다운로드',
+    downloadFailed: '다운로드에 실패했습니다. 잠시 후 다시 시도해 주세요',
+    openSession: '대화 열기',
+    untitledSession: '제목 없는 대화',
+    loadMore: '더 불러오기',
+    loadFailed: '산출물을 불러오지 못했습니다',
+    retry: '다시 시도',
+    clearFilters: '필터 지우기',
+    empty: {
+      title: '아직 산출물이 없습니다',
+      description: '대화에서 에이전트에게 보고서, 표, 슬라이드를 만들게 하면 파일이 여기에 표시됩니다'
+    },
+    noMatches: {
+      title: '일치하는 파일이 없습니다',
+      description: '다른 키워드나 파일 유형으로 시도해 보세요'
+    }
+  },
   menu: {
     sessionInProgress: '대화 진행 중',
     knowledgeBase: '지식베이스',
     agents: '에이전트',
+    artifacts: '산출물',
     organizations: '공유 공간',
     newChat: '새 대화',
     settings: '시스템 설정',

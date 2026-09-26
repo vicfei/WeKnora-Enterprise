@@ -19,396 +19,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/grants": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "按 uum_user_id / tenant_id / status 过滤授权记录（含 pending 预授权与 revoked/expired 历史）。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "授权查询（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "按工号过滤",
-                        "name": "uum_user_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "按空间过滤",
-                        "name": "tenant_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "pending|active|expired|revoked",
-                        "name": "status",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "upsert 语义（一人一空间一行）。activate_now=false 进 pending（预授权：工号无需已建号）；true 直接生效（未建号用户在首登时落成员关系）。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "新建/更新授权（v2 管理端）",
-                "parameters": [
-                    {
-                        "description": "授权请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/grants/{id}": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "授权详情（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "授权ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "role 变更同步成员角色；valid_until 延长可复活 expired 授权。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "改角色/有效期（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "授权ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新字段",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.updateGrantRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "移除成员关系——用户下一请求即 403（逐请求成员校验），无需吊销 token。幂等。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "回收授权（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "授权ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/grants/{id}/approve": {
-            "put": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "pending → active；未建号的预授权在用户首次登录时落成员关系。幂等。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "审批通过（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "授权ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/spaces": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "列出全部空间（租户）及其 space_type。系统管理员专属。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "空间清单（v2 管理端）",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "创建团队/全员空间（personal 由用户首登自动创建）。不 bootstrap Owner——成员关系只经 grants 流转（治理冻结）。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "创建空间（v2 管理端）",
-                "parameters": [
-                    {
-                        "description": "空间信息",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.createSpaceRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/spaces/{tenant_id}": {
-            "put": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "改名 / 改描述 / 改 space_type。",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "空间授权管理"
-                ],
-                "summary": "更新空间（v2 管理端）",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "空间（租户）ID",
-                        "name": "tenant_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新字段",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.updateSpaceRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
         "/agent-chat/{session_id}": {
             "post": {
                 "security": [
@@ -3014,340 +2624,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/identity/bridge": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "声明式接口：确保 UUM 用户持有目标部门租户的访问权并返回该租户的 JWT 登录响应（Web 门户通道）。已映射→登录；未映射→自愈补登或建号（tenantless + 部门成员，默认 viewer）。幂等。事件顺序约束：同一用户的 transfer/disable 必须先于新的 bridge 调用被处理。认证：platform key（system_identity_bridge capability）+ 必带 X-Tenant-ID（仅满足门禁，逻辑以 body 为准）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "UUM 身份桥接（建号/换票）",
-                "parameters": [
-                    {
-                        "description": "桥接请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityBridgeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "登录响应（token/refresh_token/user/memberships + is_new_user）",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/identity/departments/{department_id}": {
-            "put": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "UUM 部门 ↔ WeKnora 部门租户的权威 1:1 映射（双向唯一，冲突返回 409）；同对重复调用更新部门名",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "绑定/更新 UUM 部门映射",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUM 部门ID",
-                        "name": "department_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "绑定信息",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.UUMDepartmentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "映射详情",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/identity/disable": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "两步组合禁用：置 is_active=false + 吊销该用户全部 access/refresh token（仅阻止登录会让已签发 JWT 继续有效至多 24h）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "禁用 UUM 桥接用户",
-                "parameters": [
-                    {
-                        "description": "禁用请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityDisableRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "禁用成功",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/identity/mapping/by-user/{user_id}": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "按 user_id 查询其全部映射行",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "查询 WeKnora 用户的 UUM 映射列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "WeKnora 用户ID",
-                        "name": "user_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "映射列表",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/identity/mapping/{uum_user_id}": {
-            "get": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "按 uum_user_id + tenant_id 查询映射（tenant_id 为 query 参数，必填）",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "查询 UUM 用户映射",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "UUM 用户ID",
-                        "name": "uum_user_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "部门租户ID",
-                        "name": "tenant_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "映射详情",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/identity/transfer": {
-            "post": {
-                "security": [
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "成员关系迁移到新部门租户（默认保留原角色）；旧映射行删除、全部 token 吊销（强制重新 bridge）；历史 KB/文档/会话留在原部门租户。兼任场景不走此接口（用原生成员管理直接加人）。幂等：源映射不存在且目标映射已存在时直接返回现有映射",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "UUM身份桥接"
-                ],
-                "summary": "UUM 用户调岗（跨部门租户迁移）",
-                "parameters": [
-                    {
-                        "description": "调岗请求",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.IdentityTransferRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "迁移后的映射",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
         "/im-channels/{id}": {
             "put": {
                 "security": [
@@ -5631,7 +4907,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。tag_ids 按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。",
+                "description": "在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -5696,7 +4972,7 @@ const docTemplate = `{
                         "ApiKeyAuth": []
                     }
                 ],
-                "description": "在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。tag_ids 按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。",
+                "description": "在知识库中执行向量和关键词混合搜索。推荐使用 POST；GET 携带 JSON 请求体仍受支持（兼容旧客户端）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -6439,50 +5715,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/knowledge-bases/{id}/profile/generate": {
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "基于文档画像聚合，立即重新生成知识库的 AI 描述（不覆盖手写描述）",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "知识库"
-                ],
-                "summary": "生成知识库描述",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "生成的知识库画像",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "知识库类型不支持或未配置模型",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
         "/knowledge-bases/{id}/shares": {
             "get": {
                 "security": [
@@ -6664,489 +5896,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/tag-tree": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "获取知识库的完整层级标签树（嵌套结构）",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "获取标签树",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "标签树（嵌套数组）",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/tag-tree/nodes": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "平铺返回知识库的标签树节点；parent_id 过滤直接子节点（\"root\" 或留空表示根级）",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "获取标签树节点列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "父节点ID（root=根级；缺省返回全部节点）",
-                        "name": "parent_id",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "节点列表（平铺）",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "请求参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "创建标签树节点；新节点即叶子并自动创建原生标签；首个子节点加入时父叶子自动降级（硬删其原生标签并解除文档关联）",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "创建标签树节点",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "节点信息",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
-                                "parent_id": {
-                                    "type": "string"
-                                },
-                                "sort_order": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "创建的节点",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "父节点不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "同级重名",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/tag-tree/nodes/{node_id}": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "获取单个标签树节点",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "获取标签树节点详情",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点ID",
-                        "name": "node_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "节点详情",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "节点不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "更新节点名称和/或排序；重命名会重算子树路径并同步叶子节点的原生标签名",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "更新标签树节点",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点ID",
-                        "name": "node_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "更新信息",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
-                                "sort_order": {
-                                    "type": "integer"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "更新后的节点",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "节点不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "重名冲突",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            },
-            "delete": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "物理硬删除节点及其整棵子树，并级联清理叶子原生标签（knowledge_tags）、文档打标关系（knowledge_tag_relations）与 FAQ 分块标签（chunks.tag_id）；文档本身保留仅解除分类；不可恢复",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "删除标签树节点",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点ID",
-                        "name": "node_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "级联删除统计",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "节点不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/tag-tree/nodes/{node_id}/leaves": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "检索预过滤专用：叶子节点返回自身 tag_id，父节点按物化路径收集所有子孙叶子 tag_id；结果可直接传入 hybrid-search 的 tag_ids。注意：空列表表示该节点下无叶子标签，检索应返回空结果而非取消过滤",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "获取节点下的叶子标签ID列表",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点ID",
-                        "name": "node_id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "叶子 tag_id 列表",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "404": {
-                        "description": "节点不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    }
-                }
-            }
-        },
-        "/knowledge-bases/{id}/tag-tree/nodes/{node_id}/move": {
-            "post": {
-                "security": [
-                    {
-                        "Bearer": []
-                    },
-                    {
-                        "ApiKeyAuth": []
-                    }
-                ],
-                "description": "将节点移动到新父级（parent_id 留空表示移到根级）；拒绝环与同级重名；目标父级为叶子时自动降级",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "标签树管理"
-                ],
-                "summary": "移动标签树节点",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "知识库ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "节点ID",
-                        "name": "node_id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "目标父节点（空=根级）",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "parent_id": {
-                                    "type": "string"
-                                }
-                            }
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "移动后的节点",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "400": {
-                        "description": "参数错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "404": {
-                        "description": "目标不存在",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "409": {
-                        "description": "重名冲突",
                         "schema": {
                             "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
                         }
@@ -13247,44 +11996,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.ListSharesResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/portal/knowledge-bases": {
-            "get": {
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ],
-                "description": "GET /portal/knowledge-bases：全部活跃 memberships 的知识库 ∪ 经组织共享分发的内容（含 space_type=all 全员空间），注入 tenant_name/space_type/my_role 供门户分组。系统管理员返回全平台非临时库。",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "门户"
-                ],
-                "summary": "门户聚合知识库列表（二开，决策 019）",
-                "responses": {
-                    "200": {
-                        "description": "聚合知识库列表",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "未认证",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
-                        }
-                    },
-                    "500": {
-                        "description": "服务器错误",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_errors.AppError"
                         }
                     }
                 }
@@ -20283,7 +18994,7 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "history_turns": {
-                    "description": "Number of history turns to keep in context",
+                    "description": "Number of history turns to keep in context. Quick-answer only; smart-reasoning sizes history by context window",
                     "type": "integer"
                 },
                 "image_storage_provider": {
@@ -20967,75 +19678,6 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_Tencent_WeKnora_internal_types.IdentityBridgeRequest": {
-            "type": "object",
-            "required": [
-                "uum_user_id"
-            ],
-            "properties": {
-                "email": {
-                    "description": "optional; default derived \"{uum_user_id}@uum.invalid\"",
-                    "type": "string"
-                },
-                "role": {
-                    "description": "optional; default viewer (least privilege)",
-                    "type": "string"
-                },
-                "tenant_id": {
-                    "description": "TenantID is optional since v2: omitted means tenantless personal-space\nbootstrap (see identityBridgeService.bridgePersonalSpace). The service\nvalidates; a binding:\"required\" here would reject the omit-case first.",
-                    "type": "integer"
-                },
-                "username": {
-                    "description": "optional; default derived \"uum-{uum_user_id}\"",
-                    "type": "string"
-                },
-                "uum_department_id": {
-                    "description": "optional snapshot / mapping upsert",
-                    "type": "string"
-                },
-                "uum_user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.IdentityDisableRequest": {
-            "type": "object",
-            "required": [
-                "tenant_id",
-                "uum_user_id"
-            ],
-            "properties": {
-                "tenant_id": {
-                    "type": "integer"
-                },
-                "uum_user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.IdentityTransferRequest": {
-            "type": "object",
-            "required": [
-                "from_tenant_id",
-                "to_tenant_id",
-                "uum_user_id"
-            ],
-            "properties": {
-                "from_tenant_id": {
-                    "type": "integer"
-                },
-                "role": {
-                    "description": "optional; default preserves the current role",
-                    "type": "string"
-                },
-                "to_tenant_id": {
-                    "type": "integer"
-                },
-                "uum_user_id": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_Tencent_WeKnora_internal_types.ImageProcessingConfig": {
             "type": "object",
             "properties": {
@@ -21313,14 +19955,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "generated_profile": {
-                    "description": "GeneratedProfile is the machine-generated description: a gist, merged\ntopics, typical questions and the aggregate snapshot they came from. It\nnever overwrites the user-authored Description; both are shown to agents.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfile"
-                        }
-                    ]
-                },
                 "id": {
                     "description": "Unique identifier of the knowledge base",
                     "type": "string"
@@ -21368,14 +20002,6 @@ const docTemplate = `{
                 "processing_count": {
                     "description": "ProcessingCount indicates the number of knowledge items being processed (for document type knowledge bases)",
                     "type": "integer"
-                },
-                "profile_config": {
-                    "description": "ProfileConfig controls automatic generation of the knowledge-base\ndescription from per-document profiles (document knowledge bases only).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig"
-                        }
-                    ]
                 },
                 "question_generation_config": {
                     "description": "QuestionGenerationConfig stores question generation configuration for document knowledge bases",
@@ -21490,14 +20116,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "profile_config": {
-                    "description": "ProfileConfig controls optional automatic knowledge-base description\ngeneration. nil means \"no change\" when updating.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig"
-                        }
-                    ]
-                },
                 "wiki_config": {
                     "description": "Wiki configuration (only for wiki-enabled knowledge bases)",
                     "allOf": [
@@ -21505,128 +20123,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.WikiConfig"
                         }
                     ]
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfile": {
-            "type": "object",
-            "properties": {
-                "aggregate_hash": {
-                    "description": "AggregateHash identifies the aggregate the gist was generated from. A\nmismatch with the live aggregate means the text is stale.",
-                    "type": "string"
-                },
-                "error": {
-                    "description": "Error holds the last generation error when Status is failed.",
-                    "type": "string"
-                },
-                "generated_at": {
-                    "description": "GeneratedAt records when the text was produced.",
-                    "type": "string"
-                },
-                "gist": {
-                    "description": "Gist is a short statement of what the knowledge base covers.",
-                    "type": "string"
-                },
-                "model_id": {
-                    "description": "ModelID records which chat model produced the text.",
-                    "type": "string"
-                },
-                "stats": {
-                    "description": "Stats is the aggregate snapshot the text was generated from.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileStats"
-                        }
-                    ]
-                },
-                "status": {
-                    "description": "Status is one of the KnowledgeBaseProfileStatus* values.",
-                    "type": "string"
-                },
-                "topics": {
-                    "description": "Topics is the merged topic list (at most KnowledgeBaseProfileMaxTopics).",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "typical_questions": {
-                    "description": "TypicalQuestions lists questions this knowledge base can answer.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileConfig": {
-            "type": "object",
-            "properties": {
-                "custom_instructions": {
-                    "description": "CustomInstructions is appended to the stable system prompt, e.g. the\naudience the description should address or terms to keep.",
-                    "type": "string"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "model_id": {
-                    "description": "ModelID overrides the chat model; empty falls back to the KB summary model.",
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.KnowledgeBaseProfileStats": {
-            "type": "object",
-            "properties": {
-                "doc_types": {
-                    "description": "DocTypes counts documents per model-assigned document type.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount"
-                    }
-                },
-                "document_count": {
-                    "description": "DocumentCount is the number of eligible documents at generation time.",
-                    "type": "integer"
-                },
-                "earliest_at": {
-                    "description": "EarliestAt and LatestAt bound document creation times.",
-                    "type": "string"
-                },
-                "file_types": {
-                    "description": "FileTypes counts documents per file extension.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount"
-                    }
-                },
-                "folders": {
-                    "description": "Folders lists the top-level folder names present.",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "latest_at": {
-                    "type": "string"
-                },
-                "profiled_count": {
-                    "description": "ProfiledCount is how many of them carried a document profile.",
-                    "type": "integer"
-                },
-                "raw_topics": {
-                    "description": "RawTopics counts documents per normalized topic keyword before merging.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount"
-                    }
-                },
-                "tags": {
-                    "description": "Tags counts documents per knowledge-base tag.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.NamedCount"
-                    }
                 }
             }
         },
@@ -22687,17 +21183,6 @@ const docTemplate = `{
                 "ModelTypeASR"
             ]
         },
-        "github_com_Tencent_WeKnora_internal_types.NamedCount": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
         "github_com_Tencent_WeKnora_internal_types.OBSEngineConfig": {
             "type": "object",
             "properties": {
@@ -23060,6 +21545,17 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_Tencent_WeKnora_internal_types.QuestionOrigin": {
+            "type": "object",
+            "properties": {
+                "knowledge_base_id": {
+                    "type": "string"
+                },
+                "knowledge_id": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_Tencent_WeKnora_internal_types.QuestionSuggestionConfig": {
             "type": "object",
             "properties": {
@@ -23125,35 +21621,6 @@ const docTemplate = `{
                 "weight": {
                     "description": "Weight is the queue's scheduling weight inside its pool.",
                     "type": "integer"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.RankingConfig": {
-            "type": "object",
-            "properties": {
-                "mmr_lambda": {
-                    "description": "MMRLambda trades relevance against redundancy in MMR selection\n(1.0 = pure relevance, no diversity penalty). Default: 0.7.",
-                    "type": "number"
-                },
-                "recency_half_life_days": {
-                    "description": "RecencyHalfLifeDays is the half-life of the exponential recency decay:\na document updated N days ago scores 2^(-N/RecencyHalfLifeDays).\nDefault: 180.",
-                    "type": "integer"
-                },
-                "recency_weight": {
-                    "description": "RecencyWeight applies to the document-recency signal. Default: 0 —\nthe signal is plumbed and logged but inert until a corpus with real\ntime spread justifies a weight.",
-                    "type": "number"
-                },
-                "rerank_weight": {
-                    "description": "Weight semantics: every weight field independently means \"unset → use\nthe legacy default\"; zero is not expressible (v1 limitation). The\nsource term is a constant offset per knowledge source, so it cannot\nreorder candidates that share a source — zeroing it is unnecessary for\nKB-only candidate sets.\nRerankWeight applies to the rerank model's relevance score. Default: 0.6.",
-                    "type": "number"
-                },
-                "retrieval_weight": {
-                    "description": "RetrievalWeight applies to the fused retrieval (RRF) score. Default: 0.3.",
-                    "type": "number"
-                },
-                "source_weight": {
-                    "description": "SourceWeight applies to the knowledge-source term (a constant offset\nthat discounts web_search hits). Default: 0.1.",
-                    "type": "number"
                 }
             }
         },
@@ -23296,14 +21763,6 @@ const docTemplate = `{
                 "keyword_threshold": {
                     "description": "KeywordThreshold is the minimum keyword match score (0-1, default: 0.3)",
                     "type": "number"
-                },
-                "ranking": {
-                    "description": "Ranking is the optional weighted-ranking configuration for the rerank\ncomposite score (二开特性, nil = legacy hardcoded behavior).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.RankingConfig"
-                        }
-                    ]
                 },
                 "rerank_model_id": {
                     "description": "RerankModelID is the ID of the rerank model to use (required for search)",
@@ -23696,7 +22155,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "tag_ids": {
-                    "description": "TagIDs filters retrieval by tags. HybridSearch applies it per KB type:\nfor document-type KBs (including all-document multi-KB scopes) the\nservice resolves the tags to a knowledge whitelist via\nknowledge_tag_relations before retrieval — an empty resolution yields\nan empty result, not a whole-KB search. For FAQ or mixed scopes the\ntags pass through as an index-level chunks.tag_id filter. An empty\n(or absent) list never filters.",
+                    "description": "Tag IDs for filtering (used for FAQ priority filtering)",
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -23892,10 +22351,6 @@ const docTemplate = `{
                 "agent_id": {
                     "type": "string"
                 },
-                "kb_routing_enabled": {
-                    "description": "二开特性：自动选库开关随会话快照持久（与联网搜索同机制）",
-                    "type": "boolean"
-                },
                 "knowledge_base_ids": {
                     "type": "array",
                     "items": {
@@ -23939,10 +22394,6 @@ const docTemplate = `{
                     }
                 },
                 "web_search_enabled": {
-                    "type": "boolean"
-                },
-                "weighted_ranking_enabled": {
-                    "description": "二开特性：精准排序（rerank）开关随会话快照持久",
                     "type": "boolean"
                 }
             }
@@ -24422,10 +22873,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "space_type": {
-                    "description": "SpaceType classifies the tenant for portal aggregation (v2, migration 20260827095630):\npersonal / team / all (company-wide public space). Defaults to team so\npre-existing tenants keep their semantics unchanged.",
-                    "type": "string"
-                },
                 "status": {
                     "description": "Status",
                     "type": "string"
@@ -24569,6 +23016,10 @@ const docTemplate = `{
                 "completion_tokens": {
                     "type": "integer"
                 },
+                "context_token_scale": {
+                    "description": "ContextTokenScale is provider prompt tokens per cl100k-estimated token,\nmeasured over the turn's rounds. Persisted with the turn so the next\nturn's history loading and first compaction check are calibrated before\nany provider count of their own. Zero when the turn measured none.",
+                    "type": "number"
+                },
                 "prompt_tokens": {
                     "type": "integer"
                 },
@@ -24680,20 +23131,6 @@ const docTemplate = `{
                 "success": {
                     "description": "Whether the tool executed successfully",
                     "type": "boolean"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types.UUMDepartmentRequest": {
-            "type": "object",
-            "required": [
-                "tenant_id"
-            ],
-            "properties": {
-                "department_name": {
-                    "type": "string"
-                },
-                "tenant_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -25113,7 +23550,6 @@ const docTemplate = `{
                 "exa",
                 "metaso",
                 "bocha",
-                "doubao",
                 "serply"
             ],
             "x-enum-varnames": [
@@ -25130,7 +23566,6 @@ const docTemplate = `{
                 "WebSearchProviderTypeExa",
                 "WebSearchProviderTypeMetaso",
                 "WebSearchProviderTypeBocha",
-                "WebSearchProviderTypeDoubao",
                 "WebSearchProviderTypeSerply"
             ]
         },
@@ -25846,29 +24281,6 @@ const docTemplate = `{
                 },
                 "total_pages": {
                     "type": "integer"
-                }
-            }
-        },
-        "github_com_Tencent_WeKnora_internal_types_interfaces.UserSpaceGrantAdminRequest": {
-            "type": "object",
-            "properties": {
-                "activate_now": {
-                    "type": "boolean"
-                },
-                "reason": {
-                    "type": "string"
-                },
-                "role": {
-                    "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole"
-                },
-                "tenant_id": {
-                    "type": "integer"
-                },
-                "uum_user_id": {
-                    "type": "string"
-                },
-                "valid_until": {
-                    "type": "string"
                 }
             }
         },
@@ -27473,24 +25885,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.createSpaceRequest": {
-            "type": "object",
-            "required": [
-                "name",
-                "space_type"
-            ],
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "space_type": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_handler.createTenantRequest": {
             "type": "object",
             "required": [
@@ -27669,17 +26063,6 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_handler.updateGrantRequest": {
-            "type": "object",
-            "properties": {
-                "role": {
-                    "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.TenantRole"
-                },
-                "valid_until": {
-                    "type": "string"
-                }
-            }
-        },
         "internal_handler.updateLastFAQImportResultDisplayStatusRequest": {
             "type": "object",
             "required": [
@@ -27716,20 +26099,6 @@ const docTemplate = `{
                 "last_active_tenant_id": {
                     "description": "LastActiveTenantID lets clients persist \"after a fresh login,\ndrop me back into this workspace\" across devices. The SPA sends\nthis after every tenant switch; POST /auth/switch-tenant records\nthe same preference server-side. Send a positive workspace id to\nset / replace, or 0 to clear. Membership is validated at next\nlogin, not here. Nil = field omitted from the PATCH and stays\nuntouched.",
                     "type": "integer"
-                }
-            }
-        },
-        "internal_handler.updateSpaceRequest": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "space_type": {
-                    "type": "string"
                 }
             }
         },
@@ -27790,14 +26159,6 @@ const docTemplate = `{
                     "description": "Whether to disable auto title generation",
                     "type": "boolean"
                 },
-                "enable_kb_routing": {
-                    "description": "EnableKBRouting (二开特性, default off): with no explicit KB selection,\nauto-route the query to the most relevant KBs by content-centroid\nsimilarity. Explicit selections are never overridden.",
-                    "type": "boolean"
-                },
-                "enable_weighted_ranking": {
-                    "description": "EnableWeightedRanking (二开特性 \"多维度加权排序\", default off): switch the\nrerank composite score from the legacy hardcoded formula to the\nconfigurable weights in Ranking (falls back to tenant config, then to\nthe legacy constants). Off = exact legacy behavior.",
-                    "type": "boolean"
-                },
                 "images": {
                     "description": "Attached images for multimodal chat",
                     "type": "array",
@@ -27841,12 +26202,13 @@ const docTemplate = `{
                     "description": "Query text for knowledge base search",
                     "type": "string"
                 },
-                "ranking": {
-                    "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.RankingConfig"
-                },
-                "rerank_model_id": {
-                    "description": "RerankModelID is a request-level rerank-model override (二开: the chat\npipeline otherwise leaves RerankModelID empty unless an agent sets one,\nsilently skipping the whole rerank stage). \"auto\" picks the first\navailable rerank model; empty = today's behavior.",
-                    "type": "string"
+                "question_origin": {
+                    "description": "QuestionOrigin is the knowledge source of a picked suggested question.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_Tencent_WeKnora_internal_types.QuestionOrigin"
+                        }
+                    ]
                 },
                 "skill_names": {
                     "description": "Per-request Skills selected via @mention",

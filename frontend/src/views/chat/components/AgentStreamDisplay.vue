@@ -199,7 +199,7 @@
                     <div class="results-summary-text" v-html="getGrepResultsSummary(event.tool_data)"></div>
                   </div>
 
-                  <div v-if="!event.pending && event.tool_name === 'list_knowledge_chunks' && event.tool_data"
+                  <div v-if="!event.pending && (event.tool_name === 'read_document' || event.tool_name === 'list_knowledge_chunks') && event.tool_data"
                     class="search-results-summary-fixed knowledge-chunks-summary">
                     <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                   </div>
@@ -389,6 +389,22 @@
                     <t-icon name="git-branch" />
                   </t-button>
                 </t-tooltip>
+                <t-popconfirm
+                  v-if="canRewind"
+                  :content="t('chat.rewind.confirmBody')"
+                  :confirm-btn="{ content: t('chat.rewind.confirmButton'), theme: 'danger' }"
+                  :cancel-btn="{ content: t('chat.rewind.cancelButton') }"
+                  theme="warning"
+                  placement="top"
+                  overlay-class-name="chat-rewind-popconfirm"
+                  @confirm="emitRewind"
+                >
+                  <t-tooltip :content="rewindTooltip">
+                    <t-button size="small" variant="outline" shape="round" @click.stop>
+                      <t-icon name="rollback" />
+                    </t-button>
+                  </t-tooltip>
+                </t-popconfirm>
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleCopyAnswer(event)"
                   :title="$t('agent.copy')">
                   <t-icon name="copy" />
@@ -414,6 +430,11 @@
                   <span v-if="hasArtifacts" class="answer-toolbar__artifact-count" aria-hidden="true">{{ artifactCount }}</span>
                 </span>
                 <t-tooltip v-if="event.is_fallback" :content="$t('chat.fallbackHint')" placement="top">
+                  <t-button size="small" variant="outline" shape="round" class="fallback-icon-btn">
+                    <t-icon name="info-circle" />
+                  </t-button>
+                </t-tooltip>
+                <t-tooltip v-if="event.truncated" :content="$t('chat.truncatedHint')" placement="top">
                   <t-button size="small" variant="outline" shape="round" class="fallback-icon-btn">
                     <t-icon name="info-circle" />
                   </t-button>
@@ -500,7 +521,7 @@
                   <div class="results-summary-text" v-html="getGrepResultsSummary(event.tool_data)"></div>
                 </div>
 
-                <div v-if="!event.pending && event.tool_name === 'list_knowledge_chunks' && event.tool_data"
+                <div v-if="!event.pending && (event.tool_name === 'read_document' || event.tool_name === 'list_knowledge_chunks') && event.tool_data"
                   class="search-results-summary-fixed knowledge-chunks-summary">
                   <div class="results-summary-text" v-html="getKnowledgeChunksSummary(event.tool_data)"></div>
                 </div>
@@ -601,7 +622,7 @@
     v-model:visible="showArtifactDrawer"
     :session-id="sessionIdForArtifacts"
     :message-id="messageIdForArtifacts"
-    :artifacts="artifactList"
+    :artifacts="liveArtifacts"
     :preview-index="artifactPreviewIndex"
   />
 </template>
@@ -640,7 +661,8 @@ import { useSettingsStore } from '@/stores/settings';
 import { useAuthStore } from '@/stores/auth';
 import { useI18n } from 'vue-i18n';
 import i18n from '@/i18n';
-import { hydrateProtectedFileImages, clearProtectedFileFailureCache, sanitizeMarkdownHTML } from '@/utils/security';
+import { hydrateProtectedFileImages, sanitizeMarkdownHTML } from '@/utils/security';
+import { useProtectedImageRecovery } from '@/composables/useProtectedImageRecovery';
 import {
   artifactIndexFromEventTarget,
   hydrateArtifactImages,
@@ -707,6 +729,9 @@ const TOOL_NAME_KEYS: Record<string, string> = {
   discover_mcp_tools: 'agentStream.mcp.discoverTools',
   call_mcp_tool: 'agentStream.mcp.callTool',
   search_knowledge: 'agentStream.tools.searchKnowledge',
+  read_document: 'agentStream.tools.readDocument',
+  list_documents: 'agentStream.tools.listDocuments',
+  // Retired names still present in stored chat history
   knowledge_search: 'agentStream.tools.searchKnowledge',
   grep_chunks: 'agentStream.tools.grepChunks',
   web_search: 'agentStream.tools.webSearch',
@@ -967,18 +992,26 @@ const props = defineProps<{
   ragMode?: boolean;
   followUpLoading?: boolean;
   canFork?: boolean;
+  canRewind?: boolean;
 }>();
 
 const emit = defineEmits<{
   (event: 'render-complete-change', ready: boolean): void;
   (event: 'fork', messageId: string): void;
+  (event: 'rewind', messageId: string): void;
 }>();
 
 const canFork = computed(() => props.canFork === true && !props.embeddedMode)
+const canRewind = computed(() => props.canRewind === true && !props.embeddedMode)
 const forkTooltip = '从这条回答继续分叉'
+const rewindTooltip = computed(() => t('chat.rewind.tooltip'))
 const emitFork = () => {
   const messageId = persistedAssistantId(props.session) || String(props.session?.id || '')
   if (messageId) emit('fork', messageId)
+}
+const emitRewind = () => {
+  const messageId = persistedAssistantId(props.session) || String(props.session?.id || '')
+  if (messageId) emit('rewind', messageId)
 }
 
 const embedAuthProps = computed(() => ({
@@ -1021,25 +1054,6 @@ const protectedFileAccess = computed<ProtectedFileAccessContext | undefined>(() 
   return undefined;
 });
 
-// Re-hydrate when the message authorization anchor becomes available or is
-// corrected (e.g. request_id → persisted assistant_message_id after agent_query).
-watch(
-  () => {
-    const access = protectedFileAccess.value;
-    if (access?.mode === 'message') {
-      return `${access.sessionId}\0${access.messageId}`;
-    }
-    return '';
-  },
-  (scopeKey, previousScopeKey) => {
-    if (!scopeKey || scopeKey === previousScopeKey) return;
-    clearProtectedFileFailureCache();
-    nextTick(async () => {
-      await hydrateProtectedFileImages(rootElement.value, protectedFileAccess.value);
-    });
-  },
-);
-
 // -----------------------------------------------------------------------------
 // Skill artifact download drawer (Agent path)
 // -----------------------------------------------------------------------------
@@ -1052,8 +1066,13 @@ const artifactList = computed(() => {
   const list = ((props.session?.artifacts as any[]) || []);
   return list.map((a, i) => ({ index: i, ...a }));
 });
-const hasArtifacts = computed(() => artifactList.value.length > 0);
-const artifactCount = computed(() => artifactList.value.length);
+// Deleted files stay in artifactList on purpose: the inline renderer needs the
+// tombstone to tell "you deleted this" apart from "this handle belongs to some
+// other message", and its position is still the download address of the files
+// after it. Everything that counts or lists files uses the live view.
+const liveArtifacts = computed(() => artifactList.value.filter((a) => !a.deleted_at));
+const hasArtifacts = computed(() => liveArtifacts.value.length > 0);
+const artifactCount = computed(() => liveArtifacts.value.length);
 const { artifactArrived, onArtifactArriveEnd } = useArtifactArriveMotion(artifactCount);
 const artifactsCollecting = computed(() => isCollectingSkillArtifacts(props.session as any));
 const artifactButtonCollecting = computed(() => artifactsCollecting.value && !hasArtifacts.value);
@@ -1091,6 +1110,7 @@ const artifactRefContext = computed(() => {
 const artifactRefLabels = computed(() => ({
   previewHint: t('agent.artifactDrawer.inlinePreviewHint'),
   missingHint: t('agent.artifactDrawer.inlineMissing'),
+  deletedHint: t('agent.artifactDrawer.inlineDeleted'),
 }));
 
 const {
@@ -1421,7 +1441,7 @@ function getToolReferenceItems(event: any): KnowledgeReferenceLike[] {
       })));
   }
 
-  if (toolName === 'list_knowledge_chunks' || toolName === 'wiki_read_source_doc') {
+  if (toolName === 'read_document' || toolName === 'list_knowledge_chunks' || toolName === 'wiki_read_source_doc') {
     const chunks = Array.isArray(toolData.chunks) ? toolData.chunks : [];
     if (chunks.length) {
       return mergeDocumentReferences(chunks
@@ -1672,15 +1692,12 @@ const answerFullyRendered = computed(
     isSegmentDone.value &&
     typedAnswer.value.length >= activeAnswerMarkdown.value.length,
 );
+useProtectedImageRecovery(() => rootElement.value, () => protectedFileAccess.value,
+  () => !props.session?.persistence_error && answerFullyRendered.value);
 watch(answerFullyRendered, (ready) => {
   emit('render-complete-change', ready);
   if (!ready) return;
-  // Clear before this reactive update renders, so a source that returned 404
-  // mid-stream gets one real final-attempt <img> node instead of remaining
-  // suppressed by the missing-source cache.
-  clearProtectedFileFailureCache();
   nextTick(async () => {
-    await hydrateProtectedFileImages(rootElement.value, protectedFileAccess.value);
     await enhanceMarkdownContainer(rootElement.value);
   });
 }, { immediate: true });
@@ -2214,6 +2231,7 @@ const isReferenceDrawerTool = (toolName?: string | null): boolean =>
   toolName === 'web_search' ||
   toolName === 'web_fetch' ||
   toolName === 'grep_chunks' ||
+  toolName === 'read_document' ||
   toolName === 'list_knowledge_chunks' ||
   toolName === 'wiki_search' ||
   toolName === 'wiki_read_page' ||
@@ -2251,8 +2269,9 @@ const hasResults = (event: any): boolean => {
     return totalMatches > 0 || resultCount > 0;
   }
 
-  // list_knowledge_chunks: summary is inline below the header (no expandable body)
-  if (toolName === 'list_knowledge_chunks') {
+  // read_document (and legacy list_knowledge_chunks): summary is inline below
+  // the header (no expandable body)
+  if (toolName === 'read_document' || toolName === 'list_knowledge_chunks') {
     return false;
   }
 
@@ -2640,11 +2659,11 @@ const getToolSummary = (event: any): string => {
   // For search tools, don't return summary here - it will be displayed in SearchResults component
   if (toolName === 'search_knowledge' || toolName === 'knowledge_search') {
     return '';
-  } else if (toolName === 'get_document_info') {
+  } else if (toolName === 'get_document_info' || toolName === 'list_documents') {
     if (toolData?.title) {
       return t('agentStream.toolSummary.getDocument', { title: toolData.title });
     }
-  } else if (toolName === 'list_knowledge_chunks') {
+  } else if (toolName === 'read_document' || toolName === 'list_knowledge_chunks') {
     if (toolData?.faq_question) {
       return t('agentStream.toolSummary.listFaqEntry', { question: toolData.faq_question });
     }
@@ -3039,9 +3058,9 @@ const getToolDescription = (event: any): string => {
     return success ? t('agentStream.toolStatus.webSearch') : t('agentStream.toolStatus.webSearchFailed');
   } else if (toolName === 'grep_chunks') {
     return success ? t('agentStream.toolStatus.grepSearch') : t('agentStream.toolStatus.grepSearchFailed');
-  } else if (toolName === 'get_document_info') {
+  } else if (toolName === 'get_document_info' || toolName === 'list_documents') {
     return success ? t('agentStream.toolStatus.getDocInfo') : t('agentStream.toolStatus.getDocInfoFailed');
-  } else if (toolName === 'get_document_content' || toolName === 'wiki_read_source_doc') {
+  } else if (toolName === 'read_document' || toolName === 'get_document_content' || toolName === 'wiki_read_source_doc') {
     return success ? t('agentStream.toolStatus.viewDocument') : t('agentStream.toolStatus.calledFailed', { name: t('agentStream.toolStatus.viewDocument') });
   } else if (toolName === 'thinking') {
     return success ? t('agentStream.toolStatus.thinkingDone') : t('agentStream.toolStatus.thinkingFailed');

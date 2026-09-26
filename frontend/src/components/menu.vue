@@ -1,5 +1,5 @@
 <template>
-    <div class="aside_box" :class="{ 'aside_box--collapsed': uiStore.sidebarCollapsed }">
+    <div class="aside_box" :class="{ 'aside_box--collapsed': uiStore.sidebarCollapsed, 'aside_box--resizing': uiStore.sidebarResizing }">
         <!-- 展开时：Logo + 搜索/折叠按钮同行 -->
         <div class="logo_row" v-if="!uiStore.sidebarCollapsed">
             <div class="logo_box" @click="router.push('/platform/knowledge-bases')" style="cursor: pointer;">
@@ -52,8 +52,10 @@
         <!-- 空间选择器：仅在用户可切换空间时显示 -->
         <TenantSelector v-if="canAccessAllTenants && !uiStore.sidebarCollapsed" />
 
-        <!-- 折叠时右侧拖拽展开手柄 -->
-        <div v-if="uiStore.sidebarCollapsed" class="sidebar-drag-handle" @mousedown="onDragHandleMouseDown" />
+        <!-- 侧栏边缘拖拽调宽，拖窄时自动收缩 -->
+        <PanelResizeHandle edge="right" :label="t('knowledgeStages.resizeDrawer')"
+            :value="uiStore.sidebarDisplayWidth" :min="SIDEBAR_COLLAPSED_WIDTH" :max="SIDEBAR_MAX_WIDTH"
+            @start="startSidebarResize" @resize="resizeSidebar" @end="uiStore.sidebarResizing = false" />
 
         <!-- 上半部分：新对话吸顶 + 知识库/智能体/共享空间/历史会话随滚动一起滚走 -->
         <div class="menu_top" ref="scrollContainer" @scroll="handleScroll">
@@ -85,7 +87,7 @@
                         <div class="menu_item-box">
                             <div class="menu_icon">
                                 <img class="icon"
-                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
+                                    :src="getImgSrc(item.icon == 'zhishiku' ? knowledgeIcon : item.icon == 'agent' ? agentIcon : item.icon == 'artifact' ? artifactIcon : item.icon == 'toolbox' ? toolboxIcon : item.icon == 'organization' ? organizationIcon : item.icon == 'logout' ? logoutIcon : item.icon == 'setting' ? settingIcon : prefixIcon)"
                                     alt="">
                             </div>
                             <template v-if="!uiStore.sidebarCollapsed">
@@ -94,6 +96,18 @@
                                     class="menu-pending-badge"
                                     :title="t('organization.settings.pendingJoinRequestsBadge')">{{
                                         orgStore.totalPendingJoinRequestCount }}</span>
+                                <span v-if="item.path === 'toolbox' && toolboxPreview.length" class="menu-toolbox-stack"
+                                    :title="toolboxPreview.map((tool) => tool.key === 'browserconnection' && browserStackStatus
+                                        ? `${t(tool.title)} (${t(`localBrowser.${browserStackStatus}`)})` : t(tool.title)).join(' · ')">
+                                    <span v-for="tool in toolboxPreview" :key="tool.key" class="menu-toolbox-stack__item">
+                                        <template v-if="tool.key === 'browserconnection'">
+                                            <BrowserIcon width="12" height="12" />
+                                            <i v-if="browserStackStatus" class="menu-toolbox-stack__status"
+                                                :class="`is-${browserStackStatus}`" aria-hidden="true" />
+                                        </template>
+                                        <t-icon v-else :name="tool.icon" size="12px" />
+                                    </span>
+                                </span>
                             </template>
                         </div>
                     </div>
@@ -206,6 +220,8 @@ import { getSessionsList, batchDelSessions, deleteAllSessions, getSession } from
 import { useChatResourcesStore } from '@/stores/chatResources';
 import { listAllIMChannels } from '@/api/agent/index';
 import SessionSidebarRow from './SessionSidebarRow.vue';
+import PanelResizeHandle from './PanelResizeHandle.vue';
+import { SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_MIN_WIDTH, SIDEBAR_MAX_WIDTH } from '@/utils/sidebarWidth';
 import {
     clearSession,
     removeSession,
@@ -251,6 +267,9 @@ import { useMenuStore } from '@/stores/menu';
 import { useSessionActivityStore } from '@/stores/sessionActivity';
 import { useAuthStore } from '@/stores/auth';
 import { useDeploymentCapabilitiesStore } from '@/stores/deploymentCapabilities';
+import { TOOLBOX_ITEMS, canAccessToolboxSection } from '@/config/toolbox';
+import BrowserIcon from '@/components/icons/BrowserIcon.vue';
+import { useBrowserConnectionStore } from '@/stores/browserConnection';
 import { useOrganizationStore } from '@/stores/organization';
 import { useUIStore } from '@/stores/ui';
 import { useCommandPaletteStore } from '@/stores/commandPalette';
@@ -294,8 +313,23 @@ const { entries: sessionActivityEntries } = storeToRefs(sessionActivity);
 let sessionActivityTimer: ReturnType<typeof setInterval> | undefined;
 const authStore = useAuthStore();
 const deploymentCapabilities = useDeploymentCapabilitiesStore();
+const toolboxPreview = computed(() => TOOLBOX_ITEMS.filter((item) => canAccessToolboxSection(item.key, {
+    currentTenantRole: authStore.currentTenantRole,
+    canAccessAllTenants: authStore.canAccessAllTenants,
+    hasRole: (role) => authStore.hasRole(role),
+    isSupported: (capability) => deploymentCapabilities.isSupported(capability),
+})));
 const orgStore = useOrganizationStore();
 const uiStore = useUIStore();
+const browserConnection = useBrowserConnectionStore();
+const browserStackStatus = computed(() => {
+    if (!uiStore.sidebarBrowserStatus) return '';
+    if (!browserConnection.loaded || !browserConnection.enabled || !browserConnection.device) return '';
+    return browserConnection.connected ? 'connected' : 'offline';
+});
+watch(() => uiStore.sidebarBrowserStatus && toolboxPreview.value.some((tool) => tool.key === 'browserconnection'), (visible) => {
+    if (visible && !browserConnection.loaded) browserConnection.refresh().catch(() => {});
+}, { immediate: true });
 const commandPaletteStore = useCommandPaletteStore();
 
 // Platform-aware label for the ⌘K hint. navigator.platform is deprecated but
@@ -411,6 +445,10 @@ const isMenuItemActive = (itemPath: string): boolean => {
                 currentRoute === 'knowledgeBaseSettings';
         case 'agents':
             return currentRoute === 'agentList';
+        case 'toolbox':
+            return currentRoute === 'toolbox';
+        case 'artifacts':
+            return currentRoute === 'artifactLibrary';
         case 'organizations':
             return currentRoute === 'organizationList';
         case 'creatChat':
@@ -439,19 +477,14 @@ const getIconActiveState = (itemPath: string) => {
 };
 
 // 分离上下两部分菜单（使用 visibleMenuArr 以便 lite 模式过滤 logout）
+const TOP_MENU_PATHS = new Set(['creatChat', 'knowledge-bases', 'artifacts', 'agents', 'toolbox', 'organizations']);
+
 const topMenuItems = computed<MenuItem[]>(() => {
-    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) =>
-        item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat'
-    );
+    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => TOP_MENU_PATHS.has(item.path));
 });
 
 const bottomMenuItems = computed<MenuItem[]>(() => {
-    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => {
-        if (item.path === 'knowledge-bases' || item.path === 'agents' || item.path === 'organizations' || item.path === 'creatChat') {
-            return false;
-        }
-        return true;
-    });
+    return (visibleMenuArr.value as unknown as MenuItem[]).filter((item: MenuItem) => !TOP_MENU_PATHS.has(item.path));
 });
 
 // 当前知识库信息
@@ -653,20 +686,20 @@ const buildSessionMenuOptions = (item: any) => {
         options.push({
             content: t('menu.unpin'),
             value: 'unpin',
-            prefixIcon: () => h(TIcon, { name: 'pin-filled', size: '16px' }),
+            prefixIcon: () => h(TIcon, { name: 'pin-filled' }),
         });
     } else {
         options.push({
             content: t('menu.pin'),
             value: 'pin',
-            prefixIcon: () => h(TIcon, { name: 'pin', size: '16px' }),
+            prefixIcon: () => h(TIcon, { name: 'pin' }),
         });
     }
     options.push(
-        { content: t('menu.renameSession'), value: 'rename', prefixIcon: () => h(TIcon, { name: 'edit-1', size: '16px' }) },
-        { content: t('menu.clearMessages'), value: 'clearMessages', prefixIcon: () => h(TIcon, { name: 'clear', size: '16px' }) },
-        { content: t('menu.batchManage'), value: 'batchManage', prefixIcon: () => h(TIcon, { name: 'queue', size: '16px' }) },
-        { content: t('upload.deleteRecord'), value: 'delete', theme: 'error', prefixIcon: () => h(TIcon, { name: 'delete', size: '16px' }) },
+        { content: t('menu.renameSession'), value: 'rename', prefixIcon: () => h(TIcon, { name: 'edit-1' }) },
+        { content: t('menu.clearMessages'), value: 'clearMessages', prefixIcon: () => h(TIcon, { name: 'clear' }) },
+        { content: t('menu.batchManage'), value: 'batchManage', prefixIcon: () => h(TIcon, { name: 'queue' }) },
+        { content: t('upload.deleteRecord'), value: 'delete', theme: 'error', prefixIcon: () => h(TIcon, { name: 'delete' }) },
     );
     return options;
 };
@@ -1085,6 +1118,8 @@ let prefixIcon = ref('prefixIcon.svg');
 let logoutIcon = ref('logout.svg');
 let settingIcon = ref('setting.svg');
 let agentIcon = ref('agent.svg');
+let artifactIcon = ref('artifact.svg');
+let toolboxIcon = ref('toolbox.svg');
 let organizationIcon = ref('organization.svg');
 let pathPrefix = ref(route.name)
 const getIcon = (path: string) => {
@@ -1093,6 +1128,7 @@ const getIcon = (path: string) => {
     const creatChatActiveState = getIconActiveState('creatChat');
     const settingsActiveState = getIconActiveState('settings');
     const agentsActiveState = route.name === 'agentList';
+    const artifactsActiveState = route.name === 'artifactLibrary';
     const organizationsActiveState = route.name === 'organizationList';
 
     // 知识库图标：只在知识库页面显示绿色
@@ -1100,6 +1136,11 @@ const getIcon = (path: string) => {
 
     // 智能体图标：只在智能体页面显示绿色
     agentIcon.value = agentsActiveState ? 'agent-green.svg' : 'agent.svg';
+
+    // 产物图标：只在产物页面显示绿色
+    artifactIcon.value = artifactsActiveState ? 'artifact-green.svg' : 'artifact.svg';
+
+    toolboxIcon.value = route.name === 'toolbox' ? 'toolbox-green.svg' : 'toolbox.svg';
 
     // 组织图标：只在组织页面显示绿色
     organizationIcon.value = organizationsActiveState ? 'organization-green.svg' : 'organization.svg';
@@ -1191,24 +1232,19 @@ const mouseenteMenu = (path: string) => {
 const mouseleaveMenu = (path: string) => {
 }
 
-const onDragHandleMouseDown = (e: MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const expandThreshold = 40
-
-    const onMouseMove = (ev: MouseEvent) => {
-        if (ev.clientX - startX > expandThreshold) {
-            uiStore.expandSidebar()
-            cleanup()
-        }
+let sidebarResizeStartWidth = 0
+const startSidebarResize = () => {
+    sidebarResizeStartWidth = uiStore.sidebarDisplayWidth
+    uiStore.sidebarResizing = true
+}
+const resizeSidebar = (delta: number, keyboard: boolean) => {
+    if (keyboard && uiStore.sidebarCollapsed && delta > 0) {
+        uiStore.expandSidebar()
+    } else if (keyboard && uiStore.sidebarWidth === SIDEBAR_MIN_WIDTH && delta < 0) {
+        uiStore.collapseSidebar()
+    } else {
+        uiStore.resizeSidebar(sidebarResizeStartWidth + delta)
     }
-    const onMouseUp = () => cleanup()
-    const cleanup = () => {
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-    }
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
 }
 
 
@@ -1222,8 +1258,9 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     --sidebar-icon-gap: 8px;
     --sidebar-text-inset: calc(var(--sidebar-inset-x) + var(--sidebar-icon-size) + var(--sidebar-icon-gap)); // 40px
 
-    min-width: 260px;
-    width: 260px;
+    min-width: 0;
+    width: var(--sidebar-width, 260px);
+    flex-shrink: 0;
     padding: 8px 6px 6px;
     background: var(--td-bg-color-sidebar);
     box-sizing: border-box;
@@ -1232,7 +1269,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
        scaled, so at "large" the sidebar would extend past the window. The
        ancestor chain (html/body/#app/.main) is already height: 100%. */
     height: 100%;
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--td-component-stroke);
@@ -1245,6 +1282,10 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         padding-top: 30px;
     }
 
+    &--resizing {
+        transition: none;
+    }
+
     &--collapsed {
         min-width: 60px;
         width: 60px;
@@ -1253,7 +1294,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         .menu_item {
             justify-content: center;
-            padding: 9px 0;
+            padding: 7px 0;
 
             .menu_item-box {
                 justify-content: center;
@@ -1300,20 +1341,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         &:hover {
             background: var(--td-bg-color-container-hover);
             color: var(--td-text-color-primary);
-        }
-    }
-
-    .sidebar-drag-handle {
-        position: absolute;
-        top: 0;
-        right: -3px;
-        width: 6px;
-        height: 100%;
-        cursor: ew-resize;
-        z-index: 10;
-
-        &:hover {
-            background: var(--td-brand-color-light);
         }
     }
 
@@ -1433,10 +1460,10 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        height: 38px;
-        padding: 8px 10px 8px var(--sidebar-inset-x);
+        height: 34px;
+        padding: 6px 10px 6px var(--sidebar-inset-x);
         box-sizing: border-box;
-        margin-bottom: 2px;
+        margin-bottom: 1px;
         border-radius: var(--app-radius-xs);
         transition: background-color var(--app-motion-base) ease;
 
@@ -1494,14 +1521,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
     }
 
     :deep(.submenu_pin_icon) {
-        color: inherit;
-        font-size: var(--app-text-sm);
-        margin-right: 4px;
-        vertical-align: middle;
-        flex-shrink: 0;
-    }
-
-    :deep(.submenu_fork_icon) {
         color: inherit;
         font-size: var(--app-text-sm);
         margin-right: 4px;
@@ -1621,6 +1640,7 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
         &.session-chat-row .session-list-row {
             min-height: 30px;
+            padding-right: 6px;
             border-radius: var(--app-radius-sm);
             transition: background var(--app-motion-fast) ease, color var(--app-motion-fast) ease;
         }
@@ -1636,9 +1656,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
                 color: var(--td-text-color-primary);
             }
 
-            :deep(.menu-more-wrap) {
-                opacity: 1;
-            }
         }
 
         &.session-chat-row--active .session-list-row {
@@ -1650,10 +1667,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
 
             :deep(.menu-more) {
                 color: var(--td-text-color-primary);
-            }
-
-            :deep(.menu-more-wrap) {
-                opacity: 1;
             }
         }
 
@@ -1700,7 +1713,6 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         }
 
         .menu-more-wrap {
-            opacity: 0;
             transition: opacity var(--app-motion-base) ease;
             flex-shrink: 0;
         }
@@ -1817,6 +1829,89 @@ const onDragHandleMouseDown = (e: MouseEvent) => {
         font-size: var(--app-text-md);
         opacity: 0.6;
         letter-spacing: 0.5px;
+    }
+}
+
+.menu-toolbox-stack {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.menu-toolbox-stack__item {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    border: 1px solid var(--td-component-stroke);
+    border-radius: 50%;
+    background: var(--td-bg-color-container);
+    color: var(--td-text-color-secondary);
+    rotate: var(--stack-rotate, 0deg);
+    --stack-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: menu-toolbox-stack-in 420ms var(--stack-spring) both;
+    animation-delay: var(--stack-delay, 0ms);
+    transition:
+        margin var(--app-motion-slow) var(--stack-spring),
+        rotate var(--app-motion-slow) var(--stack-spring),
+        translate var(--app-motion-slow) var(--stack-spring),
+        color var(--app-motion-base) ease,
+        box-shadow var(--app-motion-base) ease;
+    transition-delay: var(--stack-delay, 0ms);
+
+    & + & {
+        margin-left: -6px;
+    }
+
+    &:nth-child(1) { z-index: 3; --stack-rotate: -10deg; }
+    &:nth-child(2) { z-index: 2; --stack-delay: 50ms; }
+    &:nth-child(3) { z-index: 1; --stack-rotate: 10deg; --stack-delay: 100ms; }
+}
+
+.menu-toolbox-stack__status {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--app-radius-pill);
+    box-shadow: 0 0 0 1.5px var(--td-bg-color-container);
+
+    &.is-connected {
+        background: var(--td-success-color);
+    }
+
+    &.is-offline {
+        background: var(--td-warning-color);
+    }
+}
+
+@keyframes menu-toolbox-stack-in {
+    from {
+        opacity: 0;
+        scale: 0.4;
+    }
+}
+
+.menu_item:hover .menu-toolbox-stack__item {
+    color: var(--td-text-color-primary);
+    rotate: 0deg;
+    translate: 0 -1px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.menu_item:hover .menu-toolbox-stack__item + .menu-toolbox-stack__item {
+    margin-left: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-toolbox-stack__item {
+        animation: none;
+        transition: color var(--app-motion-base) ease;
     }
 }
 

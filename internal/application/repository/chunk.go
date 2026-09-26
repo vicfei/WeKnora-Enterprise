@@ -323,6 +323,42 @@ func (r *chunkRepository) ListChunkByParentID(
 	return chunks, nil
 }
 
+// ListChunkNeighbors implements interfaces.ChunkRepository.
+func (r *chunkRepository) ListChunkNeighbors(
+	ctx context.Context,
+	tenantID uint64,
+	knowledgeID string,
+	chunkIndex int,
+	before int,
+	after int,
+	chunkTypes []types.ChunkType,
+) ([]*types.Chunk, error) {
+	base := func() *gorm.DB {
+		return r.db.WithContext(ctx).
+			Where("tenant_id = ? AND knowledge_id = ? AND chunk_type IN (?) AND status in (?) AND is_enabled = ?",
+				tenantID, knowledgeID, chunkTypes,
+				[]int{int(types.ChunkStatusIndexed), int(types.ChunkStatusDefault)}, true)
+	}
+	var preceding, following []*types.Chunk
+	if before > 0 {
+		if err := base().Where("chunk_index < ?", chunkIndex).
+			Order("chunk_index DESC").Limit(before).Find(&preceding).Error; err != nil {
+			return nil, err
+		}
+	}
+	if after > 0 {
+		if err := base().Where("chunk_index > ?", chunkIndex).
+			Order("chunk_index ASC").Limit(after).Find(&following).Error; err != nil {
+			return nil, err
+		}
+	}
+	out := make([]*types.Chunk, 0, len(preceding)+len(following))
+	for i := len(preceding) - 1; i >= 0; i-- {
+		out = append(out, preceding[i])
+	}
+	return append(out, following...), nil
+}
+
 func (r *chunkRepository) ListChunksByParentIDs(
 	ctx context.Context,
 	tenantID uint64,
@@ -334,6 +370,24 @@ func (r *chunkRepository) ListChunksByParentIDs(
 	var chunks []*types.Chunk
 	if err := r.db.WithContext(ctx).
 		Where("tenant_id = ? AND parent_chunk_id IN ?", tenantID, parentIDs).
+		Find(&chunks).Error; err != nil {
+		return nil, err
+	}
+	return chunks, nil
+}
+
+// ListChunksByParentIDsOnly retrieves chunks by parent IDs without tenant
+// filter, for expansions whose parent IDs come from org-shared KB retrieval
+// results owned by another workspace (#3342).
+func (r *chunkRepository) ListChunksByParentIDsOnly(
+	ctx context.Context, parentIDs []string,
+) ([]*types.Chunk, error) {
+	if len(parentIDs) == 0 {
+		return nil, nil
+	}
+	var chunks []*types.Chunk
+	if err := r.db.WithContext(ctx).
+		Where("parent_chunk_id IN ?", parentIDs).
 		Find(&chunks).Error; err != nil {
 		return nil, err
 	}
