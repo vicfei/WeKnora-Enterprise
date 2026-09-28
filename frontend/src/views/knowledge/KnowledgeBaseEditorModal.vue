@@ -692,8 +692,9 @@ const navItems = computed(() => {
     if (editorMode.value === 'edit' && activeKbId.value) {
       items.push({ key: 'datasource', icon: 'cloud-download', label: t('knowledgeEditor.sidebar.datasource'), badge: dsCount.value || undefined })
     }
-    // 二开功能：层级标签树管理（feature flag 默认关闭）
-    if (tagTreeFeatureEnabled.value) {
+    // 二开功能：层级标签树管理（feature flag 默认关闭；仅编辑模式——内容区同样
+    // 以 editorMode === 'edit' 为准，新建模式下推入导航项会出现空白标签页）
+    if (editorMode.value === 'edit' && activeKbId.value && tagTreeFeatureEnabled.value) {
       items.push({ key: 'tagTree', icon: 'tag', label: t('knowledgeEditor.sidebar.tagTree') })
     }
   }

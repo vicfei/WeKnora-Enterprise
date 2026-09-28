@@ -2,7 +2,6 @@
 import { ref, onMounted, onUnmounted, watch, reactive, computed, nextTick } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 import DocContent from "@/components/doc-content.vue";
-import KnowledgeTagFilter from './components/KnowledgeTagFilter.vue';
 import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
 import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
 import { tagTreeEnabled } from '@/features/common/flags';
@@ -515,9 +514,6 @@ const handleBatchDownload = async () => {
 watch(kbId, () => batchDownloadController?.abort());
 onUnmounted(() => batchDownloadController?.abort());
 const batchTagDialogVisible = ref(false);
-const tagFilterCleared = ref(false);
-const tagManageDrawerVisible = ref(false);
-const tagEditDialogVisible = ref(false);
 const batchTagPreSelectedIds = computed(() => {
   const ids = Array.from(selectedIds.value);
   if (ids.length === 0) return [];
@@ -1025,7 +1021,7 @@ const handleTagFilterChange = (tagIds: string[]) => {
   resetPage();
 };
 
-// 二开功能：层级标签浏览（feature flag 默认关闭；弹层由 KnowledgeTagFilter 渲染，
+// 二开功能：层级标签浏览（feature flag 默认关闭；渲染在文档筛选弹层的标签区内，
 // 树数据在 kbId 就绪时预载，量小且带防重）
 const tagTreeFeatureEnabled = computed(() => tagTreeEnabled());
 const tagTree = ref<TagTreeNode[]>([]);
@@ -1084,28 +1080,12 @@ const handleTagTreeNodeClick = (node: TagTreeNode) => {
   } else {
     leaves.forEach(id => next.add(id));
   }
-  if (next.size > 0) {
-    tagFilterCleared.value = false;
-  }
   handleTagFilterChange([...next]);
 };
 
-const openTagManageDrawer = () => {
-  tagManageDrawerVisible.value = true;
-};
-
-const openTagManageFromEditDialog = () => {
-  tagEditDialogVisible.value = false;
-  tagManageDrawerVisible.value = true;
-};
-
-const openTagManageFromBatchDialog = () => {
-  batchTagDialogVisible.value = false;
-  tagManageDrawerVisible.value = true;
-};
-
 const onTagCatalogChanged = (payload?: { deletedTagId?: string }) => {
-  if (!kbId.value) return;  void loadTags(kbId.value, true);
+  if (!kbId.value) return;
+  void loadTags(kbId.value, true);
   if (payload?.deletedTagId) {
     handleTagFilterChange(selectedTagIds.value.filter(id => id !== payload.deletedTagId));
   }
@@ -2427,87 +2407,11 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
                     <span v-if="index === folderBreadcrumbs.length - 1" class="doc-folder-path__crumb is-current" :title="crumb.name" aria-current="page">{{ crumb.name }}</span>
                     <button v-else type="button" class="doc-folder-path__crumb" :title="crumb.name" @click="handleFolderSelect(crumb.path)">{{ crumb.name }}</button>
                   </template>
+                  <span v-if="!docListLoading" class="doc-folder-path__count">{{ $t(isFiltering ? 'knowledgeBase.folderTree.filteredCount' : 'knowledgeBase.documentCount', { count: total }) }}</span>
+                  <t-tooltip v-if="showFolderTree && isFiltering" :content="$t('knowledgeBase.folderTree.searchingSubtree')">
+                    <t-icon name="info-circle" class="doc-folder-path__sep" />
+                  </t-tooltip>
                 </nav>
-                <div class="doc-filter-bar__filters">
-                <KnowledgeTagFilter v-model:search="tagSearchQuery" v-model:cleared="tagFilterCleared"
-                  :tags="tagList" :selected-ids="selectedTagIds" :total="tagTotal"
-                  :loading="tagLoading" :loading-more="tagLoadingMore" :has-more="tagHasMore"
-                  :can-manage="canEdit" variant="documents" @change="handleTagFilterChange"
-                  @load-more="kbId && loadTags(kbId)" @manage="openTagManageDrawer">
-                  <!-- 二开功能：层级标签浏览（feature flag 默认关闭） -->
-                  <template v-if="tagTreeFeatureEnabled && tagTreeLoading" #browse>
-                    <div class="tag-tree-browse tag-tree-browse--loading">
-                      <t-loading size="small" />
-                    </div>
-                  </template>
-                  <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0" #browse>
-                    <div class="tag-filter-panel__divider"></div>
-                    <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
-                    <div class="tag-tree-browse">
-                      <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
-                        :class="{
-                          'is-selected': isTagTreeNodeSelected(row.node),
-                          'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
-                        }"
-                        :style="{ '--tag-tree-browse-depth': row.depth }"
-                        :title="tagTreeNodeLeafIds(row.node).length === 0
-                          ? $t('tagTreePicker.noLeaves')
-                          : row.node.path"
-                        @click="handleTagTreeNodeClick(row.node)">
-                        <button type="button" class="tag-tree-browse__caret"
-                          :class="{ invisible: !row.hasChildren }"
-                          :aria-expanded="tagTreeExpanded.has(row.node.id)"
-                          @click.stop="toggleTagTreeExpand(row.node.id)">
-                          <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
-                            size="13px" />
-                        </button>
-                        <span class="tag-tree-browse__name">{{ row.node.name }}</span>
-                        <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
-                          class="tag-tree-browse__count">
-                          {{ tagTreeNodeLeafIds(row.node).length }}
-                        </span>
-                      </div>
-                    </div>
-                  </template>
-                </KnowledgeTagFilter>
-                <div class="doc-filter-field">
-                  <t-select v-model="selectedFileType" :options="fileTypeOptions"
-                    :placeholder="$t('knowledgeBase.fileTypeFilter')" class="doc-type-select doc-filter-field__control"
-                    clearable>
-                    <template #prefixIcon>
-                      <t-icon name="file" size="16px" />
-                    </template>
-                  </t-select>
-                </div>
-                <div class="doc-filter-field">
-                  <t-select v-model="selectedParseStatus" :options="parseStatusOptions"
-                    :placeholder="$t('knowledgeBase.parseStatusFilter')" class="doc-type-select doc-filter-field__control"
-                    clearable>
-                    <template #prefixIcon>
-                      <t-icon name="check-circle" size="16px" />
-                    </template>
-                  </t-select>
-                </div>
-                <div class="doc-filter-field">
-                  <t-select v-model="selectedSource" :options="sourceOptions"
-                    :placeholder="$t('knowledgeBase.sourceFilter')" class="doc-type-select doc-filter-field__control"
-                    clearable>
-                    <template #prefixIcon>
-                      <t-icon name="link" size="16px" />
-                    </template>
-                  </t-select>
-                </div>
-                <div class="doc-filter-field doc-filter-field--wide">
-                  <t-date-range-picker v-model="updatedTimeRange"
-                    :placeholder="[$t('knowledgeBase.updatedTimeFrom'), $t('knowledgeBase.updatedTimeTo')]"
-                    :disable-date="disableFutureDate" class="doc-date-range doc-filter-field__control" clearable
-                    allow-input>
-                    <template #prefixIcon>
-                      <t-icon name="time" size="16px" />
-                    </template>
-                  </t-date-range-picker>
-                </div>
-                </div>
                 <div class="doc-filter-bar__trailing">
                   <t-input v-model.trim="docSearchKeyword" :placeholder="$t('knowledgeBase.docSearchPlaceholder')"
                     :aria-label="$t('knowledgeBase.docSearchPlaceholder')" clearable class="doc-search-input" @clear="loadKnowledgeFiles(kbId)"
@@ -2567,6 +2471,42 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
                             <span v-if="!tagLoading && !filterTagOptions.length" class="doc-filter-tags__empty">{{ $t(tagSearchQuery ? 'knowledgeBase.tagEmptyResult' : 'knowledgeBase.noTags') }}</span>
                           </div>
                           <t-button v-if="tagHasMore" variant="text" size="small" :loading="tagLoadingMore" @click="kbId && loadTags(kbId)">{{ $t('tenant.loadMore') }}</t-button>
+                          <!-- 二开功能：层级标签浏览（feature flag 默认关闭；树数据由 kbId 预载） -->
+                          <template v-if="tagTreeFeatureEnabled && tagTreeLoading">
+                            <div class="tag-filter-panel__divider"></div>
+                            <div class="tag-tree-browse tag-tree-browse--loading">
+                              <t-loading size="small" />
+                            </div>
+                          </template>
+                          <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0">
+                            <div class="tag-filter-panel__divider"></div>
+                            <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
+                            <div class="tag-tree-browse">
+                              <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
+                                :class="{
+                                  'is-selected': isTagTreeNodeSelected(row.node),
+                                  'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
+                                }"
+                                :style="{ '--tag-tree-browse-depth': row.depth }"
+                                :title="tagTreeNodeLeafIds(row.node).length === 0
+                                  ? $t('tagTreePicker.noLeaves')
+                                  : row.node.path"
+                                @click="handleTagTreeNodeClick(row.node)">
+                                <button type="button" class="tag-tree-browse__caret"
+                                  :class="{ invisible: !row.hasChildren }"
+                                  :aria-expanded="tagTreeExpanded.has(row.node.id)"
+                                  @click.stop="toggleTagTreeExpand(row.node.id)">
+                                  <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
+                                    size="13px" />
+                                </button>
+                                <span class="tag-tree-browse__name">{{ row.node.name }}</span>
+                                <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
+                                  class="tag-tree-browse__count">
+                                  {{ tagTreeNodeLeafIds(row.node).length }}
+                                </span>
+                              </div>
+                            </div>
+                          </template>
                         </div>
                       </section>
                     </template>
