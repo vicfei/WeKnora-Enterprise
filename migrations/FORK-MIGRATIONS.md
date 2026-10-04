@@ -75,6 +75,13 @@
 | 000108_session_sandbox_config_tenant | session 沙箱配置租户列 |
 | 000109_session_host_workspace_dir | 宿主沙箱工作区目录列 |
 | 000110_im_channel_locale | IM 渠道回复语言列 |
+| 000111_model_catalog_config | model_catalog_configs 表（ModelCatalog 运行时配置覆盖） |
+| 000112_embeddings_knowledge_chunk_index | embeddings(knowledge_id)/(chunk_id) btree 索引 |
+| 000113_chunk_images | chunk_images 表（图片库对 image_info 的投影） |
+| 000114_chunk_source_locators | chunks.source_locators JSONB 列（引文定位到页/行/时间） |
+
+> 2026-10-05（bccb4b15 102 提交同步，merge 2dc4d042a）：000111–000114 已按步骤 ② 手工应用
+> （备份 /tmp/weknora-pre-sync102-migration.dump 168M，四个迁移零错误，对象逐项验证通过）。
 
 > 2026-09-24（v0.8.2 同步，merge 9984bd295）：000103–000110 已按步骤 ② 手工应用
 > （备份 /tmp/weknora-pre-v082-migration.dump 600M，八个迁移零错误）。
