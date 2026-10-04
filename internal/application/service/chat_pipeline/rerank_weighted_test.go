@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tencent/WeKnora/internal/reranking"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,8 +21,8 @@ func TestWeightedCompositeMatchesLegacyAtDefaults(t *testing.T) {
 		for m := 0.0; m <= 1.0001; m += 0.137 {
 			for b := 0.0; b <= 1.0001; b += 0.211 {
 				sr := &types.SearchResult{KnowledgeSource: source}
-				legacy := compositeScore(sr, m, b)
-				weighted := weightedCompositeScore(sr, m, b, 0, defaults)
+				legacy := reranking.CompositeScore(sr, m, b)
+				weighted := reranking.WeightedCompositeScore(sr, m, b, 0, defaults)
 				assert.Equal(t, legacy, weighted,
 					"source=%q model=%.3f base=%.3f", source, m, b)
 			}
@@ -34,19 +35,19 @@ func TestWeightedCompositeRespectsCustomWeights(t *testing.T) {
 	// specified config still mixes every signal.
 	partial := types.RankingConfig{RerankWeight: 1.0}
 	r := partial.Resolve()
-	got := weightedCompositeScore(&types.SearchResult{}, 0.42, 0.99, 0.9, r)
+	got := reranking.WeightedCompositeScore(&types.SearchResult{}, 0.42, 0.99, 0.9, r)
 	assert.InDelta(t, 1.0*0.42+0.3*0.99+0.1*1.0+0*0.9, got, 1e-9)
 
 	// A fully specified config is a plain weighted sum.
 	full := types.RankingConfig{RerankWeight: 0.5, RetrievalWeight: 0.3, SourceWeight: 0.1, RecencyWeight: 0.1}
 	r = full.Resolve()
-	got = weightedCompositeScore(&types.SearchResult{}, 0.42, 0.99, 0.9, r)
+	got = reranking.WeightedCompositeScore(&types.SearchResult{}, 0.42, 0.99, 0.9, r)
 	assert.InDelta(t, 0.5*0.42+0.3*0.99+0.1*1.0+0.1*0.9, got, 1e-9)
 
 	// Clamping still applies with custom weights.
 	both := types.RankingConfig{RerankWeight: 1.0, RetrievalWeight: 1.0}
 	r = both.Resolve()
-	got = weightedCompositeScore(&types.SearchResult{}, 0.9, 0.9, 0, r)
+	got = reranking.WeightedCompositeScore(&types.SearchResult{}, 0.9, 0.9, 0, r)
 	assert.Equal(t, 1.0, got)
 }
 
@@ -56,8 +57,8 @@ func TestWeightedCompositeRespectsCustomWeights(t *testing.T) {
 func TestWeightedCompositeRecencyBreaksTies(t *testing.T) {
 	cfg := types.RankingConfig{RecencyWeight: 0.2}
 	r := cfg.Resolve()
-	fresh := weightedCompositeScore(&types.SearchResult{}, 0.5, 0.5, 1.0, r)
-	stale := weightedCompositeScore(&types.SearchResult{}, 0.5, 0.5, 0.1, r)
+	fresh := reranking.WeightedCompositeScore(&types.SearchResult{}, 0.5, 0.5, 1.0, r)
+	stale := reranking.WeightedCompositeScore(&types.SearchResult{}, 0.5, 0.5, 0.1, r)
 	assert.Greater(t, fresh, stale)
 }
 
@@ -73,24 +74,33 @@ func TestRecencySignalDecayAndEdges(t *testing.T) {
 	fresh := now.Format(time.RFC3339)
 	halfLifeAgo := now.AddDate(0, 0, -180).Format(time.RFC3339)
 
-	assert.Equal(t, 1.0, recencySignal(mk(fresh), 180, now))
-	assert.InDelta(t, 0.5, recencySignal(mk(halfLifeAgo), 180, now), 1e-9,
+	assert.Equal(t, 1.0, reranking.RecencySignal(mk(fresh), 180, now))
+	assert.InDelta(t, 0.5, reranking.RecencySignal(mk(halfLifeAgo), 180, now), 1e-9,
 		"one half-life ago must score 0.5")
-	assert.Less(t, recencySignal(mk(now.AddDate(0, 0, -360).Format(time.RFC3339)), 180, now), 0.26,
+	assert.Less(t, reranking.RecencySignal(mk(now.AddDate(0, 0, -360).Format(time.RFC3339)), 180, now), 0.26,
 		"two half-lives ago must approach 0.25")
 
 	// Edge cases all yield a neutral 0.
-	assert.Equal(t, 0.0, recencySignal(mk(""), 180, now), "missing timestamp")
-	assert.Equal(t, 0.0, recencySignal(mk("not-a-date"), 180, now), "unparsable timestamp")
-	assert.Equal(t, 0.0, recencySignal(mk(fresh), 0, now), "non-positive half-life")
-	assert.Equal(t, 0.0, recencySignal(&types.SearchResult{}, 180, now), "nil metadata")
+	assert.Equal(t, 0.0, reranking.RecencySignal(mk(""), 180, now), "missing timestamp")
+	assert.Equal(t, 0.0, reranking.RecencySignal(mk("not-a-date"), 180, now), "unparsable timestamp")
+	assert.Equal(t, 0.0, reranking.RecencySignal(mk(fresh), 0, now), "non-positive half-life")
+	assert.Equal(t, 0.0, reranking.RecencySignal(&types.SearchResult{}, 180, now), "nil metadata")
 	// Future timestamps clamp to 1.
-	assert.Equal(t, 1.0, recencySignal(mk(now.Add(time.Hour).Format(time.RFC3339)), 180, now))
+	assert.Equal(t, 1.0, reranking.RecencySignal(mk(now.Add(time.Hour).Format(time.RFC3339)), 180, now))
+
+	// business_date is the primary axis: a parseable business_date wins over
+	// a fresher updated_at (time-aware retrieval 设计 §4.5).
+	businessOld := &types.SearchResult{Metadata: map[string]string{
+		"knowledge_business_date": now.AddDate(0, 0, -360).Format(time.RFC3339),
+		"knowledge_updated_at":    fresh,
+	}}
+	assert.Less(t, reranking.RecencySignal(businessOld, 180, now), 0.26,
+		"a stale business_date must dominate a fresh updated_at")
 }
 
 // With lambda=1.0 MMR degenerates to pure relevance ordering; with the
 // legacy 0.7 a redundant near-duplicate is demoted below a diverse candidate.
-func TestApplyMMRLambdaControlsDiversityPenalty(t *testing.T) {
+func TestSelectMMRLambdaControlsDiversityPenalty(t *testing.T) {
 	build := func() []*types.SearchResult {
 		return []*types.SearchResult{
 			{ID: "A", Score: 0.9, Content: "alpha beta gamma delta"},
@@ -98,13 +108,12 @@ func TestApplyMMRLambdaControlsDiversityPenalty(t *testing.T) {
 			{ID: "C", Score: 0.7, Content: "zeta eta theta iota"},
 		}
 	}
-	chatManage := &types.ChatManage{PipelineRequest: types.PipelineRequest{RerankTopK: 3}}
 
-	pure := applyMMR(context.Background(), build(), chatManage, 3, 1.0)
-	require.Equal(t, []string{"A", "B", "C"}, searchResultIDs(pure),
+	pure := reranking.SelectMMR(context.Background(), build(), 3, 1.0)
+	require.Equal(t, []int{0, 1, 2}, pure,
 		"lambda=1 must keep pure score order")
 
-	diverse := applyMMR(context.Background(), build(), chatManage, 3, 0.7)
-	require.Equal(t, []string{"A", "C", "B"}, searchResultIDs(diverse),
+	diverse := reranking.SelectMMR(context.Background(), build(), 3, 0.7)
+	require.Equal(t, []int{0, 2, 1}, diverse,
 		"legacy lambda must demote the near-duplicate below the diverse candidate")
 }

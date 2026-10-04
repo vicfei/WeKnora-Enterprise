@@ -26,10 +26,10 @@ type PluginQueryUnderstand struct {
 var rewriteImageSepPattern = regexp.MustCompile(`(?s)^(.*?)\s*\n?---\n(.*)$`)
 
 type queryUnderstandOutput struct {
-	RewriteQuery     string                       `json:"rewrite_query"`
-	Intent           types.QueryIntent            `json:"intent"`
-	ImageDescription string                       `json:"image_description"`
-	TimeCondition    *types.SearchTimeCondition   `json:"time_condition,omitempty"`
+	RewriteQuery     string                     `json:"rewrite_query"`
+	Intent           types.QueryIntent          `json:"intent"`
+	ImageDescription string                     `json:"image_description"`
+	TimeCondition    *types.SearchTimeCondition `json:"time_condition,omitempty"`
 }
 
 // NewPluginQueryUnderstand creates a new query-understanding plugin instance
@@ -84,7 +84,7 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 
 	// --- Load and prepare conversation history ---
 	var historyList []*types.History
-	if len(chatManage.History) > 0 {
+	if len(chatManage.History) > 0 || chatManage.HistoryLoaded {
 		historyList = chatManage.History
 		pipelineInfo(ctx, "QueryUnderstand", "history_reused", map[string]interface{}{
 			"session_id": chatManage.SessionID,
@@ -116,7 +116,10 @@ func (p *PluginQueryUnderstand) OnEvent(ctx context.Context,
 	// raw query — the whole structured output is lost, not just the time.
 	maxTokens := 500
 	if useImages {
-		maxTokens = 800
+		// The image prompt asks for the full OCR text in image_description.
+		// At 500 tokens a text-heavy screenshot cut the JSON off, the parse
+		// failed, and the turn lost its rewrite, intent and description.
+		maxTokens = 2048
 	}
 
 	// --- Call model ---
@@ -218,6 +221,7 @@ func (p *PluginQueryUnderstand) loadHistory(ctx context.Context, chatManage *typ
 	}
 
 	chatManage.History = historyList
+	chatManage.HistoryLoaded = true
 
 	if len(historyList) > 0 {
 		pipelineInfo(ctx, "QueryUnderstand", "history_ready", map[string]interface{}{
@@ -387,7 +391,13 @@ func (p *PluginQueryUnderstand) parseOutput(chatManage *types.ChatManage, raw st
 		return
 	}
 
-	if output, ok := parseStructuredQueryOutput(content); ok {
+	output, ok := parseStructuredQueryOutput(content)
+	if !ok {
+		// A reply cut off by the token cap is not valid JSON, but the fields
+		// the model wrote before the cut are still usable.
+		output, ok = salvageStructuredQueryOutput(content)
+	}
+	if ok {
 		if rewrite := strings.TrimSpace(output.RewriteQuery); rewrite != "" {
 			chatManage.RewriteQuery = rewrite
 		}
@@ -398,6 +408,45 @@ func (p *PluginQueryUnderstand) parseOutput(chatManage *types.ChatManage, raw st
 	}
 
 	// On parse failure, keep the original query and intent.
+}
+
+// salvageFieldPattern captures a JSON string field and its value, closed or
+// cut off at the end of the reply.
+var salvageFieldPattern = regexp.MustCompile(`"([a-z_]+)"\s*:\s*"((?:[^"\\]|\\.)*)("?)`)
+
+// salvageStructuredQueryOutput recovers the string fields of a truncated
+// structured reply. Complete fields are taken as they are. A field the reply
+// was cut inside keeps the text written so far only when it is the image
+// description, where a partial transcript still helps; a cut-off rewrite or
+// intent is dropped, since it would replace the user's complete query.
+func salvageStructuredQueryOutput(content string) (queryUnderstandOutput, bool) {
+	fields := make(map[string]json.RawMessage)
+	for _, m := range salvageFieldPattern.FindAllStringSubmatch(content, -1) {
+		if closed := m[3] != ""; !closed && !isImageDescriptionField(m[1]) {
+			continue
+		}
+		value := strings.TrimSuffix(m[2], "\\")
+		var decoded string
+		if err := json.Unmarshal([]byte(`"`+value+`"`), &decoded); err != nil {
+			continue
+		}
+		encoded, _ := json.Marshal(decoded)
+		fields[m[1]] = encoded
+	}
+	if len(fields) == 0 {
+		return queryUnderstandOutput{}, false
+	}
+	encoded, err := json.Marshal(fields)
+	if err != nil {
+		return queryUnderstandOutput{}, false
+	}
+	return parseStructuredQueryOutputJSON(string(encoded))
+}
+
+// isImageDescriptionField reports whether key is one of the image description
+// aliases parseStructuredQueryOutputJSON accepts.
+func isImageDescriptionField(key string) bool {
+	return strings.HasPrefix(key, "image_") || key == "description"
 }
 
 func parseStructuredQueryOutput(raw string) (queryUnderstandOutput, bool) {
@@ -434,10 +483,7 @@ func parseStructuredQueryOutputJSON(content string) (queryUnderstandOutput, bool
 			"rewrite_query", "rewritten_query", "query", "question")),
 	}
 
-	intentStr := strings.TrimSpace(firstStringField(obj, "intent"))
-	if intentStr != "" {
-		out.Intent = types.QueryIntent(intentStr)
-	}
+	out.Intent = types.NormalizeQueryIntent(firstStringField(obj, "intent"))
 
 	desc := strings.TrimSpace(firstStringField(obj,
 		"image_description", "image_desc", "image_text", "image_ocr_text", "description"))

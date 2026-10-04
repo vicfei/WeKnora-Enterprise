@@ -177,7 +177,7 @@
       <div class="form-panel">
         <!-- Login Card -->
         <div class="form-card" v-if="!isRegisterMode">
-          <!-- invite_only 模式下共享链接停在登录卡，同样需要邀请上下文。 -->
+          <!-- 登录已有账号时保留邀请上下文。 -->
           <div v-if="inviteLookup" class="invite-banner">
             <t-icon name="link" class="invite-banner__icon" />
             <div class="invite-banner__text">
@@ -260,11 +260,8 @@
           </div>
         </div>
 
-        <!-- Register Card. Renders when the user is in register mode
-             AND either self-service registration is enabled OR they
-             arrived with a valid share-link token (which bypasses the
-             invite_only gate). -->
-        <div class="form-card" v-if="isRegisterMode && (registrationEnabled || inviteLookup)">
+        <!-- Registration must be allowed for this mode and invitation. -->
+        <div class="form-card" v-if="isRegisterMode && registrationEnabled">
           <!-- Share-link banner: shown only when ?token= resolved to a
                real invitation row. Sits above the form header so the
                invitee instantly sees who invited them and into which
@@ -353,6 +350,7 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { useRoleLabel } from '@/composables/useRoleLabel'
 import { notifyLoginSuccess } from '@/utils/loginNotify'
 import { bridgeLoginEnabled, portalLoginUrl } from '@/features/common/flags'
+import { canRegister } from './registrationPolicy'
 import { newPasswordRules } from '@/utils/passwordPolicy'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Autoplay, EffectFade, Pagination } from 'swiper/modules'
@@ -432,16 +430,14 @@ const handlePortalLogin = () => {
   const url = portalLoginUrl()
   if (url) window.location.href = url
 }
-// registrationEnabled defaults to true so that on first paint the Register
-// link is visible; the actual mode is fetched from /auth/config in onMounted.
-// In invite_only mode the link/card are hidden.
-const registrationEnabled = ref(true)
+// Wait for configuration before showing a registration entry.
+const registrationMode = ref('')
+const registrationEnabled = computed(() => canRegister(registrationMode.value, !!inviteLookup.value))
 const complexPasswordEnabled = ref(false)
 
 // invite-link state. When the URL carries ?token=xxx we resolve it to
 // the originating tenant + role and switch the form into a "register
-// via invitation" mode. The token bypasses the normal invite_only
-// gate — possessing it IS the authorisation. Submitting the register
+// via invitation" mode when invitation registration is enabled. Submitting the register
 // form with this set hits /auth/register-by-invite (auto-login on
 // success) instead of /auth/register.
 const inviteToken = ref('')
@@ -523,7 +519,7 @@ const registerRules = computed(() => ({
 
 // Toggle login/register mode
 const toggleMode = () => {
-  isRegisterMode.value = !isRegisterMode.value
+  isRegisterMode.value = !isRegisterMode.value && registrationEnabled.value
 
   Object.keys(registerData).forEach(key => {
     (registerData as any)[key] = ''
@@ -628,16 +624,14 @@ const loadOIDCConfig = async () => {
   }
 }
 
-// loadAuthConfig fetches /auth/config and caches whether self-service
-// registration is allowed. Failures fall back to "enabled" so a transient
-// network glitch doesn't lock new users out of an open deployment.
+// Registration stays hidden if configuration cannot be loaded.
 const loadAuthConfig = async () => {
   try {
     const response = await getAuthConfig()
-    registrationEnabled.value = response.registration_mode !== 'invite_only'
+    registrationMode.value = response.success ? response.registration_mode : ''
     complexPasswordEnabled.value = response.complex_password_enabled
   } catch {
-    registrationEnabled.value = true
+    registrationMode.value = ''
     complexPasswordEnabled.value = false
   }
 }
@@ -723,6 +717,7 @@ const handleLogin = async () => {
 // login on success); without -> the normal self-service register
 // (drops back to the login form for the user to sign in).
 const handleRegister = async () => {
+  if (!registrationEnabled.value) return
   try {
     const valid = await registerFormRef.value?.validate()
     if (valid !== true) return
@@ -810,17 +805,15 @@ onMounted(async () => {
       inviteLookupLoading.value = false
     }
 
-    // 2. 已登录则直接兑换 token 进入空间（两种模式通用）。
+    // 2. 已登录则直接兑换 token 进入空间（三种模式通用）。
     if (authStore.isLoggedIn && (await authStore.refreshFromAuthMe())) {
       await acceptAndEnter(tokenFromQuery)
       return
     }
 
-    // 3. 未登录：按注册模式决定界面。invite_only 停在登录页、登录后再兑换；self_serve 保持注册流程。
-    const cfg = await getAuthConfig()
-    const inviteOnly = cfg.registration_mode === 'invite_only'
-    registrationEnabled.value = !inviteOnly
-    isRegisterMode.value = !inviteOnly
+    // 3. Only enabled registration modes may create an invited account.
+    await loadAuthConfig()
+    isRegisterMode.value = registrationEnabled.value
     loadOIDCConfig()
     return
   }
@@ -830,20 +823,16 @@ onMounted(async () => {
     return
   }
 
-  const AUTO_SETUP_FAILED_KEY = 'weknora_auto_setup_failed'
-  if (localStorage.getItem(AUTO_SETUP_FAILED_KEY) !== 'true') {
-    try {
-      const response = await autoSetup()
-      if (response.success) {
-        authStore.setLiteMode(true)
-        await persistLoginResponse(response)
-        return
-      } else {
-        localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
-      }
-    } catch {
-      localStorage.setItem(AUTO_SETUP_FAILED_KEY, 'true')
+  localStorage.removeItem('weknora_auto_setup_failed')
+  try {
+    const response = await autoSetup()
+    if (response.success) {
+      authStore.setLiteMode(true)
+      await persistLoginResponse(response)
+      return
     }
+  } catch {
+    // Auto-setup may be unavailable outside the native Lite shell.
   }
 
   loadOIDCConfig()

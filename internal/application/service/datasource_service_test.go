@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -105,6 +106,13 @@ func (s *processSyncKBService) TogglePinKnowledgeBase(context.Context, string) (
 
 func (s *processSyncKBService) HybridSearch(context.Context, string, types.SearchParams) ([]*types.SearchResult, error) {
 	return nil, nil
+}
+
+func (s *processSyncKBService) HybridSearchWithRerank(
+	ctx context.Context, id string, params types.SearchParams,
+) (*types.RetrievalResult, error) {
+	results, err := s.HybridSearch(ctx, id, params)
+	return &types.RetrievalResult{Results: results}, err
 }
 
 func (s *processSyncKBService) GetQueryEmbedding(context.Context, string, string) ([]float32, error) {
@@ -272,7 +280,7 @@ type deletionLookupKnowledgeRepo struct {
 	interfaces.KnowledgeRepository
 	knowledge         *types.Knowledge
 	lookupErr         error
-	metadataUpdates   []map[string]string // metadata persisted via UpdateKnowledge
+	metadataUpdates   []map[string]string // metadata persisted via UpdateKnowledge / UpdateKnowledgeColumn
 	metadataUpdateErr error
 	hardDeleted       []string
 	hardDeleteErr     error
@@ -294,6 +302,19 @@ func (r *deletionLookupKnowledgeRepo) UpdateKnowledge(_ context.Context, knowled
 	}
 	r.metadataUpdates = append(r.metadataUpdates, metadata)
 	return nil
+}
+
+func (r *deletionLookupKnowledgeRepo) UpdateKnowledgeColumn(
+	ctx context.Context, id string, column string, value interface{},
+) error {
+	if column != "metadata" {
+		return fmt.Errorf("unexpected column update %q", column)
+	}
+	raw, ok := value.(types.JSON)
+	if !ok {
+		return fmt.Errorf("unexpected metadata value %T", value)
+	}
+	return r.UpdateKnowledge(ctx, &types.Knowledge{ID: id, Metadata: raw})
 }
 
 func (r *deletionLookupKnowledgeRepo) FindByDataSourceExternalID(

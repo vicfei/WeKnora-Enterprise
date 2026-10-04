@@ -2110,6 +2110,7 @@ func newInstallFixture(t *testing.T) *installFixture {
 		nil,
 		&transcriptStreams{},
 		&transcriptMessages{},
+		HostSandboxManager{},
 	)
 	fx.svc.now = func() time.Time { return time.Date(2026, 8, 19, 9, 30, 0, 0, time.UTC) }
 	return fx
@@ -3321,9 +3322,9 @@ func (s *installSessionService) KnowledgeQAByEvent(context.Context, *types.ChatM
 }
 
 func (s *installSessionService) SearchKnowledge(
-	context.Context, []string, []string, []types.TagScope, string,
-) ([]*types.SearchResult, error) {
-	return nil, nil
+	context.Context, []string, []string, []types.TagScope, string, *types.KnowledgeSearchOptions,
+) (*types.RetrievalResult, error) {
+	return &types.RetrievalResult{}, nil
 }
 
 func (s *installSessionService) AgentQA(context.Context, *types.QARequest, *event.EventBus) error {
@@ -3337,6 +3338,10 @@ type installModelService struct {
 }
 
 func (s *installModelService) CreateModel(context.Context, *types.Model) error { return nil }
+func (s *installModelService) CopyModel(context.Context, string, string) (*types.Model, error) {
+	return nil, nil
+}
+
 func (s *installModelService) GetModelByID(context.Context, string) (*types.Model, error) {
 	return nil, nil
 }
