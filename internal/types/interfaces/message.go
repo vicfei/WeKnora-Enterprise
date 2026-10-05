@@ -199,3 +199,12 @@ type MessageRepository interface {
 	// compares against the live handle rather than the parent's sandbox.
 	RewriteSandboxCheckpoints(ctx context.Context, sessionID, oldSandboxID, newSandboxID string) error
 }
+
+// MessageFeedbackRepository persists chat-message feedback (台账 T13).
+type MessageFeedbackRepository interface {
+	// Upsert inserts a feedback row or replaces the caller's earlier verdict
+	// on the same message.
+	Upsert(ctx context.Context, fb *types.MessageFeedback) error
+	// List filters by tenant/rating/reason, newest first, paged.
+	List(ctx context.Context, filter types.MessageFeedbackFilter) ([]*types.MessageFeedback, int64, error)
+}

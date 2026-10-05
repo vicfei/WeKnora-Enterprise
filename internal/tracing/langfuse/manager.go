@@ -1,7 +1,13 @@
 package langfuse
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -143,4 +149,62 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	return m.tp.Shutdown(ctx)
+}
+
+// Score is one user-feedback score posted to the Langfuse ingestion API.
+// TraceID correlates the score to the chat turn's trace (extracted from the
+// W3C traceparent stored on the message).
+type Score struct {
+	TraceID string
+	Name    string
+	Value   float64
+	Comment string
+}
+
+// CreateScore posts one score via the public ingestion API. It is a
+// fire-and-report operation: a disabled manager or a transport error
+// returns the error and the caller logs it — the local feedback table stays
+// authoritative (台账 T13 双写约定).
+func (m *Manager) CreateScore(ctx context.Context, sc Score) error {
+	if !m.Enabled() || sc.TraceID == "" {
+		return nil
+	}
+	body := map[string]any{
+		"traceId":  sc.TraceID,
+		"name":     sc.Name,
+		"value":    sc.Value,
+		"comment":  sc.Comment,
+		"dataType": "SCORING",
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		strings.TrimRight(m.cfg.Host, "/")+"/api/public/scores", bytes.NewReader(raw))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(m.cfg.PublicKey, m.cfg.SecretKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("langfuse score POST %s: %s", resp.Status, string(b))
+	}
+	return nil
+}
+
+// TraceIDFromTraceparent extracts the 32-hex trace id from a W3C
+// traceparent ("00-<trace>-<span>-01").
+func TraceIDFromTraceparent(tp string) string {
+	parts := strings.Split(strings.TrimSpace(tp), "-")
+	if len(parts) >= 3 && len(parts[1]) == 32 {
+		return parts[1]
+	}
+	return ""
 }
