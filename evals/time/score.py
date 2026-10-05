@@ -50,6 +50,14 @@ def main() -> None:
             in_win = [c for c in cited if doc_month[c] in set(q["gold_months"])]
             s["prec_sum"] += len(in_win) / len(cited)
             s["prec_n"] += 1
+            if q["type"] == "implicit_recency":
+                # 口径修正（REPORT「预期边界」节）：隐式题走 prefer 档（设计
+                # D2，模糊词不硬过滤），模型"引用最新一期 + 历史各期对比"是
+                # 正确行为——按 gold 单月记 stale 曾恒 100%。stale 只在运行
+                # 从未够到最新一期（全部引用都早于 gold 最新月）时记。
+                if max(doc_month[c] for c in cited) < max(q["gold_months"]):
+                    s["stale"] += 1
+                continue
             for c in cited:
                 if doc_month[c] not in set(q["gold_months"]):
                     # stale unless the answer itself spells out that month
