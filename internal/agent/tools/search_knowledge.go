@@ -314,7 +314,7 @@ func (t *SearchKnowledgeTool) Execute(ctx context.Context, args json.RawMessage)
 	}
 
 	if len(ranked) > 0 {
-		if selected := selectMMR(ctx, ranked, min(len(ranked), retrievalLimit)); len(selected) > 0 {
+		if selected := t.selectMMR(ctx, ranked, min(len(ranked), retrievalLimit)); len(selected) > 0 {
 			ranked = selected
 		}
 	}
@@ -804,10 +804,17 @@ func (t *SearchKnowledgeTool) rerankResults(
 	if orderOnly {
 		threshold = math.Inf(-1)
 	}
+	// Weighted-ranking 血统接线：工具消费 agent_config 解析出的 ranking
+	//（session_agent_qa 在启用时合并 tenant+request，禁用时填纯 legacy 默认
+	// —— legacy 值经 WeightedCompositeScore 与官方公式逐位等价，由
+	// TestWeightedCompositeMatchesLegacyAtDefaults 守护）。recency 走
+	// business_date 优先轴（reranking.RecencySignal）。
+	ranking := t.effectiveRanking()
 	res := reranking.Rerank(ctx, t.rerankModel, query, rows, reranking.Options{
 		Threshold:        threshold,
 		FallbackMinScore: reranking.FallbackMinScore(t.searchTargets.HasRecallThresholdOverride()),
 		MaxCandidates:    reranking.DefaultMaxCandidates,
+		Ranking:          &ranking,
 	})
 	if res.Diagnostics.Outcome == types.RerankOutcomeModelError {
 		logger.Warnf(ctx, "[Tool][SearchKnowledge] Rerank model failed, using raw retrieval results: %s",
@@ -1103,12 +1110,14 @@ func (t *SearchKnowledgeTool) getEnrichedPassage(ctx context.Context, result *ty
 }
 
 // selectMMR reduces redundancy among results through the shared MMR stage.
-func selectMMR(ctx context.Context, results []*searchResultWithMeta, k int) []*searchResultWithMeta {
+// λ 来自 effectiveRanking()（weighted-ranking 血统接线；未启用时等于
+// 官方 DefaultMMRLambda 0.7）。
+func (t *SearchKnowledgeTool) selectMMR(ctx context.Context, results []*searchResultWithMeta, k int) []*searchResultWithMeta {
 	rows := make([]*types.SearchResult, len(results))
 	for i, r := range results {
 		rows[i] = r.SearchResult
 	}
-	picks := reranking.SelectMMR(ctx, rows, k, reranking.DefaultMMRLambda)
+	picks := reranking.SelectMMR(ctx, rows, k, t.effectiveRanking().MMRLambda)
 	if picks == nil {
 		return nil
 	}
