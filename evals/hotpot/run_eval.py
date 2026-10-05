@@ -79,9 +79,13 @@ def main() -> None:
 
     manifest = {q["qid"]: q for q in load_jsonl(args.manifest)}
     ingest_path = args.ingest or (args.manifest + ".ingest.jsonl")
-    ingest = {
-        r["qid"]: r for r in load_jsonl(ingest_path) if r.get("kb_id")
-    }
+    try:
+        ingest = {
+            r["qid"]: r for r in load_jsonl(ingest_path) if r.get("kb_id")
+        }
+    except FileNotFoundError:
+        # 反馈黄金集等自携带 kb_ids 的清单没有 ingest 映射（台账 T13 轻量飞轮）
+        ingest = {}
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,7 +102,9 @@ def main() -> None:
         if args.agent_id:
             probe = client.ask_sse_agent(probe_sid, args.agent_id, "What is 2+2? Reply with only the number.", timeout=120)
         else:
-            probe = client.ask_sse(probe_sid, ingest.get(next(iter(manifest)), {}).get("kb_id", ""), "What is 2+2? Reply with only the number.", timeout=120)
+            first_q = next(iter(manifest.values()))
+            probe_kb = first_q.get("kb_ids") or ingest.get(next(iter(manifest)), {}).get("kb_id", "")
+            probe = client.ask_sse(probe_sid, probe_kb, "What is 2+2? Reply with only the number.", timeout=120)
         if probe.get("error") or not probe.get("done"):
             print(f"[preflight] ENDPOINT UNUSABLE: {str(probe)[:200]} — aborting before burning the run")
             sys.exit(2)
@@ -115,7 +121,9 @@ def main() -> None:
         for i, (qid, q) in enumerate(manifest.items()):
             if qid in done_qids:
                 continue
-            kb_id = ingest.get(qid, {}).get("kb_id")
+            # 台账 T13 轻量飞轮：清单条目可自带 kb_ids（反馈快照里的出问题库），
+            # 优先于 ingest 映射。
+            kb_id = q.get("kb_ids") or ingest.get(qid, {}).get("kb_id")
             if not kb_id and not args.route and not args.agent_id:
                 print(f"[skip] {qid}: no kb")
                 continue

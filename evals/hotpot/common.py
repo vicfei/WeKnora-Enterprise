@@ -150,7 +150,7 @@ class EvalClient:
         """
         body = {
             "query": question,
-            "knowledge_base_ids": [kb_id],
+            "knowledge_base_ids": kb_id if isinstance(kb_id, list) else [kb_id],
             "disable_title": True,
         }
         if extra_body:

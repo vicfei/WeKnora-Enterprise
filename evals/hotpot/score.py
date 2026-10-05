@@ -99,6 +99,8 @@ def score_run(manifest: list[dict], run: list[dict]) -> dict:
             em_hit += 1
         if rec.get("ref_titles") is None:
             continue  # 引用未采集(SSE 中断),只计入 EM/F1
+        if not q.get("gold_titles"):
+            continue  # 反馈黄金集无金标引用（台账 T13）：只计 EM/F1
         refs = {title_key(t) for t in rec.get("ref_titles", [])}
         hits = sum(1 for g in q["gold_titles"] if title_key(g) in refs)
         if hits == len(q["gold_titles"]):
