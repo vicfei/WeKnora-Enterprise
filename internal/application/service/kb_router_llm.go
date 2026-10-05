@@ -31,8 +31,9 @@ const (
 	kbRouterLLMCatalogEnv     = "KB_ROUTER_LLM_MAX_CATALOG"
 	kbRouterLLMDefaultCatalog = 40
 	// 推理型模型（deepseek-v4 等）先思考后作答：预算只按"答案体量"给会在
-	// 思考中途截断、content 为空（实测 400 tokens 全被思考吃掉）。
-	kbRouterLLMMaxTokens    = 1024
+	// 思考中途截断、content 为空（400/1024 实测均被思考烧尽）。2048 = 思考
+	// 头寸 + 答案；JSON 解析双通道兜底（content 优先、reasoning 回退）。
+	kbRouterLLMMaxTokens    = 2048
 	kbRouterLLMTimeout      = 15 * time.Second
 	kbRouterLLMMaxSelection = 5
 	// 字典短路阈值：查询分词被库文本覆盖 ≥0.6 且领先第二名 1.5 倍，才认定
@@ -193,7 +194,10 @@ func (s *sessionService) llmRouteKnowledgeBases(
 		{Role: "system", Content: system},
 		{Role: "user", Content: user},
 	}, &chat.ChatOptions{
-		Temperature:         0,
+		// temp 0.3 与 query_understand 的已知良好调用对齐：本租户的 hybrid
+		// 模型在 temp=0 时实测转入长思考（2048 tokens 全烧在 reasoning），
+		// temp 0.3 下同一模型 162-267 tokens 即出 content。
+		Temperature:         0.3,
 		MaxCompletionTokens: kbRouterLLMMaxTokens,
 		Thinking:            &thinking,
 	})
