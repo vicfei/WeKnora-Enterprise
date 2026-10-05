@@ -153,3 +153,29 @@ UI：城市图标（构建需 `VITE_ENABLE_KB_ROUTING=1`；仅快速问答可点
 2. 冷缓存慢 + 无持久化（U-12）：需预热任务或向量缓存落盘；批量嵌入需退避节流（U-05）；
 3. agent 链路未接入（待办：从 rag-qa 类智能体做起，候选=agent 允许库范围）；
 4. minScore/topK 默认值仅在评估租户标定，生产租户分布不同需重新观察信号再调。
+
+---
+
+# v2 决策层：LLM 选库 + 字典冷启动（2026-10-05 落地，kb_router_llm.go）
+
+## 链路
+显式选择 > **字典短路**（查询分词对库名+描述覆盖 ≥0.6 且领先 1.5×，零延迟）>
+**LLM 目录选库**（字典排序预筛 top-40 目录 → 一次 chat 调用 → 严格 JSON
+`{"kb_indexes":[..]}`，content 优先、reasoning 通道兜底解析）> **质心回退**（v1
+原样保留）。决策层记录在 `KBRoutingInfo.Method`（dict/llm/centroid），随 SSE
+kb_router 事件可观测。旋钮：`KB_ROUTER_LLM`（0=关 v2）、`KB_ROUTER_LLM_MODEL_ID`
+（默认租户首个 KnowledgeQA 模型，rerank-auto 先例）、`KB_ROUTER_LLM_MAX_CATALOG`。
+
+## 实测两课
+1. **hybrid 模型 temp=0 陷阱**：deepseek-v4-flash 在 temp=0 时转入长思考，
+   2048 tokens 全烧在 reasoning、content 为空；temp=0.3（与 query_understand
+   对齐）162-267 tokens 即出 content。路由调用必须 0.3。
+2. **目录必须有主题信号**：hotpot 评估租户的 500 库是编号名（hotpot-eval-hp-XXXX），
+   LLM 的诚实回答是"信息不足"（思考文本原话）——此场景本就该由质心层接管，
+   回退链的设计正为此。v2 的适用面=生产形态的主题命名库（租户 10000 实测：
+   "白内障手术门诊量" → llm selected 1/10 → 答案落在眼科库文档，端到端正确）。
+
+## 遗留
+生产化前置四项不变（可见性过滤/缓存落盘/agent 链/参数标定，见 §8）；
+v2 新增：SSE 事件的 method 字段前端呈现、无描述库的目录行优化（可用
+GeneratedProfile gist 补目录描述）。
