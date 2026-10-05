@@ -26,23 +26,23 @@ import (
 //   - 相似度对"多主题混合库"偏保守（质心被稀释），v2 计划换多簇表示。
 
 const (
-	kbRouterDefaultTopK        = 3
-	kbRouterDefaultMinScore    = 0.25
-	kbRouterDefaultCacheTTL    = 15 * time.Minute
-	kbRouterDigestMaxRunes     = 400
-	kbRouterMaxCandidateKBs    = 2000
-	kbRouterEmbedConcurrency   = 8
-	kbRouterEventToolName      = "kb_router"
-	kbRouterCentroidCacheEnv   = "KB_ROUTER_CACHE_TTL_MIN"
-	kbRouterTopKEnv            = "KB_ROUTER_TOP_K"
-	kbRouterMinScoreEnv        = "KB_ROUTER_MIN_SCORE"
+	kbRouterDefaultTopK      = 3
+	kbRouterDefaultMinScore  = 0.25
+	kbRouterDefaultCacheTTL  = 15 * time.Minute
+	kbRouterDigestMaxRunes   = 400
+	kbRouterMaxCandidateKBs  = 2000
+	kbRouterEmbedConcurrency = 8
+	kbRouterEventToolName    = "kb_router"
+	kbRouterCentroidCacheEnv = "KB_ROUTER_CACHE_TTL_MIN"
+	kbRouterTopKEnv          = "KB_ROUTER_TOP_K"
+	kbRouterMinScoreEnv      = "KB_ROUTER_MIN_SCORE"
 )
 
 // KBScore is one candidate's routing score.
 type KBScore struct {
-	KBID   string  `json:"kb_id"`
-	Name   string  `json:"name"`
-	Score  float64 `json:"score"`
+	KBID  string  `json:"kb_id"`
+	Name  string  `json:"name"`
+	Score float64 `json:"score"`
 }
 
 // KBRoutingInfo carries the routing decision for observability (SSE tool_call
@@ -51,6 +51,10 @@ type KBRoutingInfo struct {
 	Selected []KBScore `json:"selected"`
 	Skipped  int       `json:"skipped_candidates"`
 	Reason   string    `json:"reason,omitempty"`
+	// Method records which layer decided: "dict" (cold-start dictionary
+	// short-circuit), "llm" (v2 catalog selection) or "centroid" (v1
+	// embedding fallback). Empty on v1 failure paths.
+	Method string `json:"method,omitempty"`
 }
 
 type kbCentroidCacheEntry struct {
@@ -118,6 +122,12 @@ func (s *sessionService) routeKnowledgeBases(
 		logger.Warnf(ctx, "kb_router: %d candidates exceeds cap %d, refusing to route",
 			len(candidates), kbRouterMaxCandidateKBs)
 		return nil, &KBRoutingInfo{Reason: "too_many_candidates", Skipped: len(candidates)}
+	}
+
+	// v2 决策层（kb_router_llm.go，台账 T10）：LLM 读目录选库，字典冷启动短路，
+	// 质心相似度退为 LLM 不可用时的回退。返回 (nil, nil) 即下落质心路径。
+	if ids, info := s.llmRouteKnowledgeBases(ctx, candidates, query); info != nil {
+		return ids, info
 	}
 
 	// Majority embedding-model group: vectors are only comparable within one
@@ -216,7 +226,7 @@ func (s *sessionService) routeKnowledgeBases(
 		ids = append(ids, sc.KBID)
 	}
 
-	info := &KBRoutingInfo{Selected: selected, Skipped: skipped}
+	info := &KBRoutingInfo{Selected: selected, Skipped: skipped, Method: "centroid"}
 	logger.Infof(ctx, "kb_router: query routed to %d/%d KBs (top score %.3f)",
 		len(ids), len(candidates), scores[0].Score)
 	return ids, info
@@ -339,7 +349,7 @@ func emitKBRoutingEvent(ctx context.Context, chatManage *types.ChatManage, info 
 			ToolCallID: chatManage.SessionID + "-kb-router",
 			ToolName:   kbRouterEventToolName,
 			Arguments: map[string]any{
-				"selected":          selected,
+				"selected":           selected,
 				"skipped_candidates": info.Skipped,
 			},
 		},
@@ -367,7 +377,7 @@ func emitAgentKBRoutingEvent(ctx context.Context, bus *event.EventBus, sessionID
 			ToolCallID: sessionID + "-kb-router",
 			ToolName:   kbRouterEventToolName,
 			Arguments: map[string]any{
-				"selected":          selected,
+				"selected":           selected,
 				"skipped_candidates": info.Skipped,
 			},
 		},
