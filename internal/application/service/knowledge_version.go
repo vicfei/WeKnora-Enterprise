@@ -110,6 +110,11 @@ func (s *knowledgeService) AssignVersionGroup(ctx context.Context, kbID string, 
 		knowledge.VersionNumber = 1
 		logger.Infof(ctx, "version group %q: first doc %s becomes v1 active", group, knowledge.ID)
 	}
+	// 组字段在 CreateKnowledge 落行之后才决定，这里必须显式回写——否则只在
+	// 返回对象里可见、库里没有（E2E 第一跑的教训）。
+	if err := s.repo.UpdateKnowledge(ctx, knowledge); err != nil {
+		return fmt.Errorf("version group: persist membership: %w", err)
+	}
 	return nil
 }
 

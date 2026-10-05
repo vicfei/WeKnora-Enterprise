@@ -3288,7 +3288,8 @@ func tenantAPIKeySearchScopes(ctx context.Context) ([]types.KnowledgeSearchScope
 // @Security     ApiKeyAuth
 // @Router       /knowledge-bases/{id}/knowledge/pending-versions [get]
 func (h *KnowledgeHandler) ListPendingVersions(c *gin.Context) {
-	ctx := c.Request.Context()
+	ctx := context.WithValue(c.Request.Context(),
+		types.TenantIDContextKey, c.GetUint64(types.TenantIDContextKey.String()))
 	kbID := secutils.SanitizeForLog(c.Param("id"))
 	pending, err := h.kgService.ListPendingVersions(ctx, kbID)
 	if err != nil {
