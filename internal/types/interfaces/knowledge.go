@@ -27,6 +27,7 @@ type KnowledgeService interface {
 		channel string,
 		processOverrides *types.KnowledgeProcessOverrides,
 		businessDate *time.Time,
+		asNewVersion bool,
 	) (*types.Knowledge, error)
 	// CreateKnowledgeFromURL creates knowledge from a URL.
 	// When fileName or fileType is provided (or the URL path has a known file extension),
@@ -104,6 +105,22 @@ type KnowledgeService interface {
 	// RenameKnowledgeFolder moves a folder and everything below it to a new path.
 	RenameKnowledgeFolder(ctx context.Context, kbID string, from string, to string) (int64, error)
 	// DeleteKnowledge deletes knowledge by ID.
+	// AssignVersionGroup joins an "as new version" upload to its normalized-
+	// title group (doc-versioning MVP, 台账 T11): with existing members the
+	// upload lands in pending; a first sighting becomes active v1.
+	AssignVersionGroup(ctx context.Context, kbID string, knowledge *types.Knowledge) error
+	// ConfirmKnowledgeVersion promotes a pending version and supersedes the
+	// group's previous active version (retention-trimmed).
+	ConfirmKnowledgeVersion(ctx context.Context, id string) (*types.Knowledge, error)
+	// RejectKnowledgeVersion deletes a pending version upload.
+	RejectKnowledgeVersion(ctx context.Context, id string) error
+	// RollbackKnowledgeVersion re-activates a superseded version (no confirm
+	// dialog by user decision) and supersedes the current one.
+	RollbackKnowledgeVersion(ctx context.Context, id string) (*types.Knowledge, error)
+	// ListKnowledgeVersions returns the document's version group, newest first.
+	ListKnowledgeVersions(ctx context.Context, id string) ([]*types.Knowledge, error)
+	// ListPendingVersions lists a KB's pending version uploads.
+	ListPendingVersions(ctx context.Context, kbID string) ([]*types.VersionGroupSummary, error)
 	DeleteKnowledge(ctx context.Context, id string) error
 	// DeleteKnowledgeList requires an explicit write grant for every affected KB.
 	// It validates the complete selection before changing any deletion state.

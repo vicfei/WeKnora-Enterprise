@@ -577,6 +577,11 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 		if config.RequireBusinessDate != nil {
 			kb.RequireBusinessDate = *config.RequireBusinessDate
 		}
+		// Doc-versioning retention override (台账 T11): nil keeps the current
+		// value; 0 means "use the default keep count".
+		if config.MaxVersions != nil && *config.MaxVersions >= 0 {
+			kb.MaxVersions = *config.MaxVersions
+		}
 		// Update indexing strategy — syncs to ExtractConfig for backward compat
 		if config.IndexingStrategy != nil {
 			if !config.IndexingStrategy.HasAnyIndexing() {

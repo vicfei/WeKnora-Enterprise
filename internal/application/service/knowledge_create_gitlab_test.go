@@ -39,7 +39,7 @@ func TestCreateKnowledgeFromFileGitLabPreservesSourcePaths(t *testing.T) {
 			metadata["external_id"] = "gitlab:instance:1:main:" + file
 		}
 		return svc.CreateKnowledgeFromFile(ctx, "kb-1", newMultipartFileHeader(t, "README.md", "# same content"),
-			metadata, nil, "docs-main/"+file, nil, channel, nil, nil)
+			metadata, nil, "docs-main/"+file, nil, channel, nil, nil, false)
 	}
 
 	root, err := create(types.ConnectorTypeGitLab, "ds-1", "README.md")
@@ -95,7 +95,7 @@ func TestCreateKnowledgeFromFileConfluencePreservesCopiedPages(t *testing.T) {
 		t.Helper()
 		return svc.CreateKnowledgeFromFile(ctx, "kb-1", newMultipartFileHeader(t, "Overview.md", "# same body"),
 			map[string]string{"datasource_id": source, "external_id": pageID},
-			nil, "Overview-"+pageID+".md", nil, types.ChannelConfluence, nil, nil)
+			nil, "Overview-"+pageID+".md", nil, types.ChannelConfluence, nil, nil, false)
 	}
 
 	first, err := create("ds-1", "p1")

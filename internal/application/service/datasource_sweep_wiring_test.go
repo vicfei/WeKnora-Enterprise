@@ -82,7 +82,7 @@ func (k *sweepFakeKS) DeleteKnowledgeList(ctx context.Context, ids []string) err
 func (k *sweepFakeKS) CreateKnowledgeFromFile(
 	ctx context.Context, kbID string, file *multipart.FileHeader, metadata map[string]string,
 	enableMultimodel *bool, customFileName string, tagIDs []string, channel string,
-	processOverrides *types.KnowledgeProcessOverrides, _ *time.Time,
+	processOverrides *types.KnowledgeProcessOverrides, _ *time.Time, _ bool,
 ) (*types.Knowledge, error) {
 	k.events = append(k.events, "create:"+customFileName)
 	if k.createErr != nil {

@@ -238,7 +238,12 @@ func finalizeIndexedKnowledgeState(
 		knowledge.ErrorMessage = ""
 	}
 
-	knowledge.EnableStatus = "enabled"
+	// Doc-versioning MVP：pending 版本保持 disabled——确认生效才进入检索
+	//（AssignVersionGroup 在 upload 时已落 pending；此门控防 parse 完成把它
+	// 自动 enable）。
+	if knowledge.VersionStatus != types.VersionStatusPending {
+		knowledge.EnableStatus = "enabled"
+	}
 	knowledge.StorageSize = totalStorageSize
 	knowledge.ProcessedAt = &now
 	knowledge.UpdatedAt = now

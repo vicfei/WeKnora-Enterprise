@@ -39,6 +39,7 @@ func (s *knowledgeService) CreateKnowledgeFromFile(ctx context.Context,
 	kbID string, file *multipart.FileHeader, metadata map[string]string, enableMultimodel *bool, customFileName string, tagIDs []string, channel string,
 	processOverrides *types.KnowledgeProcessOverrides,
 	businessDate *time.Time,
+	asNewVersion bool,
 ) (*types.Knowledge, error) {
 	logger.Info(ctx, "Start creating knowledge from file")
 
@@ -233,6 +234,16 @@ func (s *knowledgeService) CreateKnowledgeFromFile(ctx context.Context,
 	if err := s.setAndAttachKnowledgeTags(ctx, tenantID, kbID, knowledge, tagIDs); err != nil {
 		logger.Errorf(ctx, "Failed to set knowledge tags, knowledge ID: %s, error: %v", knowledge.ID, err)
 		return nil, err
+	}
+
+	// Doc-versioning MVP（台账 T11）：勾选"作为新版本"时按归一标题入组；有
+	// 旧版则落 pending 待确认，检索不可见。必须在 parse 异步启动前完成，
+	// 否则 finalize 的 enable 门控来不及生效。
+	if asNewVersion {
+		if err := s.AssignVersionGroup(ctx, kbID, knowledge); err != nil {
+			logger.Errorf(ctx, "Assign version group failed, knowledge ID: %s, error: %v", knowledge.ID, err)
+			return nil, err
+		}
 	}
 
 	// Enqueue document processing task to Asynq

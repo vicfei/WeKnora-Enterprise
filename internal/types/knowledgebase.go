@@ -115,6 +115,9 @@ type KnowledgeBase struct {
 	// "missing date is a data bug, not a silent NULL". Default false keeps
 	// every existing KB's ingest path byte-for-byte unchanged.
 	RequireBusinessDate bool `yaml:"require_business_date" json:"require_business_date" gorm:"column:require_business_date;default:false"` //nolint:lll // one-line struct tag
+	// MaxVersions overrides how many superseded versions a doc-version group
+	// keeps (doc-versioning MVP, 台账 T11). 0 = DefaultKeepVersions.
+	MaxVersions int `yaml:"max_versions" json:"max_versions" gorm:"column:max_versions;default:0"`
 	// ProfileConfig controls automatic generation of the knowledge-base
 	// description from per-document profiles (document knowledge bases only).
 	ProfileConfig *KnowledgeBaseProfileConfig `yaml:"profile_config" json:"profile_config" gorm:"column:profile_config;type:json"` //nolint:lll // one-line struct tag
@@ -190,6 +193,10 @@ type KnowledgeBaseConfig struct {
 	// time-aware governance switch). nil means "no change" when updating;
 	// absent on create means false.
 	RequireBusinessDate *bool `yaml:"require_business_date" json:"require_business_date"`
+	// MaxVersions caps how many superseded versions a doc-version group keeps
+	// (doc-versioning MVP, 台账 T11). nil means "no change" when updating;
+	// zero/absent falls back to DefaultKeepVersions.
+	MaxVersions *int `yaml:"max_versions" json:"max_versions"`
 }
 
 const (

@@ -1359,6 +1359,7 @@ func (s *DataSourceService) ingestItem(ctx context.Context, ds *types.DataSource
 			channel,
 			nil,
 			nil, // businessDate — a require_business_date KB rejects datasource sync
+			false,
 		); err != nil {
 			var dupErr *types.DuplicateKnowledgeError
 			if errors.As(err, &dupErr) && dupIsSameNode(dupErr, item) {
