@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 import string
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -32,7 +33,14 @@ def normalize_answer(s: str) -> str:
 
     def remove_punc(text: str) -> str:
         exclude = set(string.punctuation)
-        return "".join(ch for ch in text if ch not in exclude)
+        # Unicode 标点（en/em-dash、中文逗号句号等）一并剥离：模型输出常用
+        # en-dash 连接年份区间，ASCII 白名单漏剥曾致 EM 低估 1-2 分。
+        # 类别 P* 覆盖所有 Unicode 标点；符号类（货币/度数）是内容，保留。
+        return "".join(
+            ch
+            for ch in text
+            if ch not in exclude and not unicodedata.category(ch).startswith("P")
+        )
 
     def lower(text: str) -> str:
         return text.lower()
