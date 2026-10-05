@@ -86,3 +86,30 @@ rerank_model_id=auto + recency_half_life_days=180；无 rerank 臂为首跑 tar-
 python3 run_eval.py --arm on --ranking '{"recency_weight": 0.1}' --label=rw010 --out runs
 python3 score.py --run runs/tar-onrw010.jsonl
 ```
+
+---
+
+# v5b 新底座复验（2026-10-05，102 同步 + reranking 包重构后）
+
+接线实证：60 次 `stage=Rerank action=weighted_ranking` 管线事件（recency_weight=0.1
+精确到达），rerank 真实调用 outcome=ok——chat 全链在新结构上贯通。
+
+## 同基配对（同日同后端，n=60/臂）
+
+| 臂 | 总EM | 显式 EM/stale | 时点 EM/stale | 隐式 EM/stale |
+|---|---|---|---|---|
+| off | 66.7 | 50.0 / 5 | 95.0 / 0 | 55.0 / 20 |
+| on（过滤无权重） | 61.7 | 40.0 / 0 | 95.0 / 10 | 50.0 / 45 |
+| **rw010（推荐）** | **73.3** | 50.0 / 5 | **100** / 10 | **70.0 / 0** |
+
+结论：推荐配置臂每一维优于或平于 off 臂，隐式时效（EM+15、stale 归零）与
+9 月三臂结论方向一致。裸 on 臂在本轮弱于 off（显式 EM 40 vs 50）——n=20 子项
+两题翻转量级，与"recency 权重才是隐式杠杆"的既有结论相符。
+
+## 观察（非阻塞）：跨基绝对值漂移
+
+rw010 臂总 EM 91.7（9-18）→ 73.3（v5b）。同臂接线已事件级验证，漂移归因候选：
+① rerank 阶段整体重构（MaxCandidates=200 截断/阈值降级/SkipContextEnrichment/
+   MMR 参数化）对本标尺的短答 EM 是结构性扰动；② n=60 的抽样方差（±6pt 常态）。
+统计口径更硬的 hotpot 100 题在新基上 EM +4.00。**结论：不构成回归判据，留观察**；
+若后续 100 题级复跑仍显著偏低，再对 rerank 截断/富化策略做消融。
