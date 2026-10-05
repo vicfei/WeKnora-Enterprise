@@ -198,6 +198,20 @@
                   </div>
 
                   <div v-show="activeSection === 'parser'" class="section">
+                    <!-- doc-versioning MVP（台账 T11）：作为新版本上传（第六 flag 门控） -->
+                    <div v-if="docVersionsOn && props.mode === 'file'" class="kb-settings-block">
+                      <div class="settings-group">
+                        <div class="setting-row">
+                          <div class="setting-info">
+                            <label>{{ t('uploadConfirm.asNewVersion.label') }}</label>
+                            <p class="desc">{{ t('uploadConfirm.asNewVersion.description') }}</p>
+                          </div>
+                          <div class="setting-control">
+                            <t-switch v-model="asNewVersion" size="medium" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <KBParserSettings
                       :relevant-extensions="batchFileExts"
                       :parser-engine-rules="uiState.chunkingConfig.parserEngineRules"
@@ -665,7 +679,7 @@ import { imageAttrDisplay, imageAttrConditionDisplay } from '@/utils/imageAttrDi
 import KbUploadSourceDropdown from './KbUploadSourceDropdown.vue'
 import FolderPickerMenu, { type FolderOption } from './FolderPickerMenu.vue'
 import TagTreePickerMenu from '@/features/tag-tree/TagTreePickerMenu.vue'
-import { tagTreeEnabled } from '@/features/common/flags'
+import { docVersionsEnabled, tagTreeEnabled } from '@/features/common/flags'
 import { folderOptionFromPath, sortFolderOptions } from '../folderTree'
 import type { KnowledgeProcessOverrides } from '@/types/knowledgeProcess'
 import type {
@@ -813,6 +827,9 @@ const tagsLoadFailed = ref(false)
 const chunkingMoreOpen = ref(false)
 const activeSection = ref<ConfigSectionKey>('tags')
 const uiState = ref<UploadUIState>(createDefaultUIState())
+// doc-versioning MVP（台账 T11）
+const docVersionsOn = docVersionsEnabled()
+const asNewVersion = ref(false)
 // Destination folder for this batch. Pre-filled from the sidebar tree, but
 // editable here so browsing a folder never silently decides where files land.
 const localTargetFolder = ref('')
@@ -1612,6 +1629,7 @@ const handleConfirm = () => {
       files: [...localFiles.value],
       urls: [...localUrls.value],
       targetFolder: localTargetFolder.value,
+      asNewVersion: asNewVersion.value,
     })
   }
   emit('update:visible', false)

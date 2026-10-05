@@ -7020,6 +7020,7 @@ export default {
   uploadConfirm: {
     documentSummary: "문서 요약",
     documentSummaryDescription: "이번에 가져오는 문서의 요약을 자동으로 생성할지 선택합니다.",
+      asNewVersion: { label: '새 버전으로 업로드', description: '제목 정규화로 이전 버전에 자동 연결: 확인 전 검색 비노출, 확인 시 이전 버전 자동 종료(롤백 가능)' },
     generateSummary: "문서 요약 생성",
     generateSummaryHint: "기본적으로 활성화됩니다. 비활성화하면 요약 생성을 건너뛰며 파싱, 인덱싱 및 기타 단계는 설정대로 진행됩니다.",
 
@@ -7295,6 +7296,27 @@ export default {
     deleteDocument: '문서 삭제',
     moveDocument: '이동...',
     moveToKnowledgeBase: '지식베이스로 이동',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: '버전 이력',
+
+      pendingVersionsTitle: '확인 대기 버전',
+
+      versionConfirm: '확인',
+
+      versionReject: '거부',
+
+      versionConfirmed: '새 버전이 활성화되고 이전 버전이 자동 종료되었습니다',
+
+      versionRejected: '대기 버전을 거부하고 삭제했습니다',
+
+      versionRollback: '이 버전으로 롤백',
+
+      versionRolledBack: '선택한 버전으로 롤백했습니다',
+
+      versionActionFailed: '버전 작업 실패',
+
+      versionNoHistory: '버전 기록 없음',
     moveNoTargets: '호환되는 지식베이스가 없습니다 (동일한 유형과 임베딩 모델 필요)',
     moveModeReuseVectors: '벡터 재사용 (빠름)',
     moveModeReuseVectorsDesc: '청크와 벡터 인덱스를 직접 이동합니다. 청킹 설정이 동일할 때 사용합니다.',

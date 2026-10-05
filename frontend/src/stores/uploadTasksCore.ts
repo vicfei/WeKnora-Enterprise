@@ -34,6 +34,8 @@ export interface EnqueueUploadsInput {
   kbName: string
   targetFolder?: string
   tagIds?: string[]
+  /** doc-versioning MVP：作为新版本上传。 */
+  asNewVersion?: boolean
   processConfig?: KnowledgeProcessOverrides
   uploads: UploadPayload[]
 }
@@ -87,6 +89,7 @@ export function createUploadTasks(deps: UploadTasksDeps) {
       targetFolder: input.targetFolder || '',
       tagIds: input.tagIds && input.tagIds.length > 0 ? [...input.tagIds] : undefined,
       processConfig: input.processConfig,
+      asNewVersion: input.asNewVersion || undefined,
     }, input.uploads)
     visible.value = true
     collapsed.value = false

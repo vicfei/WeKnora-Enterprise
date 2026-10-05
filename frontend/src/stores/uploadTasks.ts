@@ -25,6 +25,7 @@ export const useUploadTasksStore = defineStore('uploadTasks', () => {
         fileName: payload.fileName,
         tag_ids: batch.tagIds,
         process_config: batch.processConfig,
+        as_new_version: batch.asNewVersion,
       },
       (event: { loaded?: number; total?: number; progress?: number }) => {
         onProgress(event.progress ?? (event.total ? (event.loaded ?? 0) / event.total : 0))

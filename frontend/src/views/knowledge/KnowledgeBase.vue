@@ -4,7 +4,11 @@ import { MessagePlugin } from "tdesign-vue-next";
 import DocContent from "@/components/doc-content.vue";
 import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
 import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
-import { tagTreeEnabled } from '@/features/common/flags';
+import { docVersionsEnabled, tagTreeEnabled } from '@/features/common/flags';
+import {
+  listPendingVersions, confirmKnowledgeVersion, rejectKnowledgeVersion,
+  listKnowledgeVersions, rollbackKnowledgeVersion,
+} from '@/api/knowledge-base';
 import useKnowledgeBase from '@/hooks/useKnowledgeBase';
 import { useRoute, useRouter } from 'vue-router';
 import EmptyKnowledge from '@/components/empty-knowledge.vue';
@@ -1392,6 +1396,7 @@ onMounted(() => {
   editorResources.ensureParserEngines();
 
   window.addEventListener('knowledgeFileUploaded', handleFileUploaded as EventListener);
+  if (docVersionsOn) loadPendingVersions();
   window.addEventListener('openURLImportDialog', handleOpenURLImportDialog as EventListener);
   window.addEventListener('weknora:knowledge-file-drop', handleKnowledgeFileDrop as EventListener);
   window.addEventListener('weknora:open-knowledge', handleOpenKnowledgeEvent as EventListener);
@@ -1729,6 +1734,8 @@ const enqueueUploads = (
     tagIds?: string[];
     /** Destination folder confirmed in the upload dialog; '' is the root. */
     targetFolder?: string;
+    /** doc-versioning MVP：作为新版本上传。 */
+    asNewVersion?: boolean;
   } = {},
 ) => {
   const targetKbId = kbId.value;
@@ -1740,6 +1747,7 @@ const enqueueUploads = (
     targetFolder,
     tagIds: options.tagIds,
     processConfig: options.processConfig,
+    asNewVersion: options.asNewVersion || undefined,
     uploads: files.map(file => ({ file, fileName: buildUploadFileName(file, targetFolder) })),
   });
 };
@@ -1804,6 +1812,7 @@ const handleUploadConfirmResult = async (result: UploadConfirmResult) => {
       processConfig,
       tagIds,
       targetFolder: result.targetFolder || ROOT_FOLDER_PATH,
+      asNewVersion: (result as any).asNewVersion === true,
     });
   }
 
@@ -2254,7 +2263,7 @@ const downloadKnowledge = async (item: KnowledgeCard) => {
 
 // Bridge card-view actions back to existing per-card handlers.
 const handleCardAction = (
-  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage',
+  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions',
   item: KnowledgeCard,
 ) => {
   const idx = (cardList.value || []).findIndex((i: KnowledgeCard) => i.id === item.id);
@@ -2269,11 +2278,72 @@ const handleCardAction = (
   if (action === 'delete') return confirmDeleteKnowledge(idx, item);
   if (action === 'view-trace') return handleViewTrace(idx, item);
   if (action === 'batch-manage') return handleEnterBatchFromCard(item);
+  if (action === 'versions') return handleOpenVersions(item);
+};
+
+// ---------- doc-versioning MVP（台账 T11） ----------
+const docVersionsOn = docVersionsEnabled();
+const pendingVersions = ref<any[]>([]);
+const versionsDialog = reactive({ visible: false, title: '', loading: false, list: [] as any[] });
+
+const loadPendingVersions = async () => {
+  if (!docVersionsOn || !kbId.value) return;
+  try {
+    const res: any = await listPendingVersions(kbId.value);
+    pendingVersions.value = res?.data || [];
+  } catch { pendingVersions.value = []; }
+};
+
+const handleConfirmVersion = async (id: string) => {
+  try {
+    await confirmKnowledgeVersion(id);
+    MessagePlugin.success(t('knowledgeBase.versionConfirmed'));
+    await loadPendingVersions();
+    window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', { detail: { kbId: kbId.value } }));
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
+};
+
+const handleRejectVersion = async (id: string) => {
+  try {
+    await rejectKnowledgeVersion(id);
+    MessagePlugin.success(t('knowledgeBase.versionRejected'));
+    await loadPendingVersions();
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
+};
+
+const handleOpenVersions = async (item: any) => {
+  versionsDialog.title = item.title || item.file_name || item.id;
+  versionsDialog.visible = true;
+  versionsDialog.loading = true;
+  versionsDialog.list = [];
+  try {
+    const res: any = await listKnowledgeVersions(item.id);
+    versionsDialog.list = res?.data || [];
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  } finally {
+    versionsDialog.loading = false;
+  }
+};
+
+const handleRollbackVersion = async (row: any) => {
+  try {
+    await rollbackKnowledgeVersion(row.knowledge_id);
+    MessagePlugin.success(t('knowledgeBase.versionRolledBack'));
+    await handleOpenVersions({ id: row.knowledge_id, title: versionsDialog.title });
+    window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', { detail: { kbId: kbId.value } }));
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
 };
 
 // Bridge list-view actions back to existing per-card handlers.
 const handleListAction = (
-  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage',
+  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions',
   item: KnowledgeCard,
 ) => {
   const idx = (cardList.value || []).findIndex((i: KnowledgeCard) => i.id === item.id);
@@ -2285,6 +2355,7 @@ const handleListAction = (
   if (action === 'delete') return confirmDeleteKnowledge(idx, item);
   if (action === 'view-trace') return handleViewTrace(idx, item);
   if (action === 'batch-manage') return handleEnterBatchFromCard(item);
+  if (action === 'versions') return handleOpenVersions(item);
 };
 
 // Clear selection on filter/tag/kb change to avoid acting on hidden items.
@@ -2629,6 +2700,20 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
                     </div>
                   </div>
                 </div>
+                <!-- doc-versioning MVP：待确认版本队列（第六 flag 门控） -->
+                <div v-if="docVersionsOn && pendingVersions.length" class="kb-pending-versions">
+                  <div class="pending-header">{{ t('knowledgeBase.pendingVersionsTitle') }}（{{ pendingVersions.length }}）</div>
+                  <div v-for="p in pendingVersions" :key="p.knowledge_id" class="pending-row">
+                    <span class="pending-title">{{ p.title }} · v{{ p.version_number }}</span>
+                    <span class="pending-status">{{ p.parse_status }}</span>
+                    <div class="pending-actions">
+                      <t-button size="small" theme="primary" @click="handleConfirmVersion(p.knowledge_id)">
+                        {{ t('knowledgeBase.versionConfirm') }}</t-button>
+                      <t-button size="small" theme="default" @click="handleRejectVersion(p.knowledge_id)">
+                        {{ t('knowledgeBase.versionReject') }}</t-button>
+                    </div>
+                  </div>
+                </div>
                 <template v-else-if="cardList.length && viewMode === 'grid'">
                   <DocumentCardView :kb-id="kbId"
                     :items="cardList"
@@ -2735,6 +2820,21 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
     :pre-selected-tag-ids="batchTagPreSelectedIds"
     :confirm-loading="batchTagging"
     @update:visible="batchTagDialogVisible = $event" @confirm="onBatchTagConfirm" />
+
+    <!-- doc-versioning MVP：版本组历史（回滚免二次确认为用户拍板） -->
+    <t-dialog v-model:visible="versionsDialog.visible" :header="t('knowledgeBase.versionHistory') + ' · ' + versionsDialog.title" :footer="false" width="560px">
+      <t-loading :loading="versionsDialog.loading" style="min-height: 120px">
+        <div v-for="row in versionsDialog.list" :key="row.knowledge_id" class="version-row">
+          <span class="version-no">v{{ row.version_number }}</span>
+          <span class="version-title">{{ row.title }}</span>
+          <span class="version-status" :class="row.version_status">{{ row.version_status }}</span>
+          <t-button v-if="row.version_status === 'superseded'" size="small" theme="default" @click="handleRollbackVersion(row)">
+            {{ t('knowledgeBase.versionRollback') }}</t-button>
+        </div>
+        <div v-if="!versionsDialog.loading && !versionsDialog.list.length" class="version-empty">
+          {{ t('knowledgeBase.versionNoHistory') }}</div>
+      </t-loading>
+    </t-dialog>
 
 </template>
 <style>
@@ -3621,4 +3721,19 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
       color: var(--td-text-color-placeholder);
     }
   }
+</style>
+
+<style scoped>
+.kb-pending-versions { border: 1px solid var(--td-border-level-2-color); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+.kb-pending-versions .pending-header { font-weight: 600; margin-bottom: 6px; }
+.kb-pending-versions .pending-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.kb-pending-versions .pending-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-pending-versions .pending-status { color: var(--td-text-color-placeholder); font-size: 12px; }
+.version-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--td-border-level-1-color); }
+.version-row .version-no { font-family: monospace; color: var(--td-text-color-secondary); min-width: 44px; }
+.version-row .version-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-row .version-status { font-size: 12px; color: var(--td-text-color-placeholder); min-width: 72px; text-align: center; }
+.version-row .version-status.active { color: var(--td-success-color); }
+.version-row .version-status.pending { color: var(--td-warning-color); }
+.version-empty { color: var(--td-text-color-placeholder); text-align: center; padding: 24px 0; }
 </style>

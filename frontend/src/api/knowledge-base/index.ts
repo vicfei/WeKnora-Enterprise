@@ -851,3 +851,30 @@ export function batchReparseKnowledge(kbId: string, ids: string[], processConfig
     process_config: processConfig,
   });
 }
+
+// ---------- doc-versioning MVP（台账 T11） ----------
+
+/** 待确认版本队列（作为新版本上传、等待确认的知识）。 */
+export function listPendingVersions(kbId: string) {
+  return get<any>(`/api/v1/knowledge-bases/${kbId}/knowledge/pending-versions`)
+}
+
+/** 版本组历史（新→旧）。 */
+export function listKnowledgeVersions(knowledgeId: string) {
+  return get<any>(`/api/v1/knowledge/${knowledgeId}/versions`)
+}
+
+/** 确认 pending 版本生效（旧 active 自动下线）。 */
+export function confirmKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-confirm`, {})
+}
+
+/** 拒绝 pending 版本（删除）。 */
+export function rejectKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-reject`, {})
+}
+
+/** 回滚到历史版本（免二次确认；被回滚版 chunks 保留，无需重解析）。 */
+export function rollbackKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-rollback`, {})
+}

@@ -65,7 +65,7 @@ const emit = defineEmits<{
   (e: 'open', item: KnowledgeCard): void;
   (e: 'toggle-checkbox', id: string, checked: boolean, ctx?: { e?: Event }): void;
   (e: 'menu-visible-change', visible: boolean, item: KnowledgeCard): void;
-  (e: 'action', action: 'download' | 'edit' | 'view-trace' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'batch-manage' | 'delete', item: KnowledgeCard): void;
+  (e: 'action', action: 'download' | 'edit' | 'view-trace' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'batch-manage' | 'delete' | 'versions', item: KnowledgeCard): void;
   (e: 'tags-changed', payload?: { deletedTagId?: string }): void;
   (e: 'open-folder', path: string): void;
   (e: 'move-to-folder', item: KnowledgeCard, folderPath: string): void;
@@ -308,7 +308,7 @@ const editTags = (item: KnowledgeCard) => {
 };
 
 // --- Action handlers ---
-const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'batch-manage' | 'delete', item: KnowledgeCard) => {
+const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'batch-manage' | 'delete' | 'versions', item: KnowledgeCard) => {
   // The folder picker opens inside this same popup, so keep the menu open.
   if (action === 'move-folder') {
     folderPickerItemId.value = item.id;
@@ -404,6 +404,7 @@ const handleAction = (action: 'download' | 'edit' | 'view-trace' | 'reparse' | '
                   @move="handleAction('move', item)"
                   @move-folder="handleAction('move-folder', item)"
                   @batch-manage="handleAction('batch-manage', item)"
+                  @versions="handleAction('versions', item)"
                   @delete="handleAction('delete', item)"
                 />
               </div>

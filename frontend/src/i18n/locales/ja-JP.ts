@@ -902,6 +902,27 @@ export default {
     deleteDocument: 'ドキュメントを削除',
     moveDocument: '移動先を選択...',
     moveToKnowledgeBase: 'ナレッジベースに移動',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: 'バージョン履歴',
+
+      pendingVersionsTitle: '確認待ちバージョン',
+
+      versionConfirm: '確定',
+
+      versionReject: '却下',
+
+      versionConfirmed: '新バージョンを有効化し、旧バージョンを自動終了しました',
+
+      versionRejected: '確認待ちバージョンを却下して削除しました',
+
+      versionRollback: 'このバージョンへ戻す',
+
+      versionRolledBack: '選択バージョンへロールバックしました',
+
+      versionActionFailed: 'バージョン操作に失敗しました',
+
+      versionNoHistory: 'バージョン記録なし',
     moveNoTargets: '移動可能なナレッジベースがありません（同じタイプかつ同じ埋め込みモデルである必要があります）',
     moveModeReuseVectors: 'ベクトルを再利用（高速）',
     moveModeReuseVectorsDesc: 'チャンクとベクトルインデックスをそのまま移動します。チャンク分割設定が同じ場合に使用してください。',
@@ -1010,6 +1031,7 @@ export default {
   uploadConfirm: {
     documentSummary: "ドキュメントの要約",
     documentSummaryDescription: "今回インポートするドキュメントの要約を自動生成するか選択します。",
+      asNewVersion: { label: '新バージョンとしてアップロード', description: 'タイトル正規化で旧版に自動紐付け：確定前は検索対象外、確定で旧版を自動終了（ロールバック可）' },
     generateSummary: "ドキュメントの要約を生成",
     generateSummaryHint: "既定で有効です。無効にすると要約生成をスキップし、解析、インデックス作成、その他の処理は設定どおり実行されます。",
 

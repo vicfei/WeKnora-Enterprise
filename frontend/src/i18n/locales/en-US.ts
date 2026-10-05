@@ -903,6 +903,27 @@ export default {
     deleteDocument: 'Delete Document',
     moveDocument: 'Move to...',
     moveToKnowledgeBase: 'Move to Knowledge Base',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: 'Version history',
+
+      pendingVersionsTitle: 'Pending versions',
+
+      versionConfirm: 'Confirm',
+
+      versionReject: 'Reject',
+
+      versionConfirmed: 'New version active; previous version superseded',
+
+      versionRejected: 'Pending version rejected and deleted',
+
+      versionRollback: 'Roll back to this version',
+
+      versionRolledBack: 'Rolled back to the selected version',
+
+      versionActionFailed: 'Version operation failed',
+
+      versionNoHistory: 'No versions recorded',
     moveNoTargets: 'No compatible knowledge bases found (same type and embedding model required)',
     moveModeReuseVectors: 'Reuse Vectors (Fast)',
     moveModeReuseVectorsDesc: 'Directly move chunks and vector indices. Use when chunking config is the same.',
@@ -1015,6 +1036,7 @@ export default {
   uploadConfirm: {
     documentSummary: "Document summary",
     documentSummaryDescription: "Choose whether to automatically summarize documents in this import.",
+      asNewVersion: { label: 'Upload as new version', description: 'Auto-joins the previous version by normalized title: invisible to search until confirmed; confirming supersedes the old version (rollback available)' },
     generateSummary: "Generate document summaries",
     generateSummaryHint: "Enabled by default. Disable to skip summaries while parsing, indexing, and other configured steps continue.",
 

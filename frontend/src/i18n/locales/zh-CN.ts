@@ -7022,6 +7022,7 @@ export default {
   uploadConfirm: {
     documentSummary: "文档摘要",
     documentSummaryDescription: "为本次导入的文档选择是否自动生成摘要。",
+      asNewVersion: { label: '作为新版本上传', description: '按标题自动挂接同文档旧版：确认前新版本不进入检索；确认后旧版自动下线（可回滚）' },
     generateSummary: "生成文档摘要",
     generateSummaryHint: "默认开启。关闭后跳过摘要生成，文档解析、索引及其他处理步骤仍按配置执行。",
 
@@ -7297,6 +7298,27 @@ export default {
     deleteDocument: '删除文档',
     moveDocument: '移动到...',
     moveToKnowledgeBase: '移动到知识库',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: '版本历史',
+
+      pendingVersionsTitle: '待确认版本',
+
+      versionConfirm: '确认生效',
+
+      versionReject: '拒绝',
+
+      versionConfirmed: '新版本已生效，旧版已自动下线',
+
+      versionRejected: '已拒绝并删除该待确认版本',
+
+      versionRollback: '回滚到此版',
+
+      versionRolledBack: '已回滚到所选版本',
+
+      versionActionFailed: '版本操作失败',
+
+      versionNoHistory: '暂无版本记录',
     moveNoTargets: '没有兼容的目标知识库（需要相同类型和 Embedding 模型）',
     moveModeReuseVectors: '复用向量（快速）',
     moveModeReuseVectorsDesc: '直接移动分块和向量索引，适用于分片配置相同的情况',

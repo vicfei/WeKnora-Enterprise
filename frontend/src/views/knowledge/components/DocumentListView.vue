@@ -32,6 +32,7 @@ interface KnowledgeItem {
   isMore?: boolean;
   stalled_minutes?: number;
   stall_state?: string;
+  version_group?: string;
 }
 
 const props = defineProps<{
@@ -64,7 +65,7 @@ const emit = defineEmits<{
   (e: 'open', item: KnowledgeItem): void;
   (e: 'toggle-row', id: string, checked: boolean, shiftKey: boolean): void;
   (e: 'toggle-all', checked: boolean): void;
-  (e: 'action', action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage', item: KnowledgeItem): void;
+  (e: 'action', action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions', item: KnowledgeItem): void;
   (e: 'probe-trace', item: KnowledgeItem): void;
   (e: 'tags-changed', payload?: { deletedTagId?: string }): void;
   (e: 'open-folder', path: string): void;
@@ -246,7 +247,7 @@ const onFolderPicked = (item: KnowledgeItem, path: string) => {
   emit('move-to-folder', item, path);
 };
 
-const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage', item: KnowledgeItem) => {
+const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions', item: KnowledgeItem) => {
   // The folder picker opens inside this same popup, so keep the menu open.
   if (action === 'move-folder') {
     folderPickerItemId.value = item.id;
@@ -383,6 +384,7 @@ const handleAction = (action: 'download' | 'edit' | 'reparse' | 'cancel-parse' |
                   @move="handleAction('move', item)"
                   @move-folder="handleAction('move-folder', item)"
                   @batch-manage="handleAction('batch-manage', item)"
+                  @versions="handleAction('versions', item)"
                   @delete="handleAction('delete', item)"
                 />
               </div>

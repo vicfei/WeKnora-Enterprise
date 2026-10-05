@@ -24,6 +24,8 @@ export interface UploadBatch {
   targetFolder: string
   tagIds?: string[]
   processConfig?: KnowledgeProcessOverrides
+  /** doc-versioning MVP：作为新版本上传（pending 待确认）。 */
+  asNewVersion?: boolean
 }
 
 export interface UploadPayload {

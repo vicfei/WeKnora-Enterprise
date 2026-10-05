@@ -38,6 +38,11 @@ export function bridgeLoginEnabled(): boolean {
   return enabled(import.meta.env.VITE_ENABLE_BRIDGE_LOGIN)
 }
 
+/** Doc-versioning UI (as-new-version upload checkbox, pending queue, history). */
+export function docVersionsEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_DOC_VERSIONS)
+}
+
 /**
  * External portal login URL shown on the login page. Empty means the
  * "portal unified login" button stays hidden.
