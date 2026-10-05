@@ -858,15 +858,28 @@ const defaultSummaryMaxTokens = 1024
 type documentSummaryResult struct {
 	Summary string
 	Profile *types.KnowledgeProfile
+	// Metadata is the explicitly-stated document metadata (台账 T12 预填)，
+	// nil when the model returned none.
+	Metadata *documentMetadataOutput
+}
+
+// documentMetadataOutput is the document_metadata object of generate_summary.
+// Empty strings count as absent.
+type documentMetadataOutput struct {
+	DocDate      string `json:"doc_date"`
+	EffectiveDate string `json:"effective_date"`
+	DocNumber    string `json:"doc_number"`
+	VersionLabel string `json:"version_label"`
 }
 
 // documentProfileOutput mirrors the JSON contract of generate_summary.yaml.
 type documentProfileOutput struct {
-	Summary         string   `json:"summary"`
-	Gist            string   `json:"gist"`
-	Topics          []string `json:"topics"`
-	DocType         string   `json:"doc_type"`
-	TypicalQuestion string   `json:"typical_question"`
+	Summary         string                  `json:"summary"`
+	Gist            string                  `json:"gist"`
+	Topics          []string                `json:"topics"`
+	DocType         string                  `json:"doc_type"`
+	TypicalQuestion string                  `json:"typical_question"`
+	DocumentMetadata *documentMetadataOutput `json:"document_metadata"`
 }
 
 // parseDocumentSummaryOutput accepts both the structured JSON reply and a
@@ -886,6 +899,12 @@ func parseDocumentSummaryOutput(content string) *documentSummaryResult {
 		DocType:         out.DocType,
 		TypicalQuestion: out.TypicalQuestion,
 	}).Normalize()
+	var meta *documentMetadataOutput
+	if out.DocumentMetadata != nil &&
+		(out.DocumentMetadata.DocDate != "" || out.DocumentMetadata.EffectiveDate != "" ||
+			out.DocumentMetadata.DocNumber != "" || out.DocumentMetadata.VersionLabel != "") {
+		meta = out.DocumentMetadata
+	}
 	if summary == "" && profile != nil {
 		summary = profile.Gist
 	}
@@ -894,7 +913,67 @@ func parseDocumentSummaryOutput(content string) *documentSummaryResult {
 		// caller's empty-output handling still applies.
 		return &documentSummaryResult{Summary: content}
 	}
-	return &documentSummaryResult{Summary: summary, Profile: profile}
+	return &documentSummaryResult{Summary: summary, Profile: profile, Metadata: meta}
+}
+
+// harvestExtractedMetadata prefills custom_metadata with the explicitly
+// stated document fields (台账 T12: doc_date/effective_date/doc_number/
+// version_label) and stamps metadata_source=extracted. Prefill semantics:
+// existing user-authored keys are never overwritten, and doc_date only
+// fills an empty business_date — the document's OWN stated date, never a
+// system time (设计 §4.1 D1 的"显式置信"条件).
+func harvestExtractedMetadata(knowledge *types.Knowledge, meta *documentMetadataOutput) bool {
+	if meta == nil || knowledge == nil {
+		return false
+	}
+	existing := map[string]interface{}{}
+	if len(knowledge.CustomMetadata) > 0 {
+		_ = json.Unmarshal(knowledge.CustomMetadata, &existing)
+	}
+	added := false
+	set := func(key, value string) {
+		if value == "" {
+			return
+		}
+		if _, taken := existing[key]; taken {
+			return
+		}
+		existing[key] = value
+		added = true
+	}
+	set("doc_date", strings.TrimSpace(meta.DocDate))
+	set("effective_date", strings.TrimSpace(meta.EffectiveDate))
+	set("doc_number", strings.TrimSpace(meta.DocNumber))
+	set("version_label", strings.TrimSpace(meta.VersionLabel))
+	if !added {
+		return false
+	}
+	existing["metadata_source"] = "extracted"
+	merged, err := json.Marshal(existing)
+	if err != nil {
+		return false
+	}
+	knowledge.CustomMetadata = merged
+	if knowledge.BusinessDate == nil {
+		if day := strings.TrimSpace(meta.DocDate); len(day) == 10 {
+			if t, err := time.ParseInLocation("2006-01-02", day, time.Local); err == nil {
+				knowledge.BusinessDate = &t
+			}
+		}
+	}
+	return true
+}
+
+// persistHarvestedMetadata writes the T12 prefill columns alone, so the
+// summary task's column whitelist (and its stale-snapshot protection) is
+// untouched for runs that extracted nothing.
+func (s *knowledgeService) persistHarvestedMetadata(ctx context.Context, knowledge *types.Knowledge) {
+	if err := s.repo.UpdateKnowledgeColumns(ctx, knowledge.ID, map[string]interface{}{
+		"custom_metadata": knowledge.CustomMetadata,
+		"business_date":   knowledge.BusinessDate,
+	}); err != nil {
+		logger.GetLogger(ctx).WithField("error", err).Warnf("persist harvested metadata failed for %s", knowledge.ID)
+	}
 }
 
 // buildSummaryChunkContent is the text embedded for the document-level
@@ -1529,6 +1608,10 @@ func (s *knowledgeService) ProcessSummaryGeneration(ctx context.Context, t *asyn
 	// without hopping to the knowledge-detail page. Capped to keep
 	// span rows compact.
 	summaryOut["summary_preview"] = previewText(summary, 240)
+	if harvestExtractedMetadata(knowledge, summaryResult.Metadata) {
+		summaryOut["metadata_prefilled"] = true
+		s.persistHarvestedMetadata(ctx, knowledge)
+	}
 	if err := s.saveSummaryState(ctx, knowledge); err != nil {
 		logger.Errorf(ctx, "Failed to update knowledge description: %v", err)
 		summaryErr = err
@@ -2607,6 +2690,11 @@ func (s *knowledgeService) RegenerateKnowledgeSummary(
 	knowledge.Profile = summaryResult.Profile
 	knowledge.SummaryStatus = types.SummaryStatusCompleted
 	knowledge.UpdatedAt = time.Now()
+	// 台账 T12：抽取预填仅在收割到内容时定向写两列——saveSummaryState 的
+	// 列白名单刻意不含它们（防陈旧快照覆盖并发用户编辑，见其测试）。
+	if harvestExtractedMetadata(knowledge, summaryResult.Metadata) {
+		s.persistHarvestedMetadata(ctx, knowledge)
+	}
 	if err := s.saveSummaryState(ctx, knowledge); err != nil {
 		return nil, err
 	}

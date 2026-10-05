@@ -873,7 +873,14 @@ func (s *knowledgeService) UpdateKnowledge(ctx context.Context, knowledge *types
 			_ = json.Unmarshal(record.CustomMetadata, &existing)
 		}
 		metadataChanged = !reflect.DeepEqual(existing, custom)
-		record.CustomMetadata = knowledge.CustomMetadata
+		// 台账 T12：用户手工提交的 custom_metadata 标记为 manual——
+		// 抽取预填（extracted）被人工确认或改写。
+		custom["metadata_source"] = "manual"
+		if stamped, err := json.Marshal(custom); err == nil {
+			record.CustomMetadata = stamped
+		} else {
+			record.CustomMetadata = knowledge.CustomMetadata
+		}
 	}
 
 	// Update knowledge record in the repository

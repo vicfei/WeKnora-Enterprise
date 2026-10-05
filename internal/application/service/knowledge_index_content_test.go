@@ -133,7 +133,8 @@ func TestUpdateKnowledgeMetadataDoesNotReindexChunks(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.JSONEq(t, `{"region":"Shanghai"}`, string(repo.knowledge.CustomMetadata))
+	// 台账 T12：手工提交的 custom_metadata 会被标记 metadata_source=manual。
+	require.JSONEq(t, `{"region":"Shanghai","metadata_source":"manual"}`, string(repo.knowledge.CustomMetadata))
 	require.Zero(t, chunkRepo.listCalls)
 	require.Equal(t, types.SummaryStatusPending, repo.summaryStatusUpdate)
 	require.Len(t, taskEnqueuer.tasks, 1)
