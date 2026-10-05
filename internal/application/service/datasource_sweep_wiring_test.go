@@ -6,6 +6,7 @@ import (
 	"errors"
 	"mime/multipart"
 	"testing"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -81,7 +82,7 @@ func (k *sweepFakeKS) DeleteKnowledgeList(ctx context.Context, ids []string) err
 func (k *sweepFakeKS) CreateKnowledgeFromFile(
 	ctx context.Context, kbID string, file *multipart.FileHeader, metadata map[string]string,
 	enableMultimodel *bool, customFileName string, tagIDs []string, channel string,
-	processOverrides *types.KnowledgeProcessOverrides,
+	processOverrides *types.KnowledgeProcessOverrides, _ *time.Time,
 ) (*types.Knowledge, error) {
 	k.events = append(k.events, "create:"+customFileName)
 	if k.createErr != nil {

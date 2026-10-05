@@ -14,6 +14,8 @@ import (
 type KnowledgeService interface {
 	// CreateKnowledgeFromFile creates knowledge from a file.
 	// channel identifies the ingestion channel (e.g. "web", "api", "wechat"); empty defaults to "web".
+	// businessDate is the optional document business time (time-aware
+	// retrieval §4.1); on a require_business_date KB a nil value is rejected.
 	CreateKnowledgeFromFile(
 		ctx context.Context,
 		kbID string,
@@ -24,6 +26,7 @@ type KnowledgeService interface {
 		tagIDs []string,
 		channel string,
 		processOverrides *types.KnowledgeProcessOverrides,
+		businessDate *time.Time,
 	) (*types.Knowledge, error)
 	// CreateKnowledgeFromURL creates knowledge from a URL.
 	// When fileName or fileType is provided (or the URL path has a known file extension),

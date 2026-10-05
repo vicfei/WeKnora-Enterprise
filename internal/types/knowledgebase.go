@@ -109,6 +109,12 @@ type KnowledgeBase struct {
 	QuestionGenerationConfig *QuestionGenerationConfig `yaml:"question_generation_config" json:"question_generation_config" gorm:"column:question_generation_config;type:json"`
 	// AutoTagConfig controls asynchronous association of existing tags after parsing.
 	AutoTagConfig *AutoTagConfig `yaml:"auto_tag_config" json:"auto_tag_config" gorm:"type:json"`
+	// RequireBusinessDate is the KB-level data-governance switch for
+	// time-aware retrieval (设计 §4.1): when true, ingesting knowledge
+	// without a business_date is rejected — the am-qa corpus contract of
+	// "missing date is a data bug, not a silent NULL". Default false keeps
+	// every existing KB's ingest path byte-for-byte unchanged.
+	RequireBusinessDate bool `yaml:"require_business_date" json:"require_business_date" gorm:"column:require_business_date;default:false"` //nolint:lll // one-line struct tag
 	// ProfileConfig controls automatic generation of the knowledge-base
 	// description from per-document profiles (document knowledge bases only).
 	ProfileConfig *KnowledgeBaseProfileConfig `yaml:"profile_config" json:"profile_config" gorm:"column:profile_config;type:json"` //nolint:lll // one-line struct tag
@@ -180,6 +186,10 @@ type KnowledgeBaseConfig struct {
 	// IndexingStrategy controls which indexing pipelines are active.
 	// nil means "no change" when updating (preserves existing strategy).
 	IndexingStrategy *IndexingStrategy `yaml:"indexing_strategy"       json:"indexing_strategy"`
+	// RequireBusinessDate mirrors KnowledgeBase.RequireBusinessDate (the
+	// time-aware governance switch). nil means "no change" when updating;
+	// absent on create means false.
+	RequireBusinessDate *bool `yaml:"require_business_date" json:"require_business_date"`
 }
 
 const (

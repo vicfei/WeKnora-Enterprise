@@ -572,6 +572,11 @@ func (s *knowledgeBaseService) UpdateKnowledgeBase(ctx context.Context,
 			profileWasEnabled = kb.ProfileConfig.IsEnabled()
 			kb.ProfileConfig = config.ProfileConfig
 		}
+		// Time-aware governance switch (设计 §4.1): nil keeps the current
+		// value — a client that predates the field must not reset it.
+		if config.RequireBusinessDate != nil {
+			kb.RequireBusinessDate = *config.RequireBusinessDate
+		}
 		// Update indexing strategy — syncs to ExtractConfig for backward compat
 		if config.IndexingStrategy != nil {
 			if !config.IndexingStrategy.HasAnyIndexing() {

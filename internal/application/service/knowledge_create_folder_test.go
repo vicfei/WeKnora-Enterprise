@@ -31,6 +31,7 @@ func createKnowledgeInFolder(t *testing.T, uploadName, customFileName string) *t
 		nil,
 		"",
 		nil,
+		nil, // businessDate
 	)
 	require.NoError(t, err)
 	require.NotNil(t, repo.createdKnowledge)

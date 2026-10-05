@@ -1358,6 +1358,7 @@ func (s *DataSourceService) ingestItem(ctx context.Context, ds *types.DataSource
 			tagIDs,        // auto-tag from data source
 			channel,
 			nil,
+			nil, // businessDate — a require_business_date KB rejects datasource sync
 		); err != nil {
 			var dupErr *types.DuplicateKnowledgeError
 			if errors.As(err, &dupErr) && dupIsSameNode(dupErr, item) {

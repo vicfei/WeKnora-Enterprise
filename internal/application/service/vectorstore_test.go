@@ -841,6 +841,7 @@ CREATE TABLE IF NOT EXISTS knowledge_bases (
     faq_config TEXT,
     question_generation_config TEXT NULL,
     auto_tag_config TEXT NULL,
+    require_business_date BOOLEAN NOT NULL DEFAULT FALSE,
     is_temporary BOOLEAN NOT NULL DEFAULT 0,
     is_pinned INTEGER NOT NULL DEFAULT 0,
     pinned_at DATETIME NULL,

@@ -375,6 +375,18 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 		logger.Infof(ctx, "Received file metadata: %s", secutils.SanitizeForLog(fmt.Sprintf("%v", metadata)))
 	}
 
+	// business_date (optional, RFC3339): the ingest-side input for the
+	// KB-level require_business_date governance switch (time-aware §4.1).
+	var businessDate *time.Time
+	if raw := c.PostForm("business_date"); raw != "" {
+		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+		if err != nil {
+			c.Error(errors.NewBadRequestError("business_date must be an RFC3339 timestamp"))
+			return
+		}
+		businessDate = &parsed
+	}
+
 	enableMultimodelForm := c.PostForm("enable_multimodel")
 	var enableMultimodel *bool
 	if enableMultimodelForm != "" {
@@ -425,7 +437,7 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 	}
 
 	// Create knowledge entry from the file
-	knowledge, err := h.kgService.CreateKnowledgeFromFile(ctx, kbID, file, metadata, enableMultimodel, customFileName, tagIDs, channel, processOverrides)
+	knowledge, err := h.kgService.CreateKnowledgeFromFile(ctx, kbID, file, metadata, enableMultimodel, customFileName, tagIDs, channel, processOverrides, businessDate)
 	// Check for duplicate knowledge error
 	if err != nil {
 		if h.handleDuplicateKnowledgeError(c, err, knowledge, "file") {
@@ -2155,10 +2167,10 @@ func latestActivity(times ...time.Time) time.Time {
 // Omitted fields are left unchanged; an explicit empty description clears the summary;
 // an explicit null business_date clears the business time (unknown ≠ any date).
 type UpdateKnowledgeRequest struct {
-	Title          *string          `json:"title"`
-	Description    *string          `json:"description"`
-	CustomMetadata json.RawMessage  `json:"custom_metadata"`
-	BusinessDate   json.RawMessage  `json:"business_date"`
+	Title          *string         `json:"title"`
+	Description    *string         `json:"description"`
+	CustomMetadata json.RawMessage `json:"custom_metadata"`
+	BusinessDate   json.RawMessage `json:"business_date"`
 }
 
 // UpdateKnowledge godoc

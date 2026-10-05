@@ -77,7 +77,7 @@ func (s *stubBridgeUserService) SwitchTenant(
 
 type stubBridgeTenantService struct {
 	interfaces.TenantService
-	tenants     map[uint64]*types.Tenant
+	tenants      map[uint64]*types.Tenant
 	nextTenantID int
 }
 
@@ -335,7 +335,6 @@ func TestIdentityBridgeDepartmentUpsertAndConflict(t *testing.T) {
 	_, err = f.svc.UpsertDepartment(ctx, "DEPT-C", &types.UUMDepartmentRequest{TenantID: 404})
 	requireAppErrorCode(t, err, werrors.ErrNotFound)
 }
-
 
 // --- v2 personal-space bootstrap (tenantless bridge) ---------------------
 

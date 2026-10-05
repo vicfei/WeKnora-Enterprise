@@ -1763,7 +1763,8 @@ func (s *Service) HandleMessage(ctx context.Context, msg *IncomingMessage, chann
 		}); err != nil {
 			logger.Warnf(ctx, "[IM] Failed to send empty-message hint reply: %v", err)
 		}
-		return nil	}
+		return nil
+	}
 
 	// 1. Get tenant
 	tenant, err := s.tenantService.GetTenantByID(ctx, tenantID)
@@ -1979,7 +1980,8 @@ func (s *Service) executeQARequest(req *qaRequest) {
 				ctx, req.msg, req.session, req.agent, kbIDs, attachments, imageURLs,
 				progressSender, req.adapter, req.userKey, req.tenant,
 			); err != nil {
-				logger.Errorf(ctx, "[IM] Full-output QA failed: %v", err)			}
+				logger.Errorf(ctx, "[IM] Full-output QA failed: %v", err)
+			}
 			return
 		}
 	} else if streamer, ok := req.adapter.(StreamSender); ok {
@@ -3447,7 +3449,7 @@ func (s *Service) processDownloadedFileToKnowledgeBase(ctx context.Context, chan
 	fh := newInMemoryFileHeader(fileName, file.content)
 
 	// Create knowledge entry via the knowledge service
-	knowledge, err := s.knowledgeService.CreateKnowledgeFromFile(kbCtx, kbID, fh, nil, nil, "", nil, imPlatformToChannel(channel.Platform), nil)
+	knowledge, err := s.knowledgeService.CreateKnowledgeFromFile(kbCtx, kbID, fh, nil, nil, "", nil, imPlatformToChannel(channel.Platform), nil, nil)
 	if err != nil {
 		errMsg := err.Error()
 		// Check for duplicate file
