@@ -398,7 +398,20 @@ export default {
         desc: 'Everything starts here: upload documents, web pages or FAQs and WeKnora parses and indexes them automatically. Click here to open knowledge bases.'
       },
       chat: {
-        title: 'Start an AI chat',
+
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: 'Helpful', down: 'Not helpful',
+
+          downHeader: 'What was wrong with this answer?', submit: 'Submit', cancel: 'Cancel',
+
+          thanks: 'Thanks for the feedback!', failed: 'Failed to submit feedback', commentPlaceholder: 'Add details (optional, ≤500 chars)',
+
+          reason: { wrong_answer: 'Wrong answer', bad_citation: 'Citations do not support it', outdated: 'Outdated', incomplete: 'Incomplete', style: 'Style or wording', other: 'Other' },
+
+        },        title: 'Start an AI chat',
         desc: 'Ask questions grounded in your knowledge base and get accurate answers with cited sources. Click here to start a new chat.'
       },
       agents: {
@@ -924,19 +937,6 @@ export default {
       versionActionFailed: 'Version operation failed',
 
       versionNoHistory: 'No versions recorded',
-        // 台账 T13 反馈闭环
-
-        feedback: {
-
-          up: 'Helpful', down: 'Not helpful',
-
-          downHeader: 'What was wrong with this answer?', submit: 'Submit', cancel: 'Cancel',
-
-          thanks: 'Thanks for the feedback!', failed: 'Failed to submit feedback', commentPlaceholder: 'Add details (optional, ≤500 chars)',
-
-          reason: { wrong_answer: 'Wrong answer', bad_citation: 'Citations do not support it', outdated: 'Outdated', incomplete: 'Incomplete', style: 'Style or wording', other: 'Other' },
-
-        },
     moveNoTargets: 'No compatible knowledge bases found (same type and embedding model required)',
     moveModeReuseVectors: 'Reuse Vectors (Fast)',
     moveModeReuseVectorsDesc: 'Directly move chunks and vector indices. Use when chunking config is the same.',
@@ -4397,7 +4397,18 @@ export default {
     }
   },
   system: {
-    title: 'System Information',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: 'Message feedback', filterRating: 'Filter by rating', filterReason: 'Filter by reason',
+
+          up: 'Up', down: 'Down',
+
+          columns: { time: 'Time', rating: 'Rating', reason: 'Reason', question: 'Question', answer: 'Answer excerpt', comment: 'Comment' },
+
+        },    title: 'System Information',
     sectionDescription: 'View system version information and user account configuration',
     loadingInfo: 'Loading information...',
     retry: 'Retry',

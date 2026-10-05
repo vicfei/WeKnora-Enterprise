@@ -2641,7 +2641,20 @@ export default {
       empty: 'Embedding 모델 없음'
     },
     chat: {
-      title: '대화 모델',
+
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: '도움됨', down: '도움 안 됨',
+
+          downHeader: '이 답변의 문제는 무엇인가요?', submit: '제출', cancel: '취소',
+
+          thanks: '피드백 감사합니다!', failed: '피드백 제출 실패', commentPlaceholder: '추가 설명(선택, 500자 이내)',
+
+          reason: { wrong_answer: '답변이 틀림', bad_citation: '인용이 답변과 불일치', outdated: '정보가 오래됨', incomplete: '불완전한 답변', style: '표현/스타일', other: '기타' },
+
+        },      title: '대화 모델',
       desc: '대화용 대규모 언어 모델 설정',
       empty: '대화 모델 없음'
     },
@@ -3164,7 +3177,18 @@ export default {
     }
   },
   system: {
-    title: '시스템 정보',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: '메시지 피드백', filterRating: '평점으로 필터', filterReason: '이유로 필터',
+
+          up: '찬성', down: '반대',
+
+          columns: { time: '시간', rating: '평점', reason: '이유', question: '질문', answer: '답변 발췌', comment: '의견' },
+
+        },    title: '시스템 정보',
     sectionDescription: '시스템 버전 정보 및 사용자 계정 설정 보기',
     loadingInfo: '정보 로딩 중...',
     retry: '재시도',
@@ -7317,19 +7341,6 @@ export default {
       versionActionFailed: '버전 작업 실패',
 
       versionNoHistory: '버전 기록 없음',
-        // 台账 T13 反馈闭环
-
-        feedback: {
-
-          up: '도움됨', down: '도움 안 됨',
-
-          downHeader: '이 답변의 문제는 무엇인가요?', submit: '제출', cancel: '취소',
-
-          thanks: '피드백 감사합니다!', failed: '피드백 제출 실패', commentPlaceholder: '추가 설명(선택, 500자 이내)',
-
-          reason: { wrong_answer: '답변이 틀림', bad_citation: '인용이 답변과 불일치', outdated: '정보가 오래됨', incomplete: '불완전한 답변', style: '표현/스타일', other: '기타' },
-
-        },
     moveNoTargets: '호환되는 지식베이스가 없습니다 (동일한 유형과 임베딩 모델 필요)',
     moveModeReuseVectors: '벡터 재사용 (빠름)',
     moveModeReuseVectorsDesc: '청크와 벡터 인덱스를 직접 이동합니다. 청킹 설정이 동일할 때 사용합니다.',

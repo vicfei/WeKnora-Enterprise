@@ -398,7 +398,20 @@ export default {
         desc: 'すべてはここから始まります。ドキュメント、Webページ、FAQをアップロードすると、WeKnoraが自動で解析してインデックスを作成します。ここをクリックしてナレッジベースを開いてください。'
       },
       chat: {
-        title: 'AIチャットを開始',
+
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: '役に立った', down: '役に立たなかった',
+
+          downHeader: 'この回答の問題は？', submit: '送信', cancel: 'キャンセル',
+
+          thanks: 'フィードバックありがとうございます', failed: '送信に失敗しました', commentPlaceholder: '補足説明（任意・500字以内）',
+
+          reason: { wrong_answer: '回答が誤り', bad_citation: '引用が回答と不一致', outdated: '情報が古い', incomplete: '回答が不完全', style: '表現・スタイル', other: 'その他' },
+
+        },        title: 'AIチャットを開始',
         desc: 'ナレッジベースに基づいて質問すると、出典付きの正確な回答が得られます。ここをクリックして新しいチャットを開始してください。'
       },
       agents: {
@@ -923,19 +936,6 @@ export default {
       versionActionFailed: 'バージョン操作に失敗しました',
 
       versionNoHistory: 'バージョン記録なし',
-        // 台账 T13 反馈闭环
-
-        feedback: {
-
-          up: '役に立った', down: '役に立たなかった',
-
-          downHeader: 'この回答の問題は？', submit: '送信', cancel: 'キャンセル',
-
-          thanks: 'フィードバックありがとうございます', failed: '送信に失敗しました', commentPlaceholder: '補足説明（任意・500字以内）',
-
-          reason: { wrong_answer: '回答が誤り', bad_citation: '引用が回答と不一致', outdated: '情報が古い', incomplete: '回答が不完全', style: '表現・スタイル', other: 'その他' },
-
-        },
     moveNoTargets: '移動可能なナレッジベースがありません（同じタイプかつ同じ埋め込みモデルである必要があります）',
     moveModeReuseVectors: 'ベクトルを再利用（高速）',
     moveModeReuseVectorsDesc: 'チャンクとベクトルインデックスをそのまま移動します。チャンク分割設定が同じ場合に使用してください。',
@@ -4354,7 +4354,18 @@ export default {
     }
   },
   system: {
-    title: 'システム情報',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: 'メッセージフィードバック', filterRating: '評価で絞り込み', filterReason: '理由で絞り込み',
+
+          up: '高評価', down: '低評価',
+
+          columns: { time: '時間', rating: '評価', reason: '理由', question: '質問', answer: '回答抜粋', comment: 'コメント' },
+
+        },    title: 'システム情報',
     sectionDescription: 'システムのバージョン情報とユーザアカウント設定を表示します',
     loadingInfo: '情報を読み込み中...',
     retry: '再試行',
