@@ -923,6 +923,19 @@ export default {
       versionActionFailed: 'バージョン操作に失敗しました',
 
       versionNoHistory: 'バージョン記録なし',
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: '役に立った', down: '役に立たなかった',
+
+          downHeader: 'この回答の問題は？', submit: '送信', cancel: 'キャンセル',
+
+          thanks: 'フィードバックありがとうございます', failed: '送信に失敗しました', commentPlaceholder: '補足説明（任意・500字以内）',
+
+          reason: { wrong_answer: '回答が誤り', bad_citation: '引用が回答と不一致', outdated: '情報が古い', incomplete: '回答が不完全', style: '表現・スタイル', other: 'その他' },
+
+        },
     moveNoTargets: '移動可能なナレッジベースがありません（同じタイプかつ同じ埋め込みモデルである必要があります）',
     moveModeReuseVectors: 'ベクトルを再利用（高速）',
     moveModeReuseVectorsDesc: 'チャンクとベクトルインデックスをそのまま移動します。チャンク分割設定が同じ場合に使用してください。',

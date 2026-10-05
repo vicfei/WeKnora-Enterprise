@@ -7319,6 +7319,19 @@ export default {
       versionActionFailed: '版本操作失败',
 
       versionNoHistory: '暂无版本记录',
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: '赞', down: '踩',
+
+          downHeader: '这条回答哪里有问题？', submit: '提交反馈', cancel: '取消',
+
+          thanks: '感谢反馈！', failed: '反馈提交失败', commentPlaceholder: '补充说明（可选）：500 字内',
+
+          reason: { wrong_answer: '答案错误', bad_citation: '引用与答案不符', outdated: '信息过时', incomplete: '回答不完整', style: '表述/风格问题', other: '其他' },
+
+        },
     moveNoTargets: '没有兼容的目标知识库（需要相同类型和 Embedding 模型）',
     moveModeReuseVectors: '复用向量（快速）',
     moveModeReuseVectorsDesc: '直接移动分块和向量索引，适用于分片配置相同的情况',

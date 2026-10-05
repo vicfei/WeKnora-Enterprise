@@ -878,3 +878,28 @@ export function rejectKnowledgeVersion(knowledgeId: string) {
 export function rollbackKnowledgeVersion(knowledgeId: string) {
   return post<any>(`/api/v1/knowledge/${knowledgeId}/version-rollback`, {})
 }
+
+// ---------- 消息反馈（台账 T13 反馈闭环） ----------
+
+/** 提交点赞/点踩（同用户同消息后提交覆盖前值）。 */
+export function submitMessageFeedback(payload: {
+  message_id: string
+  session_id: string
+  rating: 'up' | 'down'
+  reason_code?: string
+  comment?: string
+}) {
+  return post<any>('/api/v1/feedback', payload)
+}
+
+/** 反馈管理列表（分页+过滤）。 */
+export function listMessageFeedback(params: {
+  rating?: string
+  reason_code?: string
+  page?: number
+  page_size?: number
+}) {
+  return get<any>(`/api/v1/feedback?${Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')}`)
+}

@@ -79,6 +79,19 @@
                     :title="$t('agent.copy')">
                     <t-icon name="copy" />
                 </t-button>
+                <!-- 台账 T13 反馈闭环（第七 flag 门控）：点赞直接落库；点踩弹理由框 -->
+                <template v-if="feedbackOn">
+                    <t-button size="small" variant="outline" shape="round"
+                        :class="{ 'is-rated': myRating === 'up' }"
+                        :title="$t('chat.feedback.up')" @click.stop="submitFeedback('up')">
+                        <t-icon name="thumb-up" />
+                    </t-button>
+                    <t-button size="small" variant="outline" shape="round"
+                        :class="{ 'is-rated': myRating === 'down' }"
+                        :title="$t('chat.feedback.down')" @click.stop="feedbackDialogVisible = true">
+                        <t-icon name="thumb-down" />
+                    </t-button>
+                </template>
                 <t-button size="small" variant="outline" shape="round" @click.stop="handleAddToKnowledge"
                     :title="$t('agent.addToKnowledgeBase')">
                     <t-icon name="bookmark-add" />
@@ -137,6 +150,21 @@
             :preview-index="artifactPreviewIndex"
         />
     </div>
+    <!-- 台账 T13：点踩理由对话框 -->
+    <t-dialog v-model:visible="feedbackDialogVisible" :header="t('chat.feedback.downHeader')"
+        :confirm-btn="{ content: t('chat.feedback.submit'), theme: 'primary', loading: feedbackSending, disabled: !downReason }"
+        :cancel-btn="{ content: t('chat.feedback.cancel') }" width="420px" @confirm="submitFeedback('down')">
+        <t-radio-group v-model="downReason" variant="default-radio" class="feedback-reasons">
+            <t-radio value="wrong_answer">{{ t('chat.feedback.reason.wrong_answer') }}</t-radio>
+            <t-radio value="bad_citation">{{ t('chat.feedback.reason.bad_citation') }}</t-radio>
+            <t-radio value="outdated">{{ t('chat.feedback.reason.outdated') }}</t-radio>
+            <t-radio value="incomplete">{{ t('chat.feedback.reason.incomplete') }}</t-radio>
+            <t-radio value="style">{{ t('chat.feedback.reason.style') }}</t-radio>
+            <t-radio value="other">{{ t('chat.feedback.reason.other') }}</t-radio>
+        </t-radio-group>
+        <t-textarea v-model="downComment" :placeholder="t('chat.feedback.commentPlaceholder')"
+            :maxlength="500" :autosize="{ minRows: 2, maxRows: 4 }" style="margin-top: 12px" />
+    </t-dialog>
 </template>
 <script setup>
 import { onMounted, onBeforeUnmount, watch, computed, ref, reactive, nextTick, onUpdated } from 'vue';
@@ -169,6 +197,8 @@ import {
     formatManualTitle,
 } from '@/utils/chatMessageShared';
 import { copyWithToast } from '@/utils/clipboard';
+import { submitMessageFeedback } from '@/api/knowledge-base';
+import { feedbackEnabled } from '@/features/common/flags';
 import {
     createChatMarkdownRenderer,
     renderChatMarkdown,
@@ -298,6 +328,38 @@ const artifactCount = computed(() => liveArtifacts.value.length);
 const { artifactArrived, onArtifactArriveEnd } = useArtifactArriveMotion(artifactCount);
 const artifactsCollecting = computed(() => isCollectingSkillArtifacts(props.session));
 const artifactButtonCollecting = computed(() => artifactsCollecting.value && !hasArtifacts.value);
+// 台账 T13 反馈闭环状态
+const feedbackOn = feedbackEnabled();
+const feedbackDialogVisible = ref(false);
+const feedbackSending = ref(false);
+const myRating = ref<string>('');
+const downReason = ref('');
+const downComment = ref('');
+
+async function submitFeedback(rating) {
+    const mid = messageIdForArtifacts.value;
+    if (!mid || feedbackSending.value) return;
+    feedbackSending.value = true;
+    try {
+        await submitMessageFeedback({
+            message_id: mid,
+            session_id: String(props.sessionId || ''),
+            rating,
+            reason_code: rating === 'down' ? downReason.value : '',
+            comment: rating === 'down' ? downComment.value : '',
+        });
+        myRating.value = rating;
+        feedbackDialogVisible.value = false;
+        downReason.value = '';
+        downComment.value = '';
+        MessagePlugin.success(t('chat.feedback.thanks'));
+    } catch (e) {
+        MessagePlugin.error(e?.response?.data?.error?.message || t('chat.feedback.failed'));
+    } finally {
+        feedbackSending.value = false;
+    }
+}
+
 const messageIdForArtifacts = computed(() => {
     // Steered segments have synthetic row IDs; artifact APIs address the
     // persisted assistant. Keep request_id as the in-flight fallback.
@@ -643,4 +705,8 @@ onBeforeUnmount(() => {
     background: conic-gradient(from 90deg at 50% 50%, #fff 0deg, #676767 360deg) !important;
 
 }
+</style>
+<style scoped>
+.answer-toolbar .t-button.is-rated { color: var(--td-brand-color); border-color: var(--td-brand-color); }
+.feedback-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 </style>

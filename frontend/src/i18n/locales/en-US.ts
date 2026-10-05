@@ -924,6 +924,19 @@ export default {
       versionActionFailed: 'Version operation failed',
 
       versionNoHistory: 'No versions recorded',
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: 'Helpful', down: 'Not helpful',
+
+          downHeader: 'What was wrong with this answer?', submit: 'Submit', cancel: 'Cancel',
+
+          thanks: 'Thanks for the feedback!', failed: 'Failed to submit feedback', commentPlaceholder: 'Add details (optional, ≤500 chars)',
+
+          reason: { wrong_answer: 'Wrong answer', bad_citation: 'Citations do not support it', outdated: 'Outdated', incomplete: 'Incomplete', style: 'Style or wording', other: 'Other' },
+
+        },
     moveNoTargets: 'No compatible knowledge bases found (same type and embedding model required)',
     moveModeReuseVectors: 'Reuse Vectors (Fast)',
     moveModeReuseVectorsDesc: 'Directly move chunks and vector indices. Use when chunking config is the same.',
