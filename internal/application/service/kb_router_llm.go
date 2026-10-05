@@ -30,9 +30,11 @@ const (
 	kbRouterLLMModelEnv       = "KB_ROUTER_LLM_MODEL_ID"
 	kbRouterLLMCatalogEnv     = "KB_ROUTER_LLM_MAX_CATALOG"
 	kbRouterLLMDefaultCatalog = 40
-	kbRouterLLMMaxTokens      = 400
-	kbRouterLLMTimeout        = 15 * time.Second
-	kbRouterLLMMaxSelection   = 5
+	// 推理型模型（deepseek-v4 等）先思考后作答：预算只按"答案体量"给会在
+	// 思考中途截断、content 为空（实测 400 tokens 全被思考吃掉）。
+	kbRouterLLMMaxTokens    = 1024
+	kbRouterLLMTimeout      = 15 * time.Second
+	kbRouterLLMMaxSelection = 5
 	// 字典短路阈值：查询分词被库文本覆盖 ≥0.6 且领先第二名 1.5 倍，才认定
 	// 单库命中足够强，跳过 LLM。其余情况字典只用于排序目录。
 	kbRouterDictStrongCoverage = 0.6
@@ -202,7 +204,12 @@ func (s *sessionService) llmRouteKnowledgeBases(
 
 	indexes := parseKBRouterSelection(resp.Content)
 	if indexes == nil {
-		logger.Warnf(ctx, "kb_router: llm output unparsable (%.80s), falling back to centroid", resp.Content)
+		// 思考型模型把 JSON 写进推理通道的情况：content 空/不成形但思考里有。
+		indexes = parseKBRouterSelection(resp.ReasoningContent)
+	}
+	if indexes == nil {
+		logger.Warnf(ctx, "kb_router: llm output unparsable (content %.80s / reasoning %.80s), falling back to centroid",
+			resp.Content, resp.ReasoningContent)
 		return nil, nil
 	}
 	info := &KBRoutingInfo{Method: "llm"}
