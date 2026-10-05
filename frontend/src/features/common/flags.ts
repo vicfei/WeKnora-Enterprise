@@ -50,3 +50,8 @@ export function docVersionsEnabled(): boolean {
 export function portalLoginUrl(): string {
   return (import.meta.env.VITE_PORTAL_LOGIN_URL || '').trim()
 }
+
+/** Chat thumbs feedback (answer rating buttons + reason popover, 台账 T13). */
+export function feedbackEnabled(): boolean {
+  return enabled(import.meta.env.VITE_ENABLE_FEEDBACK)
+}
