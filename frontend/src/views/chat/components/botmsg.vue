@@ -332,7 +332,7 @@ const artifactButtonCollecting = computed(() => artifactsCollecting.value && !ha
 const feedbackOn = feedbackEnabled();
 const feedbackDialogVisible = ref(false);
 const feedbackSending = ref(false);
-const myRating = ref<string>('');
+const myRating = ref('');
 const downReason = ref('');
 const downComment = ref('');
 
