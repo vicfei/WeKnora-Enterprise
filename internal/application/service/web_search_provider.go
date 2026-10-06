@@ -139,7 +139,10 @@ func isValidProviderType(provider types.WebSearchProviderType) bool {
 		types.WebSearchProviderTypeKeenable,
 		types.WebSearchProviderTypeMetaso,
 		types.WebSearchProviderTypeZhipu,
-		types.WebSearchProviderTypeExa:
+		types.WebSearchProviderTypeExa,
+		// v3.1 backport
+		types.WebSearchProviderTypeBocha,
+		types.WebSearchProviderTypeDoubao:
 		return true
 	default:
 		return false
@@ -178,6 +181,15 @@ func validateProviderParameters(provider types.WebSearchProviderType, params typ
 		}
 	case types.WebSearchProviderTypeZhipu:
 		if err := infra_web_search.ValidateZhipuParameters(params); err != nil {
+			return err
+		}
+	// v3.1 backport
+	case types.WebSearchProviderTypeBocha:
+		if err := infra_web_search.ValidateBochaParameters(params); err != nil {
+			return err
+		}
+	case types.WebSearchProviderTypeDoubao:
+		if err := infra_web_search.ValidateDoubaoParameters(params); err != nil {
 			return err
 		}
 	case types.WebSearchProviderTypeMetaso:

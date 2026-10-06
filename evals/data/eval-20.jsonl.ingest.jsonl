@@ -1,0 +1,38 @@
+{"qid": "hp-0000", "kb_id": "0be50d39-c405-4ebd-80e3-708e1ba9a329", "indexed": false, "statuses": {"?": 10}, "secs": 600.9}
+{"qid": "hp-0001", "kb_id": "c7d4de5f-122f-4224-afe7-20454c8e8032", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0002", "kb_id": "9bbe2382-63d4-4881-8ce4-7bf482c48086", "indexed": true, "statuses": ["completed/enabled"], "secs": 18.1}
+{"qid": "hp-0003", "kb_id": "270b940e-86b3-41a9-b3c1-9b15860aab28", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0004", "kb_id": "664926a3-01e4-4dff-965c-46bed31bafd9", "indexed": true, "statuses": ["completed/enabled"], "secs": 15.1}
+{"qid": "hp-0005", "kb_id": "93108615-079e-4809-852e-f83c8a9aad2d", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0006", "kb_id": "aa89922a-3b1b-4607-9d3a-5df15121be82", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0007", "kb_id": "2abc86ac-7e2e-4bef-bf87-c2acf155e350", "indexed": true, "statuses": ["completed/enabled"], "secs": 12.1}
+{"qid": "hp-0008", "kb_id": "0888d64f-afcb-4e30-a714-78bd8e05fc80", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0009", "kb_id": "19f0a5fe-c371-4d04-b28b-00a3ad6496b6", "indexed": true, "statuses": ["completed/enabled"], "secs": 18.1}
+{"qid": "hp-0010", "kb_id": "a776748d-82d7-461e-8c84-03d26ede535b", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0011", "kb_id": "9e733e35-9ed3-4806-96d4-8fc88fae5a81", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0012", "kb_id": "351d9682-815b-4b4e-a074-39498a3a4e2d", "indexed": true, "statuses": ["completed/enabled"], "secs": 6.1}
+{"qid": "hp-0013", "kb_id": "2868e23d-b7cc-4640-9b90-9bd21a8195a8", "indexed": true, "statuses": ["completed/enabled"], "secs": 6.1}
+{"qid": "hp-0014", "kb_id": "ddaf9b69-bbad-4459-a619-bf61194a6231", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0015", "kb_id": "afd1ac1b-383b-4287-a584-e2cdd34f582b", "indexed": true, "statuses": ["completed/enabled"], "secs": 75.2}
+{"qid": "hp-0016", "kb_id": "07843b16-f1f4-4cee-a4a2-e9549cee1a0e", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0017", "kb_id": "15f958aa-372b-4238-a2eb-0f9fcc3ffe82", "indexed": true, "statuses": ["completed/enabled"], "secs": 6.1}
+{"qid": "hp-0018", "kb_id": "f728f8c2-19ed-40b9-b78c-96da6cd1b7e3", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0019", "kb_id": "231c3957-ad21-46e3-8ce7-22d06d0fa98d", "indexed": true, "statuses": ["completed/enabled"], "secs": 9.1}
+{"qid": "hp-0002", "kb_id": "1fb9d52c-a06a-4d5b-9553-5731580f1921", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0003", "kb_id": "a65a9bda-7186-4779-8a01-3b82b87c5142", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0004", "kb_id": "b506d2e0-ad13-4369-9999-df0a5ac77404", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0005", "kb_id": "e76f7368-7170-43f9-b2fd-9fb314dc699e", "indexed": false, "statuses": {"?": 10}, "secs": 600.9}
+{"qid": "hp-0006", "kb_id": "b004642e-9c94-4983-ae74-4088b0b494cc", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0007", "kb_id": "c48d1acb-4bb2-42b9-a215-fb9bf4e39636", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0008", "kb_id": "191a65a9-29f8-48a7-8c30-050ab2a93130", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0009", "kb_id": "bc260684-01f7-49d4-b363-7a1cd4cf7642", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0010", "kb_id": "29e976b8-0c93-455b-949b-dc99993b00dc", "indexed": false, "statuses": {"?": 10}, "secs": 600.9}
+{"qid": "hp-0011", "kb_id": "c3cd1a98-61ff-48b9-9f89-d48ad7a0ae7e", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0012", "kb_id": "20caf959-9085-4f8d-af9a-f80c70aeed6a", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0013", "kb_id": "9d77a929-59db-4b9e-bd4b-ffb2ff07bad3", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0014", "kb_id": "efd48276-68dc-47e1-a711-c3f0670a39e4", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0015", "kb_id": "2803afaf-eabc-450f-86c2-40f969b57039", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0016", "kb_id": "f795d442-5704-4f7b-8008-fea25c880e03", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0017", "kb_id": "960f81f4-b0dc-4a98-8e9f-590846e94846", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0018", "kb_id": "7d881607-cb7d-4746-b2ab-46da31c02479", "indexed": false, "statuses": {"?": 10}, "secs": 601.0}
+{"qid": "hp-0019", "kb_id": "0757d88a-d56a-4a1a-9abe-b287e09b9fd7", "indexed": false, "statuses": {"?": 10}, "secs": 601.1}

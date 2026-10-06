@@ -1638,6 +1638,9 @@ func registerWebSearchProviders(registry *infra_web_search.Registry) {
 	registry.Register("zhipu", infra_web_search.NewZhipuProvider)
 	registry.Register("exa", infra_web_search.NewExaProvider)
 	registry.Register("metaso", infra_web_search.NewMetasoProvider)
+	// v3.1 backport：公司搜索引擎应急接入（源自 v4 de59faad）
+	registry.Register("bocha", infra_web_search.NewBochaProvider)
+	registry.Register("doubao", infra_web_search.NewDoubaoProvider)
 }
 
 // registerIMService registers adapter factories, loads enabled channels, and

@@ -25,6 +25,9 @@ const (
 	WebSearchProviderTypeKeenable   WebSearchProviderType = "keenable"
 	WebSearchProviderTypeZhipu      WebSearchProviderType = "zhipu"
 	WebSearchProviderTypeExa        WebSearchProviderType = "exa"
+	// v3.1 backport（2026-10-06，源自 v4 de59faad，公司搜索引擎应急接入）
+	WebSearchProviderTypeBocha      WebSearchProviderType = "bocha"
+	WebSearchProviderTypeDoubao     WebSearchProviderType = "doubao"
 	WebSearchProviderTypeMetaso     WebSearchProviderType = "metaso"
 )
 
@@ -321,6 +324,77 @@ func GetWebSearchProviderTypes() []WebSearchProviderTypeInfo {
 						{Label: "Enabled", Value: "true"},
 						{Label: "Disabled", Value: "false"},
 					},
+				},
+			},
+		},
+		{
+			ID:             "bocha",
+			Name:           "Bocha AI Search",
+			RequiresAPIKey: true,
+			SupportsProxy:  true,
+			Description:    "Bocha AI Web Search API (requires API key)",
+			DocsURL:        "https://open.bochaai.com/",
+			ConfigFields: []WebSearchProviderConfigField{
+				{
+					Key:         "freshness",
+					Label:       "Freshness",
+					Type:        "select",
+					Required:    true,
+					Default:     "noLimit",
+					Description: "Time range filter applied by Bocha; noLimit is recommended.",
+					Options: []WebSearchProviderConfigFieldOption{
+						{Label: "No limit", Value: "noLimit"},
+						{Label: "Past day", Value: "oneDay"},
+						{Label: "Past week", Value: "oneWeek"},
+						{Label: "Past month", Value: "oneMonth"},
+						{Label: "Past year", Value: "oneYear"},
+					},
+				},
+				{
+					Key:         "summary",
+					Label:       "Summary",
+					Type:        "select",
+					Default:     "true",
+					Description: "Request long text summaries and prefer them as result snippets.",
+					Options: []WebSearchProviderConfigFieldOption{
+						{Label: "Enabled", Value: "true"},
+						{Label: "Disabled", Value: "false"},
+					},
+				},
+			},
+		},
+		{
+			ID:             "doubao",
+			Name:           "Volcano Doubao Search",
+			RequiresAPIKey: true,
+			SupportsProxy:  true,
+			Description:    "Volcano Doubao Search Custom Edition (豆包搜索) — server-side date-range filtering with full markdown content",
+			DocsURL:        "https://www.volcengine.com/product/doubao_search",
+			ConfigFields: []WebSearchProviderConfigField{
+				{
+					Key:         "time_range",
+					Label:       "Time range",
+					Type:        "text",
+					Default:     "",
+					Description: "Server-side date-range filter as YYYY-MM-DD..YYYY-MM-DD; leave empty for no filter.",
+				},
+				{
+					Key:         "need_content",
+					Label:       "Page content",
+					Type:        "select",
+					Default:     "true",
+					Description: "Request full page content in markdown into the unified Content field.",
+					Options: []WebSearchProviderConfigFieldOption{
+						{Label: "Enabled", Value: "true"},
+						{Label: "Disabled", Value: "false"},
+					},
+				},
+				{
+					Key:         "endpoint",
+					Label:       "API endpoint",
+					Type:        "text",
+					Default:     "",
+					Description: "Override the default public endpoint. Use this for the intranet DMZ gateway form; an empty API key is allowed when an endpoint override is set (gateway without auth).",
 				},
 			},
 		},
