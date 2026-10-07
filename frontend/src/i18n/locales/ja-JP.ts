@@ -650,7 +650,8 @@ export default {
     workspace: 'ワークスペース',
     spaces: '共有された項目',
     favorites: 'お気に入り',
-    recents: '最近'
+    recents: '最近',
+    portal: 'ポータル',
   },
   resourceOrigin: {
     mine: '自分',
@@ -669,6 +670,10 @@ export default {
     documentCount: '{count} 件のドキュメント',
     filters: '絞り込み',
     clearFilters: '絞り込みをクリア',
+    kbRoutingToggle: '自動KB選択（実験）：未選択時に最も関連性の高いナレッジベースを自動マッチ',
+    kbRoutingAgentConflict: '自動KB選択は「クイックQ&A」のみ有効。スマート推論/エージェントモードではエージェント設定がKB範囲を決定します',
+    weightedRankingToggle: '高精度ランキング（実験）：回答前にリランクモデルで検索結果を再排序 — 引用はより正確、やや遅い',
+    weightedRankingAgentConflict: '高精度ランキングは「クイックQ&A」のみ有効。エージェントモードではエージェントの検索設定に従います',
 
     title: 'ナレッジベース',
     fileContent: 'ファイル内容',
@@ -3020,6 +3025,13 @@ export default {
     subtitle: 'ナレッジベースを管理・整理します。ドキュメント型とFAQ型のナレッジベースに対応しています',
     sharedToOrgs: '{count}件の共有スペースに共有中',
     uninitializedBanner: '一部のナレッジベースが初期化されていません。ドキュメントを追加する前に、設定でモデル情報を設定してください。',
+    portalGroupAll: '会社共有',
+    portalGroupPersonal: '個人スペース',
+    portalGroupTeam: 'チームスペース',
+    portalGroupShared: '共有されている',
+    portalGroupCount: '{count} 件のナレッジベース',
+    portalRoleBadge: '自分の役割：{role}',
+    portalTenantBadge: 'テナント横断エントリ（テナント {id}）',
     empty: {
       title: 'ナレッジベースがまだありません',
       description: '右上の「ナレッジベースを作成」をクリックして、最初のナレッジベースを追加してください。',
@@ -3211,6 +3223,39 @@ export default {
     defaultLocaleBrowser: 'ブラウザ／ホストのデフォルト'
   },
   knowledgeEditor: {
+    // 二开台账 T7：层级标签树
+    tagTree: {
+      title: '階層タグツリー',
+      description: 'タグをツリー構造で整理：葉ノードはネイティブタグに紐付き検索プリフィルタに使われ、グループノードはディレクトリ構造を提供します。',
+      empty: '階層タグはまだありません',
+      create: '新規ノード',
+      createSuccess: 'ノードを作成しました',
+      rename: '名前を変更',
+      renameSuccess: 'ノードの名前を変更しました',
+      delete: '削除',
+      deleteConfirm: '「{name}」とそのサブツリー全体を削除しますか？',
+      deleted: '{nodes} 件のノードと {tags} 件のタグを削除し、{relations} 件のドキュメント関連を解除しました',
+      deleteWarning: 'この操作は元に戻せません：サブツリー内の葉のネイティブタグ、ドキュメントのタグ関連、FAQチャンクのタグが段階的にクリアされます。ドキュメント自体は保持されます（分類解除のみ）。',
+      move: '移動先…',
+      moveTitle: 'ノードを移動：{name}',
+      moveTarget: '移動先の親',
+      moveSuccess: 'ノードを移動しました',
+      demoteHint: '移動先の親は現在葉ノードです：保存後は自動的にグループに降格し、そのネイティブタグとドキュメントとの関連が解除されます。',
+      nameLabel: 'ノード名',
+      namePlaceholder: 'ノード名を入力してください',
+      nameRequired: 'ノード名を入力してください',
+      parentLabel: '親ノード',
+      rootLevel: '（ルート階層）',
+      groupBadge: 'グループ',
+      leafBadge: '葉',
+      stats: '{nodes} 件のノード · {leaves} 件の葉',
+      refresh: '更新',
+      sortUp: '上へ移動',
+      sortDown: '下へ移動',
+      toggleExpand: '展開/折りたたみ',
+      loadFailed: 'タグツリーの読み込みに失敗しました',
+      operationFailed: '操作に失敗しました。再試行してください',
+    },
     activity: {
       title: 'アクティビティ',
       description: 'このナレッジベースの重要な変更履歴と、バックグラウンドタスクへの導線を表示します。保持期間は監査ログのポリシーに従います。',
@@ -3357,6 +3402,7 @@ export default {
       vectorStore: 'ベクトルストア',
       chunking: 'チャンク設定',
       storage: 'ストレージエンジン',
+      tagTree: '階層タグ',
       advanced: '詳細設定',
       faq: 'FAQ設定',
       graph: 'ナレッジグラフ',
@@ -5302,6 +5348,7 @@ export default {
     phaseUploadFailed: 'アップロード失敗',
     phaseParseFailed: '解析失敗',
     phaseDuplicate: '同じファイルが既にあります',
+    phaseDuplicateAsNewVersion: '既存の文書と内容が完全に同一のため新バージョンは作成されませんでした。同名の変更後ファイルをアップロードしてください',
     phaseCancelled: 'キャンセル済み',
     phaseDeleted: '削除済み',
     cancel: 'キャンセル',
@@ -6131,6 +6178,7 @@ export default {
     readDocument: 'ドキュメントを読む',
     listDocuments: 'ドキュメント一覧',
     knowledgeSearch: 'ナレッジベース検索',
+    kbRouter: 'ナレッジベースを自動選択',
     grepChunks: 'テキストパターン検索',
     getChunkDetail: 'チャンク詳細の取得',
     listKnowledgeChunks: 'ナレッジチャンクの一覧',
@@ -7838,5 +7886,25 @@ export default {
         'false': { label: 'いいえ', description: 'いいえ —— 写真・イラスト・アイコン・装飾' }
       }
     }
+  },
+
+  // Second-development feature: UUM bridge login (external portal SSO)
+  bridgeLogin: {
+    portalButton: 'ポータルでシングルサインオン',
+    callbackFailed: 'ポータルログインに失敗しました。ポータルから再度お入りください'
+  },
+
+  // 二开台账 T7：上传/列表页的标签树筛选器
+  tagTreePicker: {
+    title: 'タグツリーフィルタ',
+    trigger: 'タグツリーで絞り込み',
+    browseSection: '階層で閲覧',
+    pickForUpload: 'タグツリーから選択',
+    empty: 'このナレッジベースには階層タグがまだありません',
+    noKnowledgeBases: '利用可能なドキュメント型ナレッジベースがありません',
+    noLeaves: 'タグなし',
+    leafCount: '{count} 件のタグ',
+    selectedCount: '{count} 件選択中',
+    loadFailed: 'タグツリーの読み込みに失敗しました'
   }
 }

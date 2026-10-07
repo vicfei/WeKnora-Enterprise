@@ -2641,20 +2641,7 @@ export default {
       empty: 'Embedding 모델 없음'
     },
     chat: {
-
-        // 台账 T13 反馈闭环
-
-        feedback: {
-
-          up: '도움됨', down: '도움 안 됨',
-
-          downHeader: '이 답변의 문제는 무엇인가요?', submit: '제출', cancel: '취소',
-
-          thanks: '피드백 감사합니다!', failed: '피드백 제출 실패', commentPlaceholder: '추가 설명(선택, 500자 이내)',
-
-          reason: { wrong_answer: '답변이 틀림', bad_citation: '인용이 답변과 불일치', outdated: '정보가 오래됨', incomplete: '불완전한 답변', style: '표현/스타일', other: '기타' },
-
-        },      title: '대화 모델',
+      title: '대화 모델',
       desc: '대화용 대규모 언어 모델 설정',
       empty: '대화 모델 없음'
     },
@@ -2830,6 +2817,7 @@ export default {
     phaseUploadFailed: '업로드 실패',
     phaseParseFailed: '파싱 실패',
     phaseDuplicate: '동일한 파일이 이미 있습니다',
+    phaseDuplicateAsNewVersion: '기존 문서와 내용이 완전히 같아 새 버전이 생성되지 않았습니다. 수정된 같은 이름의 파일을 업로드하세요',
     phaseCancelled: '취소됨',
     phaseDeleted: '삭제됨',
     cancel: '취소',
@@ -7741,6 +7729,13 @@ export default {
         desc: '지식 베이스, 프롬프트, 도구를 결합해 재사용 가능한 에이전트로 전문성을 축적하세요.'
       },
       chat: {
+        // 台账 T13 反馈闭环
+        feedback: {
+          up: '도움됨', down: '도움 안 됨',
+          downHeader: '이 답변의 문제는 무엇인가요?', submit: '제출', cancel: '취소',
+          thanks: '피드백 감사합니다!', failed: '피드백 제출에 실패했습니다', commentPlaceholder: '추가 설명(선택, 500자 이내)',
+          reason: { wrong_answer: '답변이 틀림', bad_citation: '인용이 답변과 맞지 않음', outdated: '정보가 오래됨', incomplete: '답변이 불완전함', style: '표현/스타일 문제', other: '기타' },
+        },
         title: 'AI 대화 시작하기',
         desc: '지식 베이스 내용을 기반으로 질문하고 출처가 포함된 정확한 답변을 받아보세요. 여기를 클릭해 새 대화를 시작하세요.'
       },

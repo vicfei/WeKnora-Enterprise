@@ -5345,6 +5345,7 @@ export default {
     phaseUploadFailed: 'Upload failed',
     phaseParseFailed: 'Parsing failed',
     phaseDuplicate: 'Same file already in this knowledge base',
+    phaseDuplicateAsNewVersion: 'Byte-identical to an existing document, so no new version was created; upload a changed file under the same name',
     phaseCancelled: 'Cancelled',
     phaseDeleted: 'Deleted',
     cancel: 'Cancel',

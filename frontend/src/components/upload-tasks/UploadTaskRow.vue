@@ -69,7 +69,9 @@ const meta = computed(() => {
       return reason.value ? `${label} · ${reason.value}` : label
     }
     case 'duplicate':
-      return t('uploadTasks.phaseDuplicate')
+      // 查重(file_hash)先于版本逻辑执行:字节级相同的文件不会生成新版本。
+      // 开了"作为新版本上传"却撞查重时,把下一步(传修改后的同名文件)说清楚。
+      return t(props.item.asNewVersion ? 'uploadTasks.phaseDuplicateAsNewVersion' : 'uploadTasks.phaseDuplicate')
     case 'cancelled':
       return t(item.parseStatus === 'deleted' ? 'uploadTasks.phaseDeleted' : 'uploadTasks.phaseCancelled')
   }

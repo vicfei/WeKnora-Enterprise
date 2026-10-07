@@ -2643,20 +2643,7 @@ export default {
       empty: '暂无 Embedding 模型'
     },
     chat: {
-
-        // 台账 T13 反馈闭环
-
-        feedback: {
-
-          up: '赞', down: '踩',
-
-          downHeader: '这条回答哪里有问题？', submit: '提交反馈', cancel: '取消',
-
-          thanks: '感谢反馈！', failed: '反馈提交失败', commentPlaceholder: '补充说明（可选）：500 字内',
-
-          reason: { wrong_answer: '答案错误', bad_citation: '引用与答案不符', outdated: '信息过时', incomplete: '回答不完整', style: '表述/风格问题', other: '其他' },
-
-        },      title: '对话模型',
+      title: '对话模型',
       desc: '配置用于对话的大语言模型',
       empty: '暂无对话模型'
     },
@@ -2832,6 +2819,7 @@ export default {
     phaseUploadFailed: '上传失败',
     phaseParseFailed: '解析失败',
     phaseDuplicate: '知识库中已有相同文件',
+    phaseDuplicateAsNewVersion: '文件内容与库中文档完全相同，未生成新版本；请上传修改后的同名文件',
     phaseCancelled: '已取消',
     phaseDeleted: '已删除',
     cancel: '取消',
@@ -7743,6 +7731,13 @@ export default {
         desc: '把知识库、提示词与工具组合成可复用的智能体，沉淀你的专业能力。'
       },
       chat: {
+        // 台账 T13 反馈闭环（与 chat.feedback 术语保持一致）
+        feedback: {
+          up: '赞', down: '踩',
+          downHeader: '这条回答哪里有问题？', submit: '提交反馈', cancel: '取消',
+          thanks: '感谢反馈！', failed: '反馈提交失败', commentPlaceholder: '补充说明（可选）：500 字内',
+          reason: { wrong_answer: '答案错误', bad_citation: '引用与答案不符', outdated: '信息过时', incomplete: '回答不完整', style: '表述/风格问题', other: '其他' },
+        },
         title: '发起智能对话',
         desc: '基于知识库内容向 AI 提问，获得带引用来源的精准回答。点击这里开始新对话。'
       },

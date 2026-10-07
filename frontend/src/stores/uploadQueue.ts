@@ -191,6 +191,7 @@ export function createUploadQueue(items: UploadItem[], batches: UploadBatch[], d
         size: upload.file.size,
         loaded: 0,
         transfer: 'queued',
+        asNewVersion: batch.asNewVersion || undefined,
       })
     }
     pump()
