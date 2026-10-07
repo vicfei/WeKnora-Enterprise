@@ -273,6 +273,13 @@
                 :label="configFieldText(option.label_key, option.label)"
               />
             </t-select>
+            <!-- P1 修复（WSL2 反馈）：text 型字段渲染输入框——doubao 的
+                 endpoint/time_range 依赖此分支。未知类型兜底也为 text。 -->
+            <t-input
+              v-else
+              v-model="providerForm.parameters.extra_config[field.key]"
+              :placeholder="configFieldText(field.label_key, field.label)"
+            />
             <p v-if="field.description" class="form-desc">
               {{ configFieldText(field.description_key, field.description) }}
             </p>
