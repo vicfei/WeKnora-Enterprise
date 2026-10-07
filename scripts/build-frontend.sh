@@ -17,4 +17,4 @@ export NODE_OPTIONS=--max-old-space-size=4096
 npm run build
 cd ..
 python3 evals/hotpot/report_index.py
-echo "done: dist rebuilt (5 flags, 4G heap) + eval reports restored"
+echo "done: dist rebuilt (7 flags, 4G heap) + eval reports restored"
