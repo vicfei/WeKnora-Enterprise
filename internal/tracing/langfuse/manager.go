@@ -174,7 +174,9 @@ func (m *Manager) CreateScore(ctx context.Context, sc Score) error {
 		"name":     sc.Name,
 		"value":    sc.Value,
 		"comment":  sc.Comment,
-		"dataType": "SCORING",
+		// Langfuse 的 dataType 判别器只认 traces|observations|sessions；
+		// 写成 "SCORING" 会 400 "No matching discriminator"。
+		"dataType": "traces",
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
