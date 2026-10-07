@@ -1300,6 +1300,9 @@ const handleFileUploaded = (event: CustomEvent) => {
     void loadFolderTree(uploadedKbId);
     if (midBatch) return;
     loadTags(uploadedKbId);
+    // 勾了"作为新版本上传"的批次会落 pending 版本；不刷新面板用户就看不到
+    // 待确认队列，得退出重进页面才会出现。
+    if (docVersionsOn) loadPendingVersions();
     // 启动几次探测，尽快让面包屑的"索引中"亮起。
     scheduleWikiStatusProbes();
   }
