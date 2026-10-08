@@ -809,6 +809,15 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 		logger.GetLogger(ctx).WithField("error", err).Errorf("processChunks update knowledge failed")
 	}
 
+	// Doc-versioning：pending 版本的 chunks 必须以 is_enabled=false 收尾——检索
+	// 门控在 chunk 级（is_enabled），knowledge.enable_status 不参与检索过滤，
+	// 不在这里关掉，pending 内容在确认前就可被召回（2026-10-08 探针实测教训）。
+	if knowledge.VersionStatus == types.VersionStatusPending {
+		if err := s.setVersionChunksEnabledWithEngine(ctx, retrieveEngine, knowledge.ID, false); err != nil {
+			logger.Warnf(ctx, "version group: disable pending chunks for %s failed: %v", knowledge.ID, err)
+		}
+	}
+
 	// Enqueue multimodal tasks for images (async, non-blocking)
 	if options.EnableMultimodel && len(options.StoredImages) > 0 {
 		// Counts only, no policy claims: whether a given image is OCR'd is

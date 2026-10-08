@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Tencent/WeKnora/internal/application/service/retriever"
 	werrors "github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -197,6 +198,52 @@ func (s *knowledgeService) versionTagIDs(ctx context.Context, knowledgeID string
 	return ids, nil
 }
 
+// setVersionChunksEnabledWithEngine flips every chunk of one version in the
+// given retriever engine. 检索门控在 chunk 级（is_enabled），knowledge
+// .enable_status 从不参与检索过滤——T11 首版误把 knowledge 行的 disabled
+// 当成了检索门，实测（2026-10-08 检索探针）superseded/pending 版本的
+// chunks 全程可被召回。所有版本流转必须走这里同步 chunk 状态。
+func (s *knowledgeService) setVersionChunksEnabledWithEngine(
+	ctx context.Context, engine *retriever.CompositeRetrieveEngine, knowledgeID string, enabled bool,
+) error {
+	chunkList, err := s.chunkService.ListChunksByKnowledgeID(ctx, knowledgeID)
+	if err != nil {
+		return fmt.Errorf("version group: list chunks of %s: %w", knowledgeID, err)
+	}
+	if len(chunkList) == 0 {
+		return nil
+	}
+	statusMap := make(map[string]bool, len(chunkList))
+	for _, c := range chunkList {
+		if c != nil {
+			statusMap[c.ID] = enabled
+		}
+	}
+	if err := engine.BatchUpdateChunkEnabledStatus(ctx, statusMap); err != nil {
+		return fmt.Errorf("version group: update chunk status of %s: %w", knowledgeID, err)
+	}
+	return nil
+}
+
+// setVersionChunksEnabled resolves the KB's retriever engine, then flips the
+// version's chunks. Chunk-state failures only warn: the knowledge-row
+// transition has already persisted and is the source of truth for repair.
+func (s *knowledgeService) setVersionChunksEnabled(ctx context.Context, kbID, knowledgeID string, enabled bool) {
+	kb, err := s.kbService.GetKnowledgeBaseByID(ctx, kbID)
+	if err != nil || kb == nil {
+		logger.Warnf(ctx, "version group: load KB %s for chunk cascade failed: %v", kbID, err)
+		return
+	}
+	engine, err := retriever.CreateRetrieveEngineForKB(ctx, s.retrieveEngine, s.ownership, kb.TenantID, kb.VectorStoreID)
+	if err != nil {
+		logger.Warnf(ctx, "version group: resolve retrieve engine for chunk cascade failed: %v", err)
+		return
+	}
+	if err := s.setVersionChunksEnabledWithEngine(ctx, engine, knowledgeID, enabled); err != nil {
+		logger.Warnf(ctx, "version group: chunk cascade for %s (enabled=%v) failed: %v", knowledgeID, enabled, err)
+	}
+}
+
 // ConfirmKnowledgeVersion promotes a pending version: the group's previous
 // active version(s) are superseded (disabled, superseded_by set) and the
 // pending one goes active+enabled. Retention trims superseded versions beyond
@@ -224,6 +271,8 @@ func (s *knowledgeService) ConfirmKnowledgeVersion(ctx context.Context, id strin
 			return nil, fmt.Errorf("version group: supersede %s: %w", m.ID, err)
 		}
 		logger.Infof(ctx, "version group %q: %s (v%d) superseded by %s", k.VersionGroup, m.ID, m.VersionNumber, k.ID)
+		// 检索门控在 chunk 级：必须同步关闭旧版 chunks，否则下线内容仍可被召回。
+		s.setVersionChunksEnabled(ctx, m.KnowledgeBaseID, m.ID, false)
 	}
 	k.VersionStatus = types.VersionStatusActive
 	k.SupersededBy = ""
@@ -231,6 +280,7 @@ func (s *knowledgeService) ConfirmKnowledgeVersion(ctx context.Context, id strin
 	if err := s.repo.UpdateKnowledge(ctx, k); err != nil {
 		return nil, fmt.Errorf("version group: activate %s: %w", k.ID, err)
 	}
+	s.setVersionChunksEnabled(ctx, k.KnowledgeBaseID, k.ID, true)
 	if err := s.trimVersionGroup(ctx, k); err != nil {
 		logger.Warnf(ctx, "version group %q: retention trim failed: %v", k.VersionGroup, err)
 	}
@@ -276,6 +326,8 @@ func (s *knowledgeService) RollbackKnowledgeVersion(ctx context.Context, id stri
 		if err := s.repo.UpdateKnowledge(ctx, m); err != nil {
 			return nil, fmt.Errorf("version group: supersede %s on rollback: %w", m.ID, err)
 		}
+		// 回滚是双向切换：被换下的现役版 chunks 同步关闭。
+		s.setVersionChunksEnabled(ctx, m.KnowledgeBaseID, m.ID, false)
 	}
 	k.VersionStatus = types.VersionStatusActive
 	k.SupersededBy = ""
@@ -283,6 +335,7 @@ func (s *knowledgeService) RollbackKnowledgeVersion(ctx context.Context, id stri
 	if err := s.repo.UpdateKnowledge(ctx, k); err != nil {
 		return nil, fmt.Errorf("version group: rollback activate %s: %w", k.ID, err)
 	}
+	s.setVersionChunksEnabled(ctx, k.KnowledgeBaseID, k.ID, true)
 	logger.Infof(ctx, "version group %q: rolled back to %s (v%d)", k.VersionGroup, k.ID, k.VersionNumber)
 	return k, nil
 }
