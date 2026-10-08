@@ -51,3 +51,32 @@ func TestVersionGroupsMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestUnionTagIDs(t *testing.T) {
+	cases := []struct {
+		name      string
+		own       []string
+		inherited []string
+		want      []string
+	}{
+		{"both empty", nil, nil, []string{}},
+		{"own only", []string{"a"}, nil, []string{"a"}},
+		{"inherit into empty", nil, []string{"a", "b"}, []string{"a", "b"}},
+		{"disjoint keeps own order first", []string{"x", "y"}, []string{"a"}, []string{"x", "y", "a"}},
+		{"overlap dedupes", []string{"x", "y"}, []string{"y", "z"}, []string{"x", "y", "z"}},
+		{"fully covered adds nothing", []string{"a", "b"}, []string{"a", "b"}, []string{"a", "b"}},
+	}
+	for _, tc := range cases {
+		got := unionTagIDs(tc.own, tc.inherited)
+		if len(got) != len(tc.want) {
+			t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("%s: got %v want %v", tc.name, got, tc.want)
+				break
+			}
+		}
+	}
+}

@@ -104,6 +104,11 @@ func (s *knowledgeService) AssignVersionGroup(ctx context.Context, kbID string, 
 		// pending stays disabled regardless of parse outcome (the finalize
 		// gate keeps it out of retrieval until confirmation).
 		knowledge.EnableStatus = "disabled"
+		// 元数据继承：pending 新版本带上现役版的自定义元数据与标签（并集，
+		// 不覆盖上传时已选的标签），用户只需编辑真正要改的部分。
+		if err := s.inheritActiveVersionMetadata(ctx, kbID, members, group, knowledge); err != nil {
+			return err
+		}
 		logger.Infof(ctx, "version group %q: new upload %s pending as v%d", group, knowledge.ID, knowledge.VersionNumber)
 	} else {
 		knowledge.VersionStatus = types.VersionStatusActive
@@ -116,6 +121,80 @@ func (s *knowledgeService) AssignVersionGroup(ctx context.Context, kbID string, 
 		return fmt.Errorf("version group: persist membership: %w", err)
 	}
 	return nil
+}
+
+// inheritActiveVersionMetadata copies the group's current active version's
+// custom metadata and tags onto a freshly created pending upload. Upload-time
+// tag picks win; inherited tags merge in as a union. Custom metadata is only
+// copied when the upload itself carries none (web uploads never do;
+// datasource-synced rows may).
+func (s *knowledgeService) inheritActiveVersionMetadata(
+	ctx context.Context, kbID string, members []*types.Knowledge, group string, knowledge *types.Knowledge,
+) error {
+	var active *types.Knowledge
+	for _, m := range members {
+		if m == nil || m.ID == knowledge.ID || !versionGroupsMatch(m, group) {
+			continue
+		}
+		if m.VersionStatus == types.VersionStatusActive && (active == nil || m.VersionNumber > active.VersionNumber) {
+			active = m
+		}
+	}
+	if active == nil {
+		return nil
+	}
+	if len(knowledge.CustomMetadata) == 0 || string(knowledge.CustomMetadata) == "{}" {
+		knowledge.CustomMetadata = active.CustomMetadata
+	}
+	activeTagIDs, err := s.versionTagIDs(ctx, active.ID)
+	if err != nil {
+		return fmt.Errorf("version group: read active tags: %w", err)
+	}
+	if len(activeTagIDs) == 0 {
+		return nil
+	}
+	ownTagIDs, err := s.versionTagIDs(ctx, knowledge.ID)
+	if err != nil {
+		return fmt.Errorf("version group: read own tags: %w", err)
+	}
+	merged := unionTagIDs(ownTagIDs, activeTagIDs)
+	if len(merged) == len(ownTagIDs) {
+		return nil
+	}
+	if err := s.setAndAttachKnowledgeTags(ctx, knowledge.TenantID, kbID, knowledge, merged); err != nil {
+		return fmt.Errorf("version group: attach inherited tags: %w", err)
+	}
+	return nil
+}
+
+// unionTagIDs appends IDs from inherited that own is missing, own's order
+// first. Upload-time picks win; the caller skips the write when nothing new.
+func unionTagIDs(own, inherited []string) []string {
+	set := make(map[string]struct{}, len(own))
+	for _, id := range own {
+		set[id] = struct{}{}
+	}
+	merged := append([]string(nil), own...)
+	for _, id := range inherited {
+		if _, ok := set[id]; !ok {
+			merged = append(merged, id)
+		}
+	}
+	return merged
+}
+
+func (s *knowledgeService) versionTagIDs(ctx context.Context, knowledgeID string) ([]string, error) {
+	tags, err := s.repo.GetKnowledgeTags(ctx, []string{knowledgeID})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(tags[knowledgeID]))
+	for _, t := range tags[knowledgeID] {
+		if t != nil && t.ID != "" {
+			ids = append(ids, t.ID)
+		}
+	}
+	return ids, nil
 }
 
 // ConfirmKnowledgeVersion promotes a pending version: the group's previous
