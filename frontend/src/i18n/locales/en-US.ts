@@ -2854,7 +2854,6 @@ export default {
       nameLabel: 'Node name',
       namePlaceholder: 'Enter a node name',
       nameRequired: 'Enter a node name',
-      demoteHint: 'The target parent is currently a leaf: after saving it will be demoted to a group and its native tag plus document bindings will be removed.',
       createSuccess: 'Node created',
       renameSuccess: 'Node renamed',
       moveSuccess: 'Node moved',

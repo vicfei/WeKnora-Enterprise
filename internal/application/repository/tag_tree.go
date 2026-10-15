@@ -29,61 +29,19 @@ func subtreePathCondition(db *gorm.DB, tenantID uint64, kbID, path string) *gorm
 	)
 }
 
-// demoteTagTreeLeaf turns a leaf node into an internal node on the caller's
-// transaction: it clears chunk-level references, deletes document tag
-// relations, hard-deletes the native tag, and NULLs the node's tag_id.
-// Tagged documents and FAQ entries survive; they only lose this
-// classification.
-func demoteTagTreeLeaf(tx *gorm.DB, tenantID uint64, kbID, nodeID, tagID string) (*types.TagTreeCascadeResult, error) {
-	result := &types.TagTreeCascadeResult{AffectedTagIDs: []string{tagID}}
+// demoteTagTreeLeaf 已随标签树 2.0(v3.1.2)退役:目录可携带原生标签,
+// 建子节点/移入不再需要把父级降级为纯目录。历史行为见 git 历史。
 
-	chunks := tx.Model(&types.Chunk{}).
-		Where("tenant_id = ? AND tag_id = ?", tenantID, tagID).
-		Update("tag_id", "")
-	if chunks.Error != nil {
-		return nil, chunks.Error
-	}
-	result.UntaggedChunks = chunks.RowsAffected
-
-	relations := tx.Where("tag_id = ?", tagID).Delete(&types.KnowledgeTagRelation{})
-	if relations.Error != nil {
-		return nil, relations.Error
-	}
-	result.RemovedRelations = relations.RowsAffected
-
-	tags := tx.Where("tenant_id = ? AND id = ?", tenantID, tagID).Delete(&types.KnowledgeTag{})
-	if tags.Error != nil {
-		return nil, tags.Error
-	}
-	result.DeletedTags = tags.RowsAffected
-
-	if err := tx.Model(&types.TagTree{}).
-		Where("tenant_id = ? AND knowledge_base_id = ? AND id = ?", tenantID, kbID, nodeID).
-		Updates(map[string]interface{}{"tag_id": nil, "updated_at": time.Now()}).Error; err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// Create inserts a tree node atomically: an optional parent-leaf demotion and
-// the leaf's native knowledge_tags row share the node's transaction.
+// Create inserts a tree node atomically together with its native
+// knowledge_tags row. 标签树 2.0(v3.1.2):目录可以携带原生标签——在已有
+// 标签的节点下建子节点不再触发"降级硬删",父节点保留标签与全部打标关系。
 func (r *tagTreeRepository) Create(
 	ctx context.Context,
 	tenantID uint64,
 	node *types.TagTree,
 	nativeTag *types.KnowledgeTag,
-	demoteNodeID string,
-	demoteTagID string,
 ) (*types.TagTreeCascadeResult, error) {
-	var demoteResult *types.TagTreeCascadeResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if demoteNodeID != "" && demoteTagID != "" {
-			result, err := demoteTagTreeLeaf(tx, tenantID, node.KnowledgeBaseID, demoteNodeID, demoteTagID)
-			if err != nil {
-				return err
-			}
-			demoteResult = result
-		}
 		if nativeTag != nil {
 			if err := tx.Create(nativeTag).Error; err != nil {
 				return err
@@ -94,7 +52,7 @@ func (r *tagTreeRepository) Create(
 	if err != nil {
 		return nil, err
 	}
-	return demoteResult, nil
+	return nil, nil
 }
 
 // GetByID gets a tree node by ID within a knowledge base.
@@ -198,7 +156,7 @@ func (r *tagTreeRepository) GetLeafTagIDsByPath(
 }
 
 // UpdateSubtree persists recomputed nodes in one transaction, optionally
-// syncing a renamed leaf's native tag name and demoting a target parent leaf.
+// syncing a renamed node's native tag name. 标签树 2.0:不再有降级路径。
 func (r *tagTreeRepository) UpdateSubtree(
 	ctx context.Context,
 	tenantID uint64,
@@ -206,19 +164,9 @@ func (r *tagTreeRepository) UpdateSubtree(
 	nodes []*types.TagTree,
 	renameTagID string,
 	renameTagNewName string,
-	demoteNodeID string,
-	demoteTagID string,
 ) (*types.TagTreeCascadeResult, error) {
-	var demoteResult *types.TagTreeCascadeResult
 	now := time.Now()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if demoteNodeID != "" && demoteTagID != "" {
-			result, err := demoteTagTreeLeaf(tx, tenantID, kbID, demoteNodeID, demoteTagID)
-			if err != nil {
-				return err
-			}
-			demoteResult = result
-		}
 		if renameTagID != "" && renameTagNewName != "" {
 			if err := tx.Model(&types.KnowledgeTag{}).
 				Where("tenant_id = ? AND id = ?", tenantID, renameTagID).
@@ -245,11 +193,11 @@ func (r *tagTreeRepository) UpdateSubtree(
 	if err != nil {
 		return nil, err
 	}
-	return demoteResult, nil
+	return nil, nil
 }
 
 // DeleteSubtreeCascade hard-deletes root and all descendants in one
-// transaction, cascading to the native tags of leaf nodes and to every
+// transaction, cascading to the native tags of every node that carries one and to every
 // tagging reference (chunk-level and document-level). Tagged content is
 // untagged but never deleted.
 func (r *tagTreeRepository) DeleteSubtreeCascade(

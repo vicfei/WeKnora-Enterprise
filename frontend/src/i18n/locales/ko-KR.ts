@@ -3989,7 +3989,6 @@ export default {
       nameLabel: '노드 이름',
       namePlaceholder: '노드 이름을 입력하세요',
       nameRequired: '노드 이름을 입력하세요',
-      demoteHint: '대상 부모가 현재 리프 노드입니다. 저장 후 그룹으로 강등되며 해당 네이티브 태그와 문서 연결이 해제됩니다.',
       createSuccess: '노드가 생성되었습니다',
       renameSuccess: '노드 이름이 변경되었습니다',
       moveSuccess: '노드가 이동되었습니다',

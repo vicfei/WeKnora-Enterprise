@@ -63,6 +63,22 @@
             {{ $t('knowledgeBase.tagCreateAction') }} “{{ searchQuery.trim() }}”
           </t-button>
         </div>
+        <!-- 标签树 2.0(v3.1.2):有树且未搜索时,按层级选标签——选谁打谁(目录也可携带标签) -->
+        <template v-if="treeEnabled && treeGroups.length > 0 && !searchQuery.trim()">
+          <h5 class="tag-edit-tree-caption">{{ $t('tagTreePicker.browseSection') }}</h5>
+          <div class="tag-edit-tree">
+            <template v-for="entry in treeGroups" :key="entry.key">
+              <div v-if="entry.type === 'group'" class="tag-edit-tree-group" :style="{ paddingLeft: `${entry.depth * 14}px` }">
+                {{ entry.name }}
+              </div>
+              <button v-else type="button" class="tag-edit-chip"
+                :class="{ 'is-selected': !!entry.tagId && selectedSet.has(entry.tagId) }" :title="entry.path"
+                :style="{ marginLeft: `${entry.depth * 14}px` }" @click="entry.tagId && toggleTag(entry.tagId)">
+                {{ entry.name }}
+              </button>
+            </template>
+          </div>
+        </template>
         <div class="tag-edit-create-row">
           <t-input v-model="newTagName" :placeholder="$t('knowledgeBase.tagNewPlaceholder')" size="small"
             :maxlength="40" :disabled="creatingTag" @enter="handleAddNewTag" />
@@ -91,6 +107,8 @@ import { ref, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { createKnowledgeBaseTag } from '@/api/knowledge-base';
+import { tagTreeEnabled } from '@/features/common/flags';
+import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
 
 interface Tag {
   id: string;
@@ -118,6 +136,8 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const searchQuery = ref('');
+const treeNodes = ref<TagTreeNode[]>([]);
+const treeEnabled = tagTreeEnabled();
 const selectedSet = ref<Set<string>>(new Set());
 const creatingTag = ref(false);
 const saving = ref(false);
@@ -130,11 +150,36 @@ watch(
       selectedSet.value = new Set(props.selectedTags.map((t) => t.id));
       searchQuery.value = '';
       newTagName.value = '';
+      if (treeEnabled && props.kbId && treeNodes.value.length === 0) {
+        getTagTree(props.kbId).then((res: any) => {
+          treeNodes.value = Array.isArray(res?.data) ? res.data : [];
+        }).catch(() => { treeNodes.value = []; });
+      }
     }
   },
 );
 
 const tagMap = computed(() => new Map(props.tagList.map((tag) => [tag.id, tag])));
+
+// 展平树为展示行:有子节点的节点渲染为分组标题(自身带标签时也同时是可选项),
+// 带 tag_id 的节点渲染为标签 chip——点击只切换它自己的标签(选谁打谁)。
+interface TreeEntry { key: string; type: 'group' | 'tag'; name: string; depth: number; tagId?: string; path: string }
+const treeGroups = computed<TreeEntry[]>(() => {
+  const rows: TreeEntry[] = [];
+  const walk = (nodes: TagTreeNode[], depth: number) => {
+    nodes.forEach((n) => {
+      if (n.children?.length) {
+        rows.push({ key: `g-${n.id}`, type: 'group', name: n.name, depth, path: n.path });
+        if (n.tag_id) rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth: depth + 1, tagId: n.tag_id, path: n.path });
+        walk(n.children, depth + 1);
+      } else if (n.tag_id) {
+        rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth, tagId: n.tag_id, path: n.path });
+      }
+    });
+  };
+  walk(treeNodes.value, 0);
+  return rows;
+});
 
 const selectedTagsList = computed(() => {
   return Array.from(selectedSet.value)
@@ -528,4 +573,10 @@ function handleOpenManage() {
   gap: 8px;
   flex-shrink: 0;
 }
+</style>
+<style scoped>
+/* 标签树 2.0:层级选择区块 */
+.tag-edit-tree-caption { margin: 10px 0 6px; font-size: 12px; font-weight: 600; color: var(--td-text-color-secondary); }
+.tag-edit-tree { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.tag-edit-tree-group { font-size: 12px; font-weight: 600; color: var(--td-text-color-primary); margin-top: 4px; }
 </style>

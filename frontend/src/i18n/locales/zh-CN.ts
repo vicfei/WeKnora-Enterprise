@@ -3991,7 +3991,6 @@ export default {
       nameLabel: '节点名称',
       namePlaceholder: '请输入节点名称',
       nameRequired: '请输入节点名称',
-      demoteHint: '目标父级当前是叶子节点：保存后它将自动降级为分组，其原生标签与已打标文档的关联将被解除。',
       createSuccess: '节点已创建',
       renameSuccess: '节点已重命名',
       moveSuccess: '节点已移动',

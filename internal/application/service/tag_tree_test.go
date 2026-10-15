@@ -100,7 +100,7 @@ func TestTagTreeServiceCreateRootNode(t *testing.T) {
 	assert.Equal(t, "行业研究", tag.Name)
 }
 
-func TestTagTreeServiceCreateChildDemotesLeafParent(t *testing.T) {
+func TestTagTreeServiceCreateChildKeepsParentTag(t *testing.T) {
 	svc, db := newTagTreeServiceForTest(t)
 	ctx := tagTreeTestCtx()
 
@@ -119,25 +119,25 @@ func TestTagTreeServiceCreateChildDemotesLeafParent(t *testing.T) {
 	assert.Equal(t, 1, child.Level)
 	assert.True(t, child.IsLeaf)
 
-	// The root has been demoted to an internal node.
+	// 标签树 2.0:建子节点不再降级父级——目录保留自己的原生标签,
+	// 既有打标关系与 FAQ 分块标签全部原样保留(选谁打谁)。
 	tree, err := svc.GetTree(ctx, "kb-1")
 	require.NoError(t, err)
 	require.Len(t, tree, 1)
-	assert.False(t, tree[0].IsLeaf)
-	assert.Nil(t, tree[0].TagID)
+	assert.True(t, tree[0].IsLeaf, "目录携带标签,IsLeaf=可打标而非无子节点")
+	require.NotNil(t, tree[0].TagID)
+	require.Equal(t, *root.TagID, *tree[0].TagID)
 	require.Len(t, tree[0].Children, 1)
 	assert.Equal(t, "锂电", tree[0].Children[0].Name)
 
-	// The root's native tag is hard-deleted; the chunk survives untagged and
-	// the relation is removed.
 	var tagCount, relCount int64
 	db.Model(&types.KnowledgeTag{}).Where("id = ?", *root.TagID).Count(&tagCount)
-	assert.EqualValues(t, 0, tagCount)
+	assert.EqualValues(t, 1, tagCount)
 	db.Model(&types.KnowledgeTagRelation{}).Where("tag_id = ?", *root.TagID).Count(&relCount)
-	assert.EqualValues(t, 0, relCount)
+	assert.EqualValues(t, 1, relCount)
 	var chunk types.Chunk
 	require.NoError(t, db.Where("id = ?", "chunk-1").First(&chunk).Error)
-	assert.Equal(t, "", chunk.TagID)
+	assert.Equal(t, *root.TagID, chunk.TagID)
 }
 
 func TestTagTreeServiceCreateValidations(t *testing.T) {
@@ -263,7 +263,7 @@ func TestTagTreeServiceMoveRejectsCycles(t *testing.T) {
 	requireAppErrorCode(t, err, werrors.ErrBadRequest)
 }
 
-func TestTagTreeServiceMoveRecomputesSubtreeAndDemotesLeafTarget(t *testing.T) {
+func TestTagTreeServiceMoveRecomputesSubtreeAndKeepsLeafTarget(t *testing.T) {
 	svc, _ := newTagTreeServiceForTest(t)
 	ctx := tagTreeTestCtx()
 
@@ -291,11 +291,11 @@ func TestTagTreeServiceMoveRecomputesSubtreeAndDemotesLeafTarget(t *testing.T) {
 	assert.Equal(t, "/B/A1/A1a", a1Children[0].Path)
 	assert.Equal(t, 2, a1Children[0].Level)
 
-	// The destination leaf was demoted.
+	// 标签树 2.0:移入叶子目标不再降级——目标保留自己的标签。
 	bAfter, err := svc.GetNode(ctx, "kb-1", b.ID)
 	require.NoError(t, err)
-	assert.False(t, bAfter.IsLeaf)
-	assert.Nil(t, bAfter.TagID)
+	assert.True(t, bAfter.IsLeaf)
+	require.NotNil(t, bAfter.TagID)
 
 	// Moving to the current parent is a no-op.
 	noOp, err := svc.MoveNode(ctx, "kb-1", a1.ID, b.ID)
@@ -343,7 +343,8 @@ func TestTagTreeServiceDeleteNodeCascades(t *testing.T) {
 	result, err := svc.DeleteNode(ctx, "kb-1", root.ID)
 	require.NoError(t, err)
 	assert.EqualValues(t, 3, result.DeletedNodes)
-	assert.EqualValues(t, 2, result.DeletedTags)
+	// 标签树 2.0:目录也携带标签,级联删除 3 个原生标签(行业+半导体+新能源)。
+	assert.EqualValues(t, 3, result.DeletedTags)
 	assert.EqualValues(t, 2, result.UntaggedChunks)
 	assert.EqualValues(t, 2, result.RemovedRelations)
 
@@ -373,12 +374,13 @@ func TestTagTreeServiceGetLeaves(t *testing.T) {
 	leafB, err := svc.CreateNode(ctx, "kb-1", &root.ID, "新能源", 0)
 	require.NoError(t, err)
 
-	// Internal node collects every descendant leaf.
+	// 标签树 2.0(B 语义):目录解析为自身标签 + 子树标签的并集。
 	leaves, err := svc.GetLeaves(ctx, "kb-1", root.ID)
 	require.NoError(t, err)
-	assert.False(t, leaves.IsLeaf)
-	assert.Equal(t, []string{*leafA.TagID, *leafB.TagID}, leaves.TagIDs)
-	assert.Equal(t, 2, leaves.Count)
+	// 树 2.0:IsLeaf 表示携带标签(可打标),与是否有子节点无关。
+	assert.True(t, leaves.IsLeaf)
+	assert.Equal(t, []string{*root.TagID, *leafA.TagID, *leafB.TagID}, leaves.TagIDs)
+	assert.Equal(t, 3, leaves.Count)
 
 	// Leaf node resolves to its own tag.
 	leaves, err = svc.GetLeaves(ctx, "kb-1", leafA.ID)
@@ -386,8 +388,7 @@ func TestTagTreeServiceGetLeaves(t *testing.T) {
 	assert.True(t, leaves.IsLeaf)
 	assert.Equal(t, []string{*leafA.TagID}, leaves.TagIDs)
 
-	// A demoted node whose only child was deleted stays internal and has no
-	// leaves: retrieval must treat this as "no matches", not "no filter".
+	// 标签树 2.0:目录自带标签,唯一子节点删除后节点仍解析到自己的标签。
 	orphan, err := svc.CreateNode(ctx, "kb-1", nil, "临时", 0)
 	require.NoError(t, err)
 	onlyChild, err := svc.CreateNode(ctx, "kb-1", &orphan.ID, "子类", 0)
@@ -396,8 +397,8 @@ func TestTagTreeServiceGetLeaves(t *testing.T) {
 	require.NoError(t, err)
 	leaves, err = svc.GetLeaves(ctx, "kb-1", orphan.ID)
 	require.NoError(t, err)
-	assert.Empty(t, leaves.TagIDs)
-	assert.Equal(t, 0, leaves.Count)
+	assert.Equal(t, []string{*orphan.TagID}, leaves.TagIDs)
+	assert.Equal(t, 1, leaves.Count)
 }
 
 func TestTagTreeServiceAccessControl(t *testing.T) {

@@ -10,18 +10,13 @@ import (
 // tree. All methods are scoped by tenant and knowledge base.
 type TagTreeRepository interface {
 	// Create inserts a tree node atomically: when nativeTag is non-nil the
-	// leaf's native knowledge_tags row is created in the same transaction;
-	// when demoteNodeID/demoteTagID are set, the parent leaf is demoted to an
-	// internal node first (its native tag hard-deleted, every tagging
-	// reference cleared). Returns the demotion side effects, nil when no
-	// demotion happened.
+	// node's native knowledge_tags row is created in the same transaction.
+	// 标签树 2.0(v3.1.2):目录可携带原生标签,建子节点不再降级父级。
 	Create(
 		ctx context.Context,
 		tenantID uint64,
 		node *types.TagTree,
 		nativeTag *types.KnowledgeTag,
-		demoteNodeID string,
-		demoteTagID string,
 	) (*types.TagTreeCascadeResult, error)
 	GetByID(ctx context.Context, tenantID uint64, kbID string, id string) (*types.TagTree, error)
 	// GetChildByName returns the sibling under parentID (nil = root level)
@@ -45,6 +40,9 @@ type TagTreeRepository interface {
 	// a set of nodes in one transaction. A renamed leaf syncs its native
 	// knowledge_tags.name; demoteNodeID/demoteTagID demote the target parent
 	// leaf before nodes are written back (move-into-leaf case).
+	// UpdateSubtree persists recomputed parent/name/path/level/sort_order for
+	// a set of nodes in one transaction. A renamed node syncs its native
+	// knowledge_tags.name. 标签树 2.0:不再有降级路径。
 	UpdateSubtree(
 		ctx context.Context,
 		tenantID uint64,
@@ -52,12 +50,11 @@ type TagTreeRepository interface {
 		nodes []*types.TagTree,
 		renameTagID string,
 		renameTagNewName string,
-		demoteNodeID string,
-		demoteTagID string,
 	) (*types.TagTreeCascadeResult, error)
 	// DeleteSubtreeCascade hard-deletes root and all descendants together with
-	// the native tags of their leaf nodes and every tagging reference, in one
-	// transaction. Documents and FAQ entries survive; they are only untagged.
+	// the native tags of every node that carries one and every tagging
+	// reference, in one transaction. Documents and FAQ entries survive; they
+	// are only untagged.
 	DeleteSubtreeCascade(
 		ctx context.Context,
 		tenantID uint64,

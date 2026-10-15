@@ -44,8 +44,12 @@
           </template>
           <template v-else>
             <span class="tag-tree-name" :title="row.node.path">{{ row.node.name }}</span>
-            <t-tag size="small" variant="light" :theme="row.node.is_leaf ? 'success' : 'default'">
-              {{ row.node.is_leaf ? $t('knowledgeEditor.tagTree.leafBadge') : $t('knowledgeEditor.tagTree.groupBadge') }}
+            <!-- 标签树 2.0:目录可同时携带标签——有子节点显示"分组",带 tag_id 再加"标签"徽章 -->
+            <t-tag v-if="row.node.children?.length" size="small" variant="light" theme="default">
+              {{ $t('knowledgeEditor.tagTree.groupBadge') }}
+            </t-tag>
+            <t-tag v-if="row.node.is_leaf" size="small" variant="light" theme="success">
+              {{ $t('knowledgeEditor.tagTree.leafBadge') }}
             </t-tag>
             <span class="tag-tree-row-actions">
               <t-tooltip :content="$t('knowledgeEditor.tagTree.sortUp')" placement="top">
@@ -94,10 +98,6 @@
           <label class="tag-tree-form-label">{{ $t('knowledgeEditor.tagTree.nameLabel') }}</label>
           <t-input v-model="createName" :maxlength="255" :placeholder="$t('knowledgeEditor.tagTree.namePlaceholder')" />
         </div>
-        <p v-if="createParentIsLeaf" class="tag-tree-demote-hint">
-          <t-icon name="info-circle" size="14px" />
-          {{ $t('knowledgeEditor.tagTree.demoteHint') }}
-        </p>
       </div>
     </t-dialog>
 
@@ -112,10 +112,6 @@
             <t-option v-for="opt in moveTargetOptions" :key="opt.id" :value="opt.id" :label="opt.path" />
           </t-select>
         </div>
-        <p v-if="moveTargetIsLeaf" class="tag-tree-demote-hint">
-          <t-icon name="info-circle" size="14px" />
-          {{ $t('knowledgeEditor.tagTree.demoteHint') }}
-        </p>
       </div>
     </t-dialog>
   </div>
@@ -170,10 +166,6 @@ const createParentOptions = computed(() =>
   allNodes.value.map((n) => ({ id: n.id, path: n.path, is_leaf: n.is_leaf })),
 )
 
-const createParentIsLeaf = computed(() => {
-  if (!createParentId.value) return false
-  return !!findTagTreeNode(tree.value, createParentId.value)?.is_leaf
-})
 
 const moveTargetOptions = computed(() => {
   const moving = movingNode.value
@@ -195,10 +187,6 @@ const moveTargetValid = computed(() => {
   return target.id !== moving.id && !target.path.startsWith(`${moving.path}/`)
 })
 
-const moveTargetIsLeaf = computed(() => {
-  if (!moveTargetId.value) return false
-  return !!findTagTreeNode(tree.value, moveTargetId.value)?.is_leaf
-})
 
 function toggleExpand(id: string) {
   const next = new Set(expanded.value)

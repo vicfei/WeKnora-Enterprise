@@ -117,25 +117,10 @@ func (s *tagTreeService) loadNode(ctx context.Context, tenantID uint64, kbID, no
 	return node, nil
 }
 
-// logDemotion records the destructive side effects of a leaf demotion.
-func logDemotion(ctx context.Context, kbID, nodeID string, result *types.TagTreeCascadeResult) {
-	if result == nil {
-		return
-	}
-	operator, _ := types.UserIDFromContext(ctx)
-	logger.WarnWithFields(ctx, map[string]interface{}{
-		"operator":          operator,
-		"kb_id":             kbID,
-		"node_id":           nodeID,
-		"affected_tag_ids":  result.AffectedTagIDs,
-		"untagged_chunks":   result.UntaggedChunks,
-		"removed_relations": result.RemovedRelations,
-	}, "Tag tree leaf demoted to internal node: native tag hard-deleted and tagging references cleared")
-}
-
 // CreateNode creates a node. Every new node starts as a leaf: its native
 // knowledge_tags row is created (or an identically named leftover is reused)
-// atomically with the node. Adding the first child under a leaf demotes it.
+// atomically with the node. 标签树 2.0(v3.1.2):父级可以同时是带标签的目录,
+// 建子节点不再降级、不再删除父级标签与打标关系(选谁打谁、目录也是标签).
 func (s *tagTreeService) CreateNode(
 	ctx context.Context,
 	kbID string,
@@ -207,11 +192,6 @@ func (s *tagTreeService) CreateNode(
 		}
 	}
 
-	demoteNodeID, demoteTagID := "", ""
-	if parent != nil && parent.IsLeaf() {
-		demoteNodeID, demoteTagID = parent.ID, *parent.TagID
-	}
-
 	now := time.Now()
 	createdBy, _ := types.UserIDFromContext(ctx)
 	node := &types.TagTree{
@@ -229,11 +209,9 @@ func (s *tagTreeService) CreateNode(
 		UpdatedAt:       now,
 	}
 
-	demoteResult, err := s.repo.Create(ctx, tenantID, node, nativeTag, demoteNodeID, demoteTagID)
-	if err != nil {
+	if _, err := s.repo.Create(ctx, tenantID, node, nativeTag); err != nil {
 		return nil, err
 	}
-	logDemotion(ctx, kbID, demoteNodeID, demoteResult)
 	return node.ToTreeNode(), nil
 }
 
@@ -375,7 +353,7 @@ func (s *tagTreeService) UpdateNode(
 		}
 	}
 
-	if _, err := s.repo.UpdateSubtree(ctx, tenantID, kbID, updated, renameTagID, rename, "", ""); err != nil {
+	if _, err := s.repo.UpdateSubtree(ctx, tenantID, kbID, updated, renameTagID, rename); err != nil {
 		return nil, err
 	}
 	return node.ToTreeNode(), nil
@@ -413,7 +391,7 @@ func (s *tagTreeService) DeleteNode(ctx context.Context, kbID string, nodeID str
 }
 
 // MoveNode reparents a node. Cycles, self-moves and sibling name conflicts
-// are rejected; moving into a leaf demotes that leaf first; the subtree's
+// are rejected; the subtree's
 // paths and levels are recomputed in one transaction.
 func (s *tagTreeService) MoveNode(ctx context.Context, kbID string, nodeID string, newParentID string) (*types.TagTreeNode, error) {
 	newParentID = strings.TrimSpace(newParentID)
@@ -485,11 +463,6 @@ func (s *tagTreeService) MoveNode(ctx context.Context, kbID string, nodeID strin
 		return nil, werrors.NewBadRequestError(fmt.Sprintf("标签树层级不能超过%d层", MaxTagTreeDepth))
 	}
 
-	demoteNodeID, demoteTagID := "", ""
-	if newParent != nil && newParent.IsLeaf() {
-		demoteNodeID, demoteTagID = newParent.ID, *newParent.TagID
-	}
-
 	levelDelta := newLevel - node.Level
 	node.ParentID = siblingParent
 	node.Path = newPath
@@ -505,19 +478,17 @@ func (s *tagTreeService) MoveNode(ctx context.Context, kbID string, nodeID strin
 	}
 	updated = append(updated, node)
 
-	demoteResult, err := s.repo.UpdateSubtree(ctx, tenantID, kbID, updated, "", "", demoteNodeID, demoteTagID)
-	if err != nil {
+	if _, err := s.repo.UpdateSubtree(ctx, tenantID, kbID, updated, "", ""); err != nil {
 		return nil, err
 	}
-	logDemotion(ctx, kbID, demoteNodeID, demoteResult)
 	return node.ToTreeNode(), nil
 }
 
-// GetLeaves resolves a node to the leaf tag ids used for hybrid-search
-// pre-filtering: a leaf resolves to its own tag, an internal node collects
-// every descendant leaf via its materialized path. Parent node names never
-// leak into query text. An empty result means the node has no leaf below it
-// and retrieval must return no matches rather than drop the filter.
+// GetLeaves resolves a node to the tag ids used for hybrid-search
+// pre-filtering: 标签树 2.0(B 语义)——自身标签 + 子树全部标签的并集,
+// 经物化路径收集。Parent node names never leak into query text. An empty
+// result means the node carries no tag and has none below it; retrieval must
+// return no matches rather than drop the filter.
 func (s *tagTreeService) GetLeaves(ctx context.Context, kbID string, nodeID string) (*types.TagTreeLeaves, error) {
 	tenantID, err := s.resolveKBRead(ctx, kbID)
 	if err != nil {
@@ -534,16 +505,15 @@ func (s *tagTreeService) GetLeaves(ctx context.Context, kbID string, nodeID stri
 		IsLeaf: node.IsLeaf(),
 		TagIDs: []string{},
 	}
-	if node.IsLeaf() {
-		leaves.TagIDs = append(leaves.TagIDs, *node.TagID)
-	} else {
-		tagIDs, err := s.repo.GetLeafTagIDsByPath(ctx, tenantID, kbID, node.Path)
-		if err != nil {
-			return nil, err
-		}
-		if tagIDs != nil {
-			leaves.TagIDs = tagIDs
-		}
+	// 标签树 2.0(B 语义):任何节点都解析为"自身标签 + 子树标签"的并集。
+	// path 收集条件是"等于或位于 path 之下",节点自身天然包含在内;
+	// 旧实现按 IsLeaf()(=有标签)短路,目录带标签后会漏掉整个子树。
+	tagIDs, err := s.repo.GetLeafTagIDsByPath(ctx, tenantID, kbID, node.Path)
+	if err != nil {
+		return nil, err
+	}
+	if tagIDs != nil {
+		leaves.TagIDs = tagIDs
 	}
 	leaves.Count = len(leaves.TagIDs)
 	return leaves, nil

@@ -9,10 +9,11 @@ import { get, post, put, del } from '@/utils/request'
  * HTTP envelope, so these helpers return the business body as-is and typed
  * callers read `.data`.
  *
- * Tree semantics (decisions 011/012/013): a node with tag_id !== null is a
- * leaf and carries a native knowledge_tags record; creating the first child
- * of a leaf demotes it (its native tag is hard-deleted, documents keep
- * running but lose the classification); deletion physically cascades.
+ * Tree semantics (标签树 2.0, v3.1.2): any node may carry tag_id (native
+ * knowledge_tags record) — directories included; creating a child under a
+ * tagged node no longer demotes it (选谁打谁, parent keeps its tag and all
+ * tagging references); subtree filtering resolves to own + descendants union;
+ * deletion physically cascades over every node that carries a tag.
  */
 export interface TagTreeNode {
   id: string
@@ -20,7 +21,7 @@ export interface TagTreeNode {
   parent_id: string | null
   path: string
   level: number
-  /** Non-null ⟺ leaf node bound to a native knowledge_tags row. */
+  /** Non-null ⟺ the node carries a native knowledge_tags row (directories may too). */
   tag_id: string | null
   is_leaf: boolean
   is_auto_extract: boolean
