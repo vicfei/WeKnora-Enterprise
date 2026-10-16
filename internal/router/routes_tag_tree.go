@@ -26,6 +26,7 @@ func RegisterTagTreeRoutes(r *gin.RouterGroup, tagTreeHandler *handler.TagTreeHa
 		tagTree.POST("/nodes", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.CreateNode)
 		tagTree.PUT("/nodes/:node_id", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.UpdateNode)
 		tagTree.DELETE("/nodes/:node_id", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.DeleteNode)
+		tagTree.POST("/nodes/:node_id/attach-tag", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.AttachTagToNode)
 		tagTree.POST("/nodes/:node_id/move", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.MoveNode)
 	}
 }

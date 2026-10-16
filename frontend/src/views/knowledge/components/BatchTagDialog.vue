@@ -63,21 +63,10 @@
             {{ $t('knowledgeBase.tagCreateAction') }} "{{ searchQuery.trim() }}"
           </t-button>
         </div>
-        <!-- 标签树 2.0(v3.1.2):有树且未搜索时,按层级选标签——选谁打谁 -->
-        <template v-if="treeEnabled && treeGroups.length > 0 && !searchQuery.trim()">
+        <!-- 标签树 2.0(v3.1.2):按层级选标签,设计参照"按标签树筛选"(选谁打谁) -->
+        <template v-if="treeEnabled && treeNodes.length > 0 && !searchQuery.trim()">
           <h5 class="batch-tag-tree-caption">{{ $t('tagTreePicker.browseSection') }}</h5>
-          <div class="batch-tag-tree">
-            <template v-for="entry in treeGroups" :key="entry.key">
-              <div v-if="entry.type === 'group'" class="batch-tag-tree-group" :style="{ paddingLeft: `${entry.depth * 14}px` }">
-                {{ entry.name }}
-              </div>
-              <button v-else type="button" class="batch-tag-chip"
-                :class="{ 'is-selected': !!entry.tagId && selectedSet.has(entry.tagId) }" :title="entry.path"
-                :style="{ marginLeft: `${entry.depth * 14}px` }" @click="entry.tagId && toggleTag(entry.tagId)">
-                {{ entry.name }}
-              </button>
-            </template>
-          </div>
+          <TagTreeSelectPanel :nodes="treeNodes" :selected-ids="selectedSet" @toggle="toggleTag" />
         </template>
         <div class="batch-tag-create-row">
           <t-input v-model="newTagName" :placeholder="$t('knowledgeBase.tagNewPlaceholder')" size="small"
@@ -109,6 +98,7 @@ import { MessagePlugin } from 'tdesign-vue-next';
 import { createKnowledgeBaseTag } from '@/api/knowledge-base';
 import { tagTreeEnabled } from '@/features/common/flags';
 import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
+import TagTreeSelectPanel from '@/features/tag-tree/TagTreeSelectPanel.vue';
 
 interface Tag {
   id: string;
@@ -149,7 +139,8 @@ watch(
     if (val) {
       selectedSet.value = new Set(props.preSelectedTagIds ?? []);
       searchQuery.value = '';
-      if (treeEnabled && props.kbId && treeNodes.value.length === 0) {
+      if (treeEnabled && props.kbId) {
+        // 每次打开都重取:设置页新建的节点立刻可见(修"看不到子标签"的缓存缺陷)。
         getTagTree(props.kbId).then((res: any) => {
           treeNodes.value = Array.isArray(res?.data) ? res.data : [];
         }).catch(() => { treeNodes.value = []; });
@@ -161,23 +152,6 @@ watch(
 
 const tagMap = computed(() => new Map(props.tagList.map((tag) => [tag.id, tag])));
 
-interface TreeEntry { key: string; type: 'group' | 'tag'; name: string; depth: number; tagId?: string; path: string }
-const treeGroups = computed<TreeEntry[]>(() => {
-  const rows: TreeEntry[] = [];
-  const walk = (nodes: TagTreeNode[], depth: number) => {
-    nodes.forEach((n) => {
-      if (n.children?.length) {
-        rows.push({ key: `g-${n.id}`, type: 'group', name: n.name, depth, path: n.path });
-        if (n.tag_id) rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth: depth + 1, tagId: n.tag_id, path: n.path });
-        walk(n.children, depth + 1);
-      } else if (n.tag_id) {
-        rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth, tagId: n.tag_id, path: n.path });
-      }
-    });
-  };
-  walk(treeNodes.value, 0);
-  return rows;
-});
 
 const selectedTagsList = computed(() => {
   return Array.from(selectedSet.value)

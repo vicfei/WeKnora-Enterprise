@@ -52,6 +52,11 @@
               {{ $t('knowledgeEditor.tagTree.leafBadge') }}
             </t-tag>
             <span class="tag-tree-row-actions">
+              <t-tooltip v-if="!row.node.tag_id" :content="$t('knowledgeEditor.tagTree.attachTag')" placement="top">
+                <t-button variant="text" shape="square" size="small" :disabled="saving" @click="handleAttachTag(row.node)">
+                  <template #icon><t-icon name="discount" size="14px" /></template>
+                </t-button>
+              </t-tooltip>
               <t-tooltip :content="$t('knowledgeEditor.tagTree.sortUp')" placement="top">
                 <t-button variant="text" shape="square" size="small" :disabled="sorting" @click="handleSort(row.node, 'up')">
                   <template #icon><t-icon name="arrow-up" size="14px" /></template>
@@ -122,6 +127,7 @@ import { computed, ref, watch } from 'vue'
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import {
+  attachTagTreeNode,
   createTagTreeNode,
   deleteTagTreeNode,
   getTagTree,
@@ -277,6 +283,19 @@ function siblingsOf(id: string): TagTreeNode[] {
   }
   walk(tree.value)
   return found ?? []
+}
+
+async function handleAttachTag(node: TagTreeNode) {
+  saving.value = true
+  try {
+    await attachTagTreeNode(props.kbId, node.id)
+    MessagePlugin.success(t('knowledgeEditor.tagTree.attachSuccess'))
+    await loadTree()
+  } catch (e: any) {
+    MessagePlugin.error(e?.response?.data?.error?.message || t('knowledgeEditor.tagTree.operationFailed'))
+  } finally {
+    saving.value = false
+  }
 }
 
 async function handleSort(node: TagTreeNode, dir: 'up' | 'down') {

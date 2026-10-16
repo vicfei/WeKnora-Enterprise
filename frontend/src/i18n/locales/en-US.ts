@@ -2836,6 +2836,8 @@ export default {
       refresh: 'Refresh',
       create: 'New Node',
       toggleExpand: 'Expand/Collapse',
+      attachTag: 'Make a tag',
+      attachSuccess: 'Now a tag',
       empty: 'No hierarchical tags yet',
       leafBadge: 'Leaf',
       groupBadge: 'Group',

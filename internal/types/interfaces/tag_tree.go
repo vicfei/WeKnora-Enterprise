@@ -18,6 +18,14 @@ type TagTreeRepository interface {
 		node *types.TagTree,
 		nativeTag *types.KnowledgeTag,
 	) (*types.TagTreeCascadeResult, error)
+	// AttachTag creates the native tag row (when non-nil) and stamps the
+	// node's tag_id in one transaction. 标签树 2.0(v3.1.2).
+	AttachTag(
+		ctx context.Context,
+		tenantID uint64,
+		node *types.TagTree,
+		nativeTag *types.KnowledgeTag,
+	) error
 	GetByID(ctx context.Context, tenantID uint64, kbID string, id string) (*types.TagTree, error)
 	// GetChildByName returns the sibling under parentID (nil = root level)
 	// with the given name, or gorm.ErrRecordNotFound when the name is free.
@@ -79,6 +87,8 @@ type TagTreeService interface {
 		sortOrder int,
 	) (*types.TagTreeNode, error)
 	GetTree(ctx context.Context, kbID string) ([]*types.TagTreeNode, error)
+	// AttachTagToNode gives a tag-less node a native tag(标签树 2.0).
+	AttachTagToNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeNode, error)
 	ListNodes(ctx context.Context, kbID string, parentID *string) ([]*types.TagTreeNode, error)
 	GetNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeNode, error)
 	// UpdateNode renames and/or re-sorts a node; renaming recomputes the

@@ -3971,6 +3971,8 @@ export default {
       refresh: 'Обновить',
       create: 'Новый узел',
       toggleExpand: 'Развернуть/свернуть',
+      attachTag: 'Сделать тегом',
+      attachSuccess: 'Теперь тег',
       empty: 'Иерархические теги ещё не созданы',
       leafBadge: 'Лист',
       groupBadge: 'Группа',

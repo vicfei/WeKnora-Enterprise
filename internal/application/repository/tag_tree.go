@@ -55,6 +55,27 @@ func (r *tagTreeRepository) Create(
 	return nil, nil
 }
 
+// AttachTag gives a tag-less node its native tag atomically: creates the
+// knowledge_tags row when nativeTag is non-nil (reuse passes nil) and stamps
+// the node's tag_id in one transaction. 标签树 2.0(v3.1.2).
+func (r *tagTreeRepository) AttachTag(
+	ctx context.Context,
+	tenantID uint64,
+	node *types.TagTree,
+	nativeTag *types.KnowledgeTag,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if nativeTag != nil {
+			if err := tx.Create(nativeTag).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&types.TagTree{}).
+			Where("tenant_id = ? AND knowledge_base_id = ? AND id = ?", tenantID, node.KnowledgeBaseID, node.ID).
+			Updates(map[string]interface{}{"tag_id": *node.TagID, "updated_at": node.UpdatedAt}).Error
+	})
+}
+
 // GetByID gets a tree node by ID within a knowledge base.
 func (r *tagTreeRepository) GetByID(ctx context.Context, tenantID uint64, kbID string, id string) (*types.TagTree, error) {
 	var node types.TagTree

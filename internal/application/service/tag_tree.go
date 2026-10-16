@@ -215,6 +215,47 @@ func (s *tagTreeService) CreateNode(
 	return node.ToTreeNode(), nil
 }
 
+// AttachTagToNode gives a tag-less node a native tag (标签树 2.0:旧规则下被
+// 降级的目录没有标签,无法被打标;此操作为其补建/复用同名原生标签)。
+// 已携带标签的节点直接返回当前状态(幂等)。
+func (s *tagTreeService) AttachTagToNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeNode, error) {
+	tenantID, err := s.resolveKBWrite(ctx, kbID)
+	if err != nil {
+		return nil, err
+	}
+	node, err := s.loadNode(ctx, tenantID, kbID, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	if node.TagID != nil && *node.TagID != "" {
+		return node.ToTreeNode(), nil
+	}
+
+	tagID := uuid.New().String()
+	now := time.Now()
+	var nativeTag *types.KnowledgeTag
+	if existingTag, err := s.tagRepo.GetByName(ctx, tenantID, kbID, node.Name); err == nil && existingTag != nil {
+		tagID = existingTag.ID
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	} else {
+		nativeTag = &types.KnowledgeTag{
+			ID:              tagID,
+			TenantID:        tenantID,
+			KnowledgeBaseID: kbID,
+			Name:            node.Name,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+	}
+	node.TagID = &tagID
+	node.UpdatedAt = now
+	if err := s.repo.AttachTag(ctx, tenantID, node, nativeTag); err != nil {
+		return nil, err
+	}
+	return node.ToTreeNode(), nil
+}
+
 // GetTree returns the whole tree of a knowledge base as a nested forest.
 func (s *tagTreeService) GetTree(ctx context.Context, kbID string) ([]*types.TagTreeNode, error) {
 	tenantID, err := s.resolveKBRead(ctx, kbID)

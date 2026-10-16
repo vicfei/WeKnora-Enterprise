@@ -3971,6 +3971,8 @@ export default {
       refresh: '새로고침',
       create: '노드 추가',
       toggleExpand: '펼치기/접기',
+      attachTag: '태그로 전환',
+      attachSuccess: '태그로 전환됨',
       empty: '아직 계층형 태그가 없습니다',
       leafBadge: '리프',
       groupBadge: '그룹',

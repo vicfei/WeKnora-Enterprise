@@ -3973,6 +3973,8 @@ export default {
       refresh: '刷新',
       create: '新建节点',
       toggleExpand: '展开/折叠',
+      attachTag: '转为标签',
+      attachSuccess: '已转为标签',
       empty: '尚未创建层级标签',
       leafBadge: '叶子',
       groupBadge: '分组',

@@ -107,6 +107,10 @@ export function deleteTagTreeNode(
 }
 
 /** Move a node to a new parent (empty parent_id = root level). */
+export function attachTagTreeNode(kbId: string, nodeId: string): Promise<TagTreeEnvelope<TagTreeNode>> {
+  return post(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}/attach-tag`, {})
+}
+
 export function moveTagTreeNode(
   kbId: string,
   nodeId: string,

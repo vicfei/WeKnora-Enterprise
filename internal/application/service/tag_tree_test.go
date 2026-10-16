@@ -414,3 +414,31 @@ func TestTagTreeServiceAccessControl(t *testing.T) {
 	_, err = svc.GetTree(ctx, "kb-1")
 	require.NoError(t, err)
 }
+
+func TestTagTreeServiceAttachTagToNode(t *testing.T) {
+	svc, db := newTagTreeServiceForTest(t)
+	ctx := tagTreeTestCtx()
+
+	// 旧规则下的形态:目录因建子被剥掉标签(树 2.0 之前),模拟为
+	// 直接建库——先建父再建子会保留标签,故手工置空父标签。
+	root, err := svc.CreateNode(ctx, "kb-1", nil, "眼科", 0)
+	require.NoError(t, err)
+	_, err = svc.CreateNode(ctx, "kb-1", &root.ID, "屈光", 0)
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&types.TagTree{}).Where("id = ?", root.ID).
+		Update("tag_id", nil).Error)
+
+	// 转为标签:补建原生标签并写回 tag_id,幂等。
+	attached, err := svc.AttachTagToNode(ctx, "kb-1", root.ID)
+	require.NoError(t, err)
+	require.NotNil(t, attached.TagID)
+	assert.True(t, attached.IsLeaf)
+	again, err := svc.AttachTagToNode(ctx, "kb-1", root.ID)
+	require.NoError(t, err)
+	assert.Equal(t, *attached.TagID, *again.TagID, "幂等:重复转标签不改 ID")
+
+	// 子节点不受影响。
+	tree, err := svc.GetTree(ctx, "kb-1")
+	require.NoError(t, err)
+	require.Len(t, tree[0].Children, 1)
+}
