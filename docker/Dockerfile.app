@@ -50,7 +50,13 @@ ENV GO_VERSION=${GO_VERSION_ARG}
 # engine; pass WITH_ANYDOC=0 to skip the Rust toolchain (~few minutes and
 # ~1 GB of build-stage layers).
 ARG WITH_ANYDOC=1
+# Fork build tooling (v3.1.2): optional rustup mirror — empty keeps upstream
+# defaults. static.rust-lang.org stalls from CN networks; a mirror arg makes
+# the toolchain step minutes instead of hours. Mirrors the APK_MIRROR_ARG
+# pattern above.
+ARG RUSTUP_DIST_ARG=
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_DIST_SERVER=${RUSTUP_DIST_ARG} RUSTUP_UPDATE_ROOT=${RUSTUP_DIST_ARG}/rustup
 ENV PATH=/usr/local/cargo/bin:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
