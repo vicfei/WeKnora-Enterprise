@@ -79,8 +79,9 @@ void t
 .tag-tree-select-row.is-selected { background: var(--td-brand-color-light); }
 .tag-tree-select-caret {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; border: none; background: transparent; cursor: pointer; color: var(--td-text-color-secondary);
+  width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; padding: 0;
 }
+.tag-tree-select-caret-icon { color: var(--td-text-color-primary); flex: none; }
 .tag-tree-select-caret.invisible { visibility: hidden; pointer-events: none; }
 .tag-tree-select-checkbox {
   width: 14px; height: 14px; border: 1px solid var(--td-border-level-2-color); border-radius: 3px;
