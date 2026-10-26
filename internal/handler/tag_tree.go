@@ -280,6 +280,36 @@ func (h *TagTreeHandler) DeleteNode(c *gin.Context) {
 	})
 }
 
+// PreviewDeleteNode godoc
+// @Summary      预览删除标签树节点的影响
+// @Description  只读预览:删除该节点及其子树将影响多少文档(解除其标签)与分块,不执行删除
+// @Tags         标签树管理
+// @Produce      json
+// @Param        id       path  string  true  "知识库ID"
+// @Param        node_id  path  string  true  "节点ID"
+// @Success      200  {object}  map[string]interface{}  "影响预览"
+// @Failure      404  {object}  errors.AppError  "节点不存在"
+// @Security     Bearer
+// @Security     ApiKeyAuth
+// @Router       /knowledge-bases/{id}/tag-tree/nodes/{node_id}/impact [get]
+func (h *TagTreeHandler) PreviewDeleteNode(c *gin.Context) {
+	ctx := c.Request.Context()
+	kbID := secutils.SanitizeForLog(c.Param("id"))
+	nodeID := secutils.SanitizeForLog(c.Param("node_id"))
+
+	preview, err := h.tagTreeService.PreviewDeleteNode(ctx, kbID, nodeID)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, map[string]interface{}{"kb_id": kbID, "node_id": nodeID})
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    preview,
+	})
+}
+
 // MoveNode godoc
 // @Summary      移动标签树节点
 // @Description  将节点移动到新父级（parent_id 留空表示移到根级）；拒绝环与同级重名；目标父级为叶子时自动降级

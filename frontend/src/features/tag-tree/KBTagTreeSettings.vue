@@ -132,6 +132,7 @@ import {
   deleteTagTreeNode,
   getTagTree,
   moveTagTreeNode,
+  tagTreeNodeDeleteImpact,
   updateTagTreeNode,
   type TagTreeNode,
 } from './api'
@@ -351,10 +352,22 @@ async function handleMove() {
   }
 }
 
-function confirmDelete(node: TagTreeNode) {
+async function confirmDelete(node: TagTreeNode) {
+  // v3.1.3: 删除前先取只读影响预览,把"将影响多少文档"亮在确认框里。
+  let impactBody = t('knowledgeEditor.tagTree.deleteWarning')
+  try {
+    const res = await tagTreeNodeDeleteImpact(props.kbId, node.id)
+    const d = res.data
+    impactBody =
+      t('knowledgeEditor.tagTree.deleteImpact', { documents: d.documents, chunks: d.chunks }) +
+      '\n' +
+      t('knowledgeEditor.tagTree.deleteWarning')
+  } catch {
+    // 预览失败不阻塞删除流程,退回通用警告文案
+  }
   const dialog = DialogPlugin.confirm({
     header: t('knowledgeEditor.tagTree.deleteConfirm', { name: node.name }),
-    body: t('knowledgeEditor.tagTree.deleteWarning'),
+    body: impactBody,
     theme: 'danger',
     confirmBtn: { content: t('knowledgeEditor.tagTree.delete'), theme: 'danger', loading: false },
     cancelBtn: { content: t('common.cancel') },

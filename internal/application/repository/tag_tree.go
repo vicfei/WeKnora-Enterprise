@@ -217,6 +217,49 @@ func (r *tagTreeRepository) UpdateSubtree(
 	return nil, nil
 }
 
+// PreviewSubtreeCascade computes the exact side effects a DeleteSubtreeCascade
+// for the same root would have, without writing. The document count is the
+// DISTINCT knowledge entries joined through knowledge_tag_relations; the
+// chunk count mirrors the chunk-level untag the cascade performs.
+func (r *tagTreeRepository) PreviewSubtreeCascade(
+	ctx context.Context,
+	tenantID uint64,
+	kbID string,
+	root *types.TagTree,
+) (*types.TagTreeCascadePreview, error) {
+	var subtree []*types.TagTree
+	if err := subtreePathCondition(r.db.WithContext(ctx), tenantID, kbID, root.Path).
+		Order("level ASC, path ASC").
+		Find(&subtree).Error; err != nil {
+		return nil, err
+	}
+	tagIDs := make([]string, 0, len(subtree))
+	for _, node := range subtree {
+		if node.IsLeaf() {
+			tagIDs = append(tagIDs, *node.TagID)
+		}
+	}
+	preview := &types.TagTreeCascadePreview{
+		Nodes:          int64(len(subtree)),
+		Tags:           int64(len(tagIDs)),
+		AffectedTagIDs: tagIDs,
+	}
+	if len(tagIDs) > 0 {
+		if err := r.db.WithContext(ctx).Model(&types.Chunk{}).
+			Where("tenant_id = ? AND tag_id IN (?)", tenantID, tagIDs).
+			Count(&preview.Chunks).Error; err != nil {
+			return nil, err
+		}
+		if err := r.db.WithContext(ctx).Model(&types.KnowledgeTagRelation{}).
+			Where("tag_id IN (?)", tagIDs).
+			Distinct("knowledge_id").
+			Count(&preview.Documents).Error; err != nil {
+			return nil, err
+		}
+	}
+	return preview, nil
+}
+
 // DeleteSubtreeCascade hard-deletes root and all descendants in one
 // transaction, cascading to the native tags of every node that carries one and to every
 // tagging reference (chunk-level and document-level). Tagged content is

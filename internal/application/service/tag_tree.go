@@ -431,6 +431,23 @@ func (s *tagTreeService) DeleteNode(ctx context.Context, kbID string, nodeID str
 	return result, nil
 }
 
+// PreviewDeleteNode reports what DeleteNode would cascade: how many documents
+// would lose the tag (and how many chunks untagged) — read-only, no writes.
+// The confirm dialog surfaces these counts before the irreversible cascade.
+func (s *tagTreeService) PreviewDeleteNode(
+	ctx context.Context, kbID string, nodeID string,
+) (*types.TagTreeCascadePreview, error) {
+	tenantID, err := s.resolveKBRead(ctx, kbID)
+	if err != nil {
+		return nil, err
+	}
+	node, err := s.loadNode(ctx, tenantID, kbID, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.PreviewSubtreeCascade(ctx, tenantID, kbID, node)
+}
+
 // MoveNode reparents a node. Cycles, self-moves and sibling name conflicts
 // are rejected; the subtree's
 // paths and levels are recomputed in one transaction.

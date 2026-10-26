@@ -3987,6 +3987,7 @@ export default {
       delete: '删除',
       deleteConfirm: '删除「{name}」及其整棵子树？',
       deleteWarning: '该操作不可恢复：子树内叶子的原生标签、文档打标关系与 FAQ 分块标签将被级联清理，文档本身保留（仅解除分类）。',
+      deleteImpact: '本次删除将移除 {documents} 篇文档上的对应标签(涉及 {chunks} 个内容分块)',
       deleted: '已删除 {nodes} 个节点、{tags} 个标签，解除 {relations} 条文档关联',
       parentLabel: '父级节点',
       rootLevel: '（根级）',

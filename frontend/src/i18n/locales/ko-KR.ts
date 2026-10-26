@@ -3985,6 +3985,7 @@ export default {
       delete: '삭제',
       deleteConfirm: '"{name}"와(과) 하위 트리 전체를 삭제하시겠습니까?',
       deleteWarning: '되돌릴 수 없습니다. 하위 트리 리프의 네이티브 태그, 문서 태그 관계, FAQ 청크 태그가 연쇄 정리됩니다. 문서 자체는 유지됩니다(분류만 해제).',
+      deleteImpact: '이 삭제로 {documents}개 문서에서 해당 태그가 제거됩니다(관련 청크 {chunks}개)',
       deleted: '노드 {nodes}개·태그 {tags}개 삭제, 문서 관계 {relations}건 해제',
       parentLabel: '부모 노드',
       rootLevel: '(루트)',

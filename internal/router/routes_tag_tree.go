@@ -23,6 +23,8 @@ func RegisterTagTreeRoutes(r *gin.RouterGroup, tagTreeHandler *handler.TagTreeHa
 		tagTreeRead.GET("/nodes", g.Viewer(), g.KBAccessRead("id"), tagTreeHandler.ListNodes)
 		tagTreeRead.GET("/nodes/:node_id", g.Viewer(), g.KBAccessRead("id"), tagTreeHandler.GetNode)
 		tagTreeRead.GET("/nodes/:node_id/leaves", g.Viewer(), g.KBAccessRead("id"), tagTreeHandler.GetLeaves)
+		// 删除影响预览(只读):确认框展示将解除多少文档标签
+		tagTreeRead.GET("/nodes/:node_id/impact", g.Viewer(), g.KBAccessRead("id"), tagTreeHandler.PreviewDeleteNode)
 		tagTree.POST("/nodes", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.CreateNode)
 		tagTree.PUT("/nodes/:node_id", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.UpdateNode)
 		tagTree.DELETE("/nodes/:node_id", g.OwnedKBOrAdmin(), g.KBAccessWrite("id"), tagTreeHandler.DeleteNode)

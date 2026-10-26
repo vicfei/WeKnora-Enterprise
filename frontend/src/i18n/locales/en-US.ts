@@ -2850,6 +2850,7 @@ export default {
       delete: 'Delete',
       deleteConfirm: 'Delete "{name}" and its whole subtree?',
       deleteWarning: 'This cannot be undone: native tags of the leaves in the subtree, document tag relations and FAQ chunk tags are cascade-cleaned. Documents themselves are kept (only unclassified).',
+      deleteImpact: 'This deletion will remove the tag from {documents} document(s) ({chunks} content chunks affected)',
       deleted: 'Deleted {nodes} nodes and {tags} tags; removed {relations} document relations',
       parentLabel: 'Parent node',
       rootLevel: '(root level)',

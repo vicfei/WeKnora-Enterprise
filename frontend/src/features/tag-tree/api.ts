@@ -40,6 +40,19 @@ export interface TagTreeDeleteResult {
   affected_tag_ids: string[]
 }
 
+/**
+ * Read-only delete impact preview (v3.1.3): what the delete-confirm dialog
+ * shows BEFORE the irreversible cascade runs — how many documents would
+ * lose the tag and how many chunks would be untagged.
+ */
+export interface TagTreeDeleteImpact {
+  nodes: number
+  tags: number
+  documents: number
+  chunks: number
+  affected_tag_ids: string[]
+}
+
 /** Retrieval pre-filter resolution of one node (GET .../leaves). */
 export interface TagTreeLeaves {
   node_id: string
@@ -96,6 +109,14 @@ export function updateTagTreeNode(
   data: { name?: string; sort_order?: number },
 ): Promise<TagTreeEnvelope<TagTreeNode>> {
   return put(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}`, data) as unknown as Promise<TagTreeEnvelope<TagTreeNode>>
+}
+
+/** Delete impact preview: read-only, no writes (GET .../nodes/:id/impact). */
+export function tagTreeNodeDeleteImpact(
+  kbId: string,
+  nodeId: string,
+): Promise<TagTreeEnvelope<TagTreeDeleteImpact>> {
+  return get(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}/impact`) as unknown as Promise<TagTreeEnvelope<TagTreeDeleteImpact>>
 }
 
 /** Physically delete the node and its whole subtree with cascade cleanup. */

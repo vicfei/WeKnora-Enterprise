@@ -127,8 +127,13 @@ func (p *DoubaoProvider) Search(ctx context.Context, query string, maxResults in
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	// v3.1.3 互联网访问审计:把发起搜索的最终用户账号(Java 门户场景为 UM 号,
+	// 取自外部用户主体的 sub)透传给 DMZ 网关,由其统一记录应用+账号+内容。
+	// 纯服务身份(无终端用户)不带此头。
+	actor := RequestActorFromContext(ctx) // 无终端用户时返回 "weknora"(DMZ 契约)
+	req.Header.Set(DMZExternalUserIDHeader, actor)
 
-	logger.Infof(ctx, "[WebSearch][Doubao] query=%q maxResults=%d timeRange=%s needContent=%t endpoint=%s auth=%t", query, maxResults, p.timeRange, p.needContent, p.baseURL, p.apiKey != "")
+	logger.Infof(ctx, "[WebSearch][Doubao] query=%q maxResults=%d timeRange=%s needContent=%t endpoint=%s auth=%t actor=%q", query, maxResults, p.timeRange, p.needContent, p.baseURL, p.apiKey != "", RequestActorFromContext(ctx))
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute Doubao request: %w", err)

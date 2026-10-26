@@ -69,6 +69,15 @@ type TagTreeRepository interface {
 		kbID string,
 		root *types.TagTree,
 	) (*types.TagTreeCascadeResult, error)
+	// PreviewSubtreeCascade computes the same side effects as
+	// DeleteSubtreeCascade without writing anything: the delete-confirm
+	// dialog shows these counts before the irreversible cascade runs.
+	PreviewSubtreeCascade(
+		ctx context.Context,
+		tenantID uint64,
+		kbID string,
+		root *types.TagTree,
+	) (*types.TagTreeCascadePreview, error)
 }
 
 // TagTreeService defines operations on the hierarchical tag tree of a
@@ -104,6 +113,9 @@ type TagTreeService interface {
 	// DeleteNode hard-deletes the node and its whole subtree in one
 	// transaction, cascading to native tags and tagging references.
 	DeleteNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeCascadeResult, error)
+	// PreviewDeleteNode reports the documents/chunks that DeleteNode would
+	// untag, without performing the deletion.
+	PreviewDeleteNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeCascadePreview, error)
 	// MoveNode reparents a node, rejecting cycles and self-moves; moving into
 	// a leaf demotes that leaf first.
 	MoveNode(ctx context.Context, kbID string, nodeID string, newParentID string) (*types.TagTreeNode, error)
