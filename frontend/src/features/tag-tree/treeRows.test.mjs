@@ -137,6 +137,28 @@ test('collectLeafTags keeps names alongside ids', () => {
   ])
 })
 
+// 标签树 2.0 fixture:目录也可携带标签(服务端 is_leaf = tag_id 非空,
+// 与有无子节点无关——"选谁打谁")。
+//   策略 (tag-s, 目录)
+//     量化 (tag-q)
+const TREE20 = [
+  node('n-strategy', '策略', { tag_id: 'tag-s', level: 0 }, [
+    node('n-quant', '量化', { tag_id: 'tag-q', level: 1, parent_id: 'n-strategy' }),
+  ]),
+]
+
+test('collectLeafTags 2.0: subtree union passes through tagged directories', () => {
+  // 旧实现在带标签节点上提前 return,分组 chip 聚合时会漏掉其子树
+  assert.deepEqual(collectLeafTags(TREE20[0]), [
+    { id: 'tag-s', name: '策略' },
+    { id: 'tag-q', name: '量化' },
+  ])
+})
+
+test('collectLeafTagIds 2.0: tagged directory resolves to own + subtree tags', () => {
+  assert.deepEqual(collectLeafTagIds(TREE20[0]), ['tag-s', 'tag-q'])
+})
+
 test('pruneSelectionToTopmost keeps only topmost selected nodes', () => {
   // Parent selected together with a descendant: descendant is implied.
   assert.deepEqual(pruneSelectionToTopmost(TREE, ['n-industry', 'n-lithium']), ['n-industry'])

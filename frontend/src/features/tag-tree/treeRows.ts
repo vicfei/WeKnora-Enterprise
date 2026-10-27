@@ -148,13 +148,15 @@ export function tagTreeNodeAncestors(roots: TagTreeNode[], id: string): string[]
  * collectLeafTagIds, keeping names for mention expansion).
  */
 export function collectLeafTags(node: TagTreeNode): Array<{ id: string; name: string }> {
+  // 标签树 2.0:与 collectLeafTagIds 同口径——自身标签 + 子树全部标签的并集。
+  // 旧实现在带标签节点上 return 停止递归,目录携带标签后会漏掉其子树,
+  // 分组 chip 的 mention 展开会聚合不全。
   const tags: Array<{ id: string; name: string }> = []
   const seen = new Set<string>()
   const walk = (n: TagTreeNode) => {
-    if (isLeafNode(n) && n.tag_id && !seen.has(n.tag_id)) {
+    if (n.tag_id && !seen.has(n.tag_id)) {
       seen.add(n.tag_id)
       tags.push({ id: n.tag_id, name: n.name })
-      return
     }
     n.children?.forEach(walk)
   }
