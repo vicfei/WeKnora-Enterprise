@@ -13,5 +13,6 @@
 - `LITE.md`：Lite 发布包复制为离线 README。
 - `images/`、`assets/`：README、Helm 等仍使用的图片资源。
 - `poc/docker-sandbox/`：独立 Go 实验模块，保留源码和运行说明，不作为当前产品指南。
+- `enterprise-deploy-runbook.md`：企业离线部署/升级跑本（tag 接线六步、三级验收、一分钟回滚），实操经验向，非产品安装指南。
 
 这些资源尚有编译、发布或历史实验用途，不能直接整目录删除。新的产品说明不要再放入此处。
