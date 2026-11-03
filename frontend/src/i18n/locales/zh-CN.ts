@@ -2738,6 +2738,7 @@ export default {
     unavailable: '不可用'
   },
   tools: {
+    kbRouter: '智能选择知识库',
     multiKbSearch: '跨库搜索',
     searchKnowledge: '检索知识库',
     readDocument: '阅读文档',
@@ -4120,6 +4121,7 @@ export default {
     phaseUploadFailed: '上传失败',
     phaseParseFailed: '解析失败',
     phaseDuplicate: '知识库中已有相同文件',
+    phaseDuplicateAsNewVersion: '文件内容与库中文档完全相同，未生成新版本；请上传修改后的同名文件',
     phaseCancelled: '已取消',
     phaseDeleted: '已删除',
     cancel: '取消',
@@ -4470,7 +4472,18 @@ export default {
     }
   },
   system: {
-    title: '系统信息',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: '消息反馈', filterRating: '按评分过滤', filterReason: '按理由过滤',
+
+          up: '赞', down: '踩',
+
+          columns: { time: '时间', rating: '评分', reason: '理由', question: '问题', answer: '回答节选', comment: '评语' },
+
+        },    title: '系统信息',
     sectionDescription: '查看系统版本信息和用户账户配置',
     loadingInfo: '正在加载信息...',
     retry: '重试',
@@ -6087,7 +6100,40 @@ export default {
       asr: '音频处理',
       datasource: '数据源',
       share: '共享管理',
-      activity: '活动记录'
+      activity: '活动记录',
+      tagTree: '层级标签'
+    },
+    tagTree: {
+      title: '层级标签树',
+      description: '以树形结构组织标签：叶子节点关联原生标签并用于检索预过滤，分组节点用于目录组织。',
+      stats: '{nodes} 个节点 · {leaves} 个叶子',
+      refresh: '刷新',
+      create: '新建节点',
+      toggleExpand: '展开/折叠',
+      empty: '尚未创建层级标签',
+      leafBadge: '叶子',
+      groupBadge: '分组',
+      sortUp: '上移',
+      sortDown: '下移',
+      rename: '重命名',
+      move: '移动到…',
+      moveTitle: '移动节点：{name}',
+      moveTarget: '目标父级',
+      delete: '删除',
+      deleteConfirm: '删除「{name}」及其整棵子树？',
+      deleteWarning: '该操作不可恢复：子树内叶子的原生标签、文档打标关系与 FAQ 分块标签将被级联清理，文档本身保留（仅解除分类）。',
+      deleted: '已删除 {nodes} 个节点、{tags} 个标签，解除 {relations} 条文档关联',
+      parentLabel: '父级节点',
+      rootLevel: '（根级）',
+      nameLabel: '节点名称',
+      namePlaceholder: '请输入节点名称',
+      nameRequired: '请输入节点名称',
+      demoteHint: '目标父级当前是叶子节点：保存后它将自动降级为分组，其原生标签与已打标文档的关联将被解除。',
+      createSuccess: '节点已创建',
+      renameSuccess: '节点已重命名',
+      moveSuccess: '节点已移动',
+      loadFailed: '标签树加载失败',
+      operationFailed: '操作失败，请重试'
     },
     navGroups: {
       basic: '基础',
@@ -6372,6 +6418,13 @@ export default {
     create: '新建知识库',
     subtitle: '管理和组织您的知识库，支持文档型和问答型知识库',
     sharedToOrgs: '已共享给 {count} 个空间',
+    portalTenantBadge: '跨租户条目（租户 {id}）',
+    portalGroupPersonal: '个人空间',
+    portalGroupTeam: '团队空间',
+    portalGroupAll: '公司公共',
+    portalGroupShared: '共享给我',
+    portalGroupCount: '{count} 个知识库',
+    portalRoleBadge: '我的角色：{role}',
     uninitializedBanner: '部分知识库尚未初始化，需要先在设置中配置模型信息才能添加知识文档',
     features: {
       knowledgeGraph: '知识图谱',
@@ -8293,8 +8346,7 @@ export default {
       allowedTools: '允许的工具',
       multiTurn: '多轮对话',
       historyTurns: '保留轮数',
-      retainRetrievalHistory: '保留检索结果',
-      memoryEnabled: '长期记忆',
+      retainRetrievalHistory: '保留检索结果',      memoryEnabled: '长期记忆',
       retrievalStrategy: '检索策略',
       embeddingTopK: '向量召回数量',
       keywordThreshold: '关键词阈值',
@@ -8561,6 +8613,7 @@ export default {
     imageVectorRequiresIndex: "请先在知识库设置中开启向量索引。",
     documentSummary: "文档摘要",
     documentSummaryDescription: "为本次导入的文档选择是否自动生成摘要。",
+      asNewVersion: { label: '作为新版本上传', description: '按标题自动挂接同文档旧版：确认前新版本不进入检索；确认后旧版自动下线（可回滚）' },
     generateSummary: "生成文档摘要",
     generateSummaryHint: "默认开启。关闭后跳过摘要生成，文档解析、索引及其他处理步骤仍按配置执行。",
 
@@ -8842,6 +8895,27 @@ export default {
     deleteDocument: '删除文档',
     moveDocument: '移动到...',
     moveToKnowledgeBase: '移动到知识库',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: '版本历史',
+
+      pendingVersionsTitle: '待确认版本',
+
+      versionConfirm: '确认生效',
+
+      versionReject: '拒绝',
+
+      versionConfirmed: '新版本已生效，旧版已自动下线',
+
+      versionRejected: '已拒绝并删除该待确认版本',
+
+      versionRollback: '回滚到此版',
+
+      versionRolledBack: '已回滚到所选版本',
+
+      versionActionFailed: '版本操作失败',
+
+      versionNoHistory: '暂无版本记录',
     moveNoTargets: '没有兼容的目标知识库（需要相同类型和 Embedding 模型）',
     moveModeReuseVectors: '复用向量（快速）',
     moveModeReuseVectorsDesc: '直接移动分块和向量索引，适用于分片配置相同的情况',
@@ -8916,6 +8990,10 @@ export default {
     pdfDocFormat: 'pdf、doc 格式文件，不超过{size}M',
     textMarkdownFormat: 'text、markdown格式文件，不超过{size}M',
     dragFileNotText: '请拖拽文件而不是文本或链接',
+    kbRoutingAgentConflict: '自动选库仅在「快速问答」模式生效；「智能推理」及智能体模式下由智能体配置决定知识库范围',
+    kbRoutingToggle: '自动选库（实验）：不手动选择时自动匹配最相关的知识库',
+    weightedRankingAgentConflict: '精准排序仅在「快速问答」模式生效；智能体模式下由智能体检索配置决定',
+    weightedRankingToggle: '精准排序（实验）：回答前先用排序模型精排检索结果，引用更准但稍慢',
     searchPlaceholder: '搜索知识库...',
     docSearchPlaceholder: '搜索文档名称...',
     fileTypeFilter: '文件类型',
@@ -8998,7 +9076,8 @@ export default {
     workspace: '本空间',
     spaces: '共享给我',
     favorites: '收藏',
-    recents: '最近'
+    recents: '最近',
+    portal: '门户'
   },
   batchManage: {
     selectAll: '全选',
@@ -9247,6 +9326,13 @@ export default {
         desc: '把知识库、提示词与工具组合成可复用的智能体，沉淀你的专业能力。'
       },
       chat: {
+        // 台账 T13 反馈闭环（与 chat.feedback 术语保持一致）
+        feedback: {
+          up: '赞', down: '踩',
+          downHeader: '这条回答哪里有问题？', submit: '提交反馈', cancel: '取消',
+          thanks: '感谢反馈！', failed: '反馈提交失败', commentPlaceholder: '补充说明（可选）：500 字内',
+          reason: { wrong_answer: '答案错误', bad_citation: '引用与答案不符', outdated: '信息过时', incomplete: '回答不完整', style: '表述/风格问题', other: '其他' },
+        },
         title: '发起智能对话',
         desc: '基于知识库内容向 AI 提问，获得带引用来源的精准回答。点击这里开始新对话。'
       },
@@ -9379,6 +9465,26 @@ export default {
     apiChats: 'API 会话',
     noSessions: '暂无对话'
   },
+  // 二开功能：层级标签树选择器（聊天输入框/文档筛选）
+  tagTreePicker: {
+    trigger: '按标签树筛选范围',
+    title: '标签树筛选',
+    selectedCount: '已选 {count} 项',
+    noKnowledgeBases: '暂无可用的文档型知识库',
+    empty: '该知识库尚未创建层级标签',
+    noLeaves: '无标签',
+    leafCount: '{count} 个标签',
+    loadFailed: '标签树加载失败',
+    browseSection: '按层级浏览',
+    pickForUpload: '从标签树选择'
+  },
+
+  // 二开功能：UUM bridge 登录（外部 Java 门户统一登录）
+  bridgeLogin: {
+    portalButton: '门户统一登录',
+    callbackFailed: '门户登录失败，请重新从门户进入'
+  },
+
   // 图片属性的展示文案，按属性名索引（后端注册表给出属性名，这里只做翻译）。
   // 注意：属性名里的点号要转义成下划线（contain.text → contain_text）——vue-i18n 按点号
   // 逐段下钻，写成字面量 'contain.text' 的键永远取不到。

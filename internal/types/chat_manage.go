@@ -89,6 +89,14 @@ type PipelineRequest struct {
 	// query-understanding stage. Empty values fall back to tenant/global defaults.
 	IntentPromptOverrides map[string]string `json:"-"`
 
+	// Weighted ranking (二开特性 "多维度加权排序", default off).
+	// EnableWeightedRanking switches the rerank composite scoring from the
+	// legacy hardcoded formula to the configurable RankingConfig below.
+	// Ranking arrives already merged (request-level over tenant-level) and
+	// may be nil, which resolves to the legacy constants.
+	EnableWeightedRanking bool           `json:"-"`
+	Ranking               *RankingConfig `json:"-"`
+
 	// Misc request-scoped config
 	TenantID            uint64 `json:"-"`
 	WebSearchEnabled    bool   `json:"-"`
@@ -193,6 +201,10 @@ type PipelineState struct {
 	RewriteQuery string      `json:"rewrite_query,omitempty"`
 	Intent       QueryIntent `json:"intent,omitempty"`
 	History      []*History  `json:"history,omitempty"`
+	// TimeCondition is the structured time intent extracted by query
+	// understanding (time-aware retrieval). nil = no time intent — the whole
+	// retrieval path stays untouched (zero-behavior-change guarantee).
+	TimeCondition *SearchTimeCondition `json:"-"`
 	// HistoryLoaded records that History was fetched this turn, so an empty
 	// History (a first turn) is not fetched again by a later stage.
 	HistoryLoaded bool `json:"-"`
@@ -363,8 +375,13 @@ func (c *ChatManage) Clone() *ChatManage {
 			IntentPromptOverrides:    maps.Clone(c.IntentPromptOverrides),
 		},
 		PipelineState: PipelineState{
-			RewriteQuery:         c.RewriteQuery,
-			Intent:               c.Intent,
+			RewriteQuery: c.RewriteQuery,
+			Intent:       c.Intent,
+			// TimeCondition is shared by pointer: it is write-once in query
+			// understanding and read-only downstream, and search_parallel's
+			// clones must still see it or time-aware retrieval silently
+			// deactivates on the parallel path.
+			TimeCondition:        c.TimeCondition,
 			ImageDescription:     c.ImageDescription,
 			QuotedContext:        c.QuotedContext,
 			SystemPromptOverride: c.SystemPromptOverride,

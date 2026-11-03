@@ -176,6 +176,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewKnowledgeTagRepository))
 	must(container.Provide(repository.NewSessionRepository))
 	must(container.Provide(repository.NewMessageRepository))
+	must(container.Provide(repository.NewMessageFeedbackRepository))
 	must(container.Provide(repository.NewMessageSuggestionRepository))
 	must(container.Provide(repository.NewModelRepository))
 	must(container.Provide(repository.NewUserRepository))
@@ -194,6 +195,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(repository.NewMCPOAuthRepository))
 	must(container.Provide(repository.NewTenantSandboxConfigRepository))
 	must(container.Provide(repository.NewTenantSkillRepository))
+	must(container.Provide(repository.NewTagTreeRepository))
+	must(container.Provide(repository.NewIdentityBridgeRepository))
+	must(container.Provide(repository.NewUserSpaceGrantRepository))
 	must(container.Provide(repository.NewCustomAgentRepository))
 	must(container.Provide(repository.NewOrganizationRepository))
 	must(container.Provide(repository.NewKBShareRepository))
@@ -310,6 +314,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 		dig.Name("knowledgeBaseProfile")))
 
 	must(container.Provide(service.NewMessageService))
+	must(container.Provide(service.NewMessageFeedbackService))
 	must(container.Provide(service.NewMessageSuggestionService))
 	must(container.Provide(service.NewMCPServiceService))
 	must(container.Provide(service.NewMCPToolApprovalService))
@@ -419,6 +424,9 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	logger.Debugf(ctx, "[Container] Registering session service...")
 	must(container.Provide(service.NewSessionService))
 	must(container.Provide(service.NewTenantSkillService))
+	must(container.Provide(service.NewTagTreeService))
+	must(container.Provide(service.NewIdentityBridgeService))
+	must(container.Provide(service.NewUserSpaceGrantService))
 	// The member-facing half of env vars is its own service because its
 	// authority is different in kind: it derives the identity from the context
 	// and touches only that identity's rows.
@@ -695,8 +703,12 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewChunkHandler))
 	must(container.Provide(handler.NewFAQHandler))
 	must(container.Provide(handler.NewTagHandler))
+	must(container.Provide(handler.NewTagTreeHandler))
+	must(container.Provide(handler.NewIdentityBridgeHandler))
+	must(container.Provide(handler.NewUserSpaceGrantHandler))
 	must(container.Provide(session.NewHandler))
 	must(container.Provide(handler.NewMessageHandler))
+	must(container.Provide(handler.NewMessageFeedbackHandler))
 	must(container.Provide(handler.NewMessageSuggestionHandler))
 	must(container.Provide(handler.NewModelHandler))
 	must(container.Provide(handler.NewSandboxConfigHandler))

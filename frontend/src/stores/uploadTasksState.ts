@@ -25,6 +25,8 @@ export interface UploadItem {
   /** Backend parse_status once uploaded; 'deleted' when the row disappeared. */
   parseStatus?: string
   parseError?: string
+  /** Batch-level "作为新版本上传" toggle, kept per row for duplicate messaging. */
+  asNewVersion?: boolean
 }
 
 /**

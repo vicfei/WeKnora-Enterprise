@@ -148,6 +148,8 @@ func TestCreateKnowledgeFromFileDoesNotPersistWhenStorageSaveFails(t *testing.T)
 		nil,
 		"",
 		nil,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.Error(t, err)
@@ -179,6 +181,8 @@ func TestCreateKnowledgeFromFilePersistsStoredFilePathOnCreate(t *testing.T) {
 		nil,
 		"",
 		nil,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.NoError(t, err)
@@ -219,6 +223,8 @@ func TestCreateKnowledgeFromFileAcceptsInvalidJSONForAsyncParse(t *testing.T) {
 		nil,
 		"notion",
 		nil,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.NoError(t, err)
@@ -261,6 +267,8 @@ func TestCreateKnowledgeFromImageFallsBackWhenLegacyStorageConfigIsIncomplete(t 
 		nil,
 		"",
 		nil,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.NoError(t, err)
@@ -291,6 +299,8 @@ func TestCreateKnowledgeFromFileDeletesStoredFileWhenCreateFails(t *testing.T) {
 		nil,
 		"",
 		nil,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.EqualError(t, err, "database unavailable")
@@ -330,6 +340,8 @@ func TestCreateKnowledgeFromFile_PersistsProcessOverrides(t *testing.T) {
 		nil,
 		"",
 		overrides,
+		nil, // businessDate
+		false, // asNewVersion
 	)
 
 	require.NoError(t, err)

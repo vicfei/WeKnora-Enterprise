@@ -12,13 +12,14 @@ templates:
 
       ## Output
       Return strict JSON only, no prose before or after, with exactly these fields:
-      {"summary": "...", "gist": "...", "topics": ["..."], "doc_type": "...", "typical_question": "..."}
+      {"summary": "...", "gist": "...", "topics": ["..."], "doc_type": "...", "typical_question": "...", "document_metadata": {"doc_date": "YYYY-MM-DD or null", "effective_date": "YYYY-MM-DD or null", "doc_number": "string or null", "version_label": "string or null"}}
 
       - summary: 2-3 sentences (about 60-120 words) covering the document's subject, its key points and its main conclusion. Objective, third person, no preamble.
       - gist: one line (at most 25 words) stating what the document is about.
       - topics: 3-5 short topic keywords (1-4 words each) that a reader would use to find this document. Use the document's own terminology; do not pad with generic words such as "information" or "document".
       - doc_type: a short label for the kind of document, e.g. "user manual", "meeting notes", "contract", "research paper", "FAQ", "policy", "tutorial", "report".
       - typical_question: one self-contained natural-language question that this document answers well. No pronouns such as "it" or "this document".
+      - document_metadata: ONLY what the text states explicitly. doc_date = the document's own publication/report date; effective_date = a stated effective/valid-from date; doc_number = an official document number (e.g. 编号/文号); version_label = a stated version (e.g. 第三版/V2.2). Use null for anything not explicitly stated — never guess, never use a filename or today's date.
 
       ## Content Rules
       - Base every field entirely on the provided content; add nothing that is not there.

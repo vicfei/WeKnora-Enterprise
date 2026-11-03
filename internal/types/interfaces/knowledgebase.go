@@ -59,6 +59,10 @@ type KnowledgeBaseService interface {
 	ListKnowledgeBases(ctx context.Context) ([]*types.KnowledgeBase, error)
 	// ListKnowledgeBasesByTenantID lists all knowledge bases for a specific tenant (e.g. for shared agent context).
 	ListKnowledgeBasesByTenantID(ctx context.Context, tenantID uint64) ([]*types.KnowledgeBase, error)
+	// ListAllKnowledgeBases lists every non-temporary knowledge base in the
+	// system across tenants. It backs the system-admin ?scope=portal view
+	// only; every regular list path stays tenant-scoped.
+	ListAllKnowledgeBases(ctx context.Context) ([]*types.KnowledgeBase, error)
 
 	// UpdateKnowledgeBase updates knowledge base information
 	// Parameters:

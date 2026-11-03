@@ -38,7 +38,7 @@ func TestAgentConfigCarriesTheMemoryPreference(t *testing.T) {
 				},
 			}
 
-			agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+			agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, agentConfig.MemoryEnabled)
 		})
@@ -61,11 +61,10 @@ func TestAgentConfigCarriesMaxCompletionTokens(t *testing.T) {
 		},
 	}
 
-	agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+	agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 	require.NoError(t, err)
 	require.Equal(t, 64000, agentConfig.MaxCompletionTokens)
 }
-
 func boolPtr(v bool) *bool { return &v }
 
 // An unset MCP mode runs as "all" for the owner, but the share scope shows it
@@ -81,7 +80,7 @@ func TestAgentConfigUnsetMCPModeIsNoneForSharedRuns(t *testing.T) {
 			CustomAgent:         &types.CustomAgent{TenantID: 1, Config: types.CustomAgentConfig{MaxIterations: 5}},
 			SharedAgentReadOnly: shared,
 		}
-		agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+		agentConfig, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 		require.NoError(t, err)
 		if shared {
 			require.Equal(t, "none", agentConfig.MCPSelectionMode)

@@ -89,7 +89,7 @@ func TestBrowserSourceConfigPreservesOtherSelectionsAndResetsNextTurn(t *testing
 			SandboxConfigID: "sandbox", SystemPrompt: "custom instructions",
 		}},
 	}
-	cfg, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+	cfg, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 	require.NoError(t, err)
 	require.True(t, cfg.LocalBrowserEnabled)
 	require.True(t, cfg.WebSearchEnabled)
@@ -100,7 +100,7 @@ func TestBrowserSourceConfigPreservesOtherSelectionsAndResetsNextTurn(t *testing
 	require.Equal(t, "custom instructions", cfg.SystemPrompt)
 	require.True(t, req.CustomAgent.Config.WebSearchEnabled)
 	req.LocalBrowserEnabled = false
-	cfg, err = svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+	cfg, err = svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 	require.NoError(t, err)
 	require.False(t, cfg.LocalBrowserEnabled)
 	require.True(t, cfg.WebSearchEnabled)
@@ -118,7 +118,7 @@ func TestAgentPromptReferencesReachBothRuntimePaths(t *testing.T) {
 		AgentMode: types.AgentModeSmartReasoning, SystemPromptID: "agent", ContextTemplateID: "context",
 	}}
 	req := &types.QARequest{Session: &types.Session{ID: "session", TenantID: 1}, CustomAgent: a}
-	cfg, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1)
+	cfg, err := svc.buildAgentConfig(t.Context(), req, &types.Tenant{ID: 1}, 1, nil)
 	require.NoError(t, err)
 	require.Equal(t, "Latest agent template", cfg.SystemPrompt)
 	require.True(t, cfg.UseCustomSystemPrompt)

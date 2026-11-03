@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/searchutil"
@@ -340,7 +341,7 @@ func (s *knowledgeBaseService) buildSearchResult(chunk *types.Chunk,
 	matchType types.MatchType,
 	matchedContent string,
 ) *types.SearchResult {
-	return &types.SearchResult{
+	sr := &types.SearchResult{
 		ID:                      chunk.ID,
 		Content:                 chunk.Content,
 		ContentRevision:         chunk.ContentRevision,
@@ -367,6 +368,29 @@ func (s *knowledgeBaseService) buildSearchResult(chunk *types.Chunk,
 		KnowledgeBaseID:         knowledge.KnowledgeBaseID,
 		SourceLocators:          chunk.SourceLocators,
 	}
+	// Document-level recency signal for weighted ranking (主题 3): stamped
+	// here from the already-fetched knowledge record at zero extra query cost,
+	// consumed by the rerank composite only when RecencyWeight > 0.
+	// Time-aware retrieval (设计 §4.5): business_date is the primary signal
+	// when present; knowledge_time_source records which axis supplied it so
+	// the signal provenance is observable.
+	if knowledge.BusinessDate != nil && !knowledge.BusinessDate.IsZero() {
+		if sr.Metadata == nil {
+			sr.Metadata = make(map[string]string, 2)
+		}
+		sr.Metadata["knowledge_business_date"] = knowledge.BusinessDate.UTC().Format(time.RFC3339)
+		sr.Metadata["knowledge_time_source"] = "business"
+	}
+	if !knowledge.UpdatedAt.IsZero() {
+		if sr.Metadata == nil {
+			sr.Metadata = make(map[string]string, 1)
+		}
+		if _, hasSource := sr.Metadata["knowledge_time_source"]; !hasSource {
+			sr.Metadata["knowledge_time_source"] = "system"
+		}
+		sr.Metadata["knowledge_updated_at"] = knowledge.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+	return sr
 }
 
 // isSearchableChunk checks if a chunk type should be included in search results.

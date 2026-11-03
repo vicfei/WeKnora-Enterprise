@@ -63,6 +63,21 @@ type CreateKnowledgeQARequest struct {
 	LocalBrowserEnabled bool `json:"local_browser_enabled"`
 	// Whether web search is enabled for this request
 	WebSearchEnabled bool `json:"web_search_enabled"`
+	// EnableKBRouting (二开特性, default off): with no explicit KB selection,
+	// auto-route the query to the most relevant KBs by content-centroid
+	// similarity. Explicit selections are never overridden.
+	EnableKBRouting bool `json:"enable_kb_routing"`
+	// EnableWeightedRanking (二开特性 "多维度加权排序", default off): switch the
+	// rerank composite score from the legacy hardcoded formula to the
+	// configurable weights in Ranking (falls back to tenant config, then to
+	// the legacy constants). Off = exact legacy behavior.
+	EnableWeightedRanking bool                 `json:"enable_weighted_ranking"`
+	Ranking               *types.RankingConfig `json:"ranking,omitempty"`
+	// RerankModelID is a request-level rerank-model override (二开: the chat
+	// pipeline otherwise leaves RerankModelID empty unless an agent sets one,
+	// silently skipping the whole rerank stage). "auto" picks the first
+	// available rerank model; empty = today's behavior.
+	RerankModelID string `json:"rerank_model_id,omitempty"`
 	// Optional summary model ID for this request (overrides session default)
 	SummaryModelID string `json:"summary_model_id"`
 	// Per-request MCP services selected via @mention

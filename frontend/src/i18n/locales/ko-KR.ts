@@ -2736,6 +2736,7 @@ export default {
     unavailable: '사용 불가'
   },
   tools: {
+    kbRouter: '지식베이스 스마트 선택',
     multiKbSearch: '크로스 KB 검색',
     searchKnowledge: '지식베이스 검색',
     readDocument: '문서 읽기',
@@ -4118,6 +4119,7 @@ export default {
     phaseUploadFailed: '업로드 실패',
     phaseParseFailed: '파싱 실패',
     phaseDuplicate: '동일한 파일이 이미 있습니다',
+    phaseDuplicateAsNewVersion: '기존 문서와 내용이 완전히 같아 새 버전이 생성되지 않았습니다. 수정된 같은 이름의 파일을 업로드하세요',
     phaseCancelled: '취소됨',
     phaseDeleted: '삭제됨',
     cancel: '취소',
@@ -4468,7 +4470,18 @@ export default {
     }
   },
   system: {
-    title: '시스템 정보',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: '메시지 피드백', filterRating: '평점으로 필터', filterReason: '이유로 필터',
+
+          up: '찬성', down: '반대',
+
+          columns: { time: '시간', rating: '평점', reason: '이유', question: '질문', answer: '답변 발췌', comment: '의견' },
+
+        },    title: '시스템 정보',
     sectionDescription: '시스템 버전 정보 및 사용자 계정 설정 보기',
     loadingInfo: '정보 로딩 중...',
     retry: '재시도',
@@ -6086,7 +6099,40 @@ export default {
       asr: '오디오',
       datasource: '데이터 소스',
       share: '공유관리',
-      activity: '활동 기록'
+      activity: '활동 기록',
+      tagTree: '태그 계층'
+    },
+    tagTree: {
+      title: '계층형 태그 트리',
+      description: '태그를 트리 구조로 구성합니다. 리프 노드는 네이티브 태그에 연결되어 검색 사전 필터에 사용되고, 그룹 노드는 디렉터리 역할을 합니다.',
+      stats: '노드 {nodes}개 · 리프 {leaves}개',
+      refresh: '새로고침',
+      create: '노드 추가',
+      toggleExpand: '펼치기/접기',
+      empty: '아직 계층형 태그가 없습니다',
+      leafBadge: '리프',
+      groupBadge: '그룹',
+      sortUp: '위로 이동',
+      sortDown: '아래로 이동',
+      rename: '이름 변경',
+      move: '이동…',
+      moveTitle: '노드 이동: {name}',
+      moveTarget: '대상 부모',
+      delete: '삭제',
+      deleteConfirm: '"{name}"와(과) 하위 트리 전체를 삭제하시겠습니까?',
+      deleteWarning: '되돌릴 수 없습니다. 하위 트리 리프의 네이티브 태그, 문서 태그 관계, FAQ 청크 태그가 연쇄 정리됩니다. 문서 자체는 유지됩니다(분류만 해제).',
+      deleted: '노드 {nodes}개·태그 {tags}개 삭제, 문서 관계 {relations}건 해제',
+      parentLabel: '부모 노드',
+      rootLevel: '(루트)',
+      nameLabel: '노드 이름',
+      namePlaceholder: '노드 이름을 입력하세요',
+      nameRequired: '노드 이름을 입력하세요',
+      demoteHint: '대상 부모가 현재 리프 노드입니다. 저장 후 그룹으로 강등되며 해당 네이티브 태그와 문서 연결이 해제됩니다.',
+      createSuccess: '노드가 생성되었습니다',
+      renameSuccess: '노드 이름이 변경되었습니다',
+      moveSuccess: '노드가 이동되었습니다',
+      loadFailed: '태그 트리를 불러오지 못했습니다',
+      operationFailed: '작업이 실패했습니다. 다시 시도하세요'
     },
     navGroups: {
       basic: '기본',
@@ -6371,6 +6417,13 @@ export default {
     create: '지식베이스 생성',
     subtitle: '지식베이스를 관리하고 구성합니다. 문서형과 Q&A형 지식베이스를 지원합니다',
     sharedToOrgs: '{count} 스페이스에 공유됨',
+    portalTenantBadge: '테넌트 간 항목 (테넌트 {id})',
+    portalGroupPersonal: '개인 공간',
+    portalGroupTeam: '팀 공간',
+    portalGroupAll: '회사 공용',
+    portalGroupShared: '공유받음',
+    portalGroupCount: '지식 베이스 {count}개',
+    portalRoleBadge: '내 역할: {role}',
     uninitializedBanner: '일부 지식베이스가 아직 초기화되지 않았습니다. 지식 문서를 추가하려면 먼저 설정에서 모델 정보를 구성해야 합니다',
     features: {
       knowledgeGraph: '지식 그래프 활성화됨',
@@ -8292,8 +8345,7 @@ export default {
       allowedTools: '허용된 도구',
       multiTurn: '여러 라운드의 대화',
       historyTurns: '라운드 수를 유지하세요',
-      retainRetrievalHistory: '검색 결과 유지',
-      memoryEnabled: '장기 기억',
+      retainRetrievalHistory: '검색 결과 유지',      memoryEnabled: '장기 기억',
       retrievalStrategy: '검색 전략',
       embeddingTopK: '벡터 회수 횟수',
       keywordThreshold: '키워드 기준점',
@@ -8560,6 +8612,7 @@ export default {
     imageVectorRequiresIndex: "먼저 지식 베이스 설정에서 벡터 인덱싱을 활성화하세요.",
     documentSummary: "문서 요약",
     documentSummaryDescription: "이번에 가져오는 문서의 요약을 자동으로 생성할지 선택합니다.",
+      asNewVersion: { label: '새 버전으로 업로드', description: '제목 정규화로 이전 버전에 자동 연결: 확인 전 검색 비노출, 확인 시 이전 버전 자동 종료(롤백 가능)' },
     generateSummary: "문서 요약 생성",
     generateSummaryHint: "기본적으로 활성화됩니다. 비활성화하면 요약 생성을 건너뛰며 파싱, 인덱싱 및 기타 단계는 설정대로 진행됩니다.",
 
@@ -8841,6 +8894,27 @@ export default {
     deleteDocument: '문서 삭제',
     moveDocument: '이동...',
     moveToKnowledgeBase: '지식베이스로 이동',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: '버전 이력',
+
+      pendingVersionsTitle: '확인 대기 버전',
+
+      versionConfirm: '확인',
+
+      versionReject: '거부',
+
+      versionConfirmed: '새 버전이 활성화되고 이전 버전이 자동 종료되었습니다',
+
+      versionRejected: '대기 버전을 거부하고 삭제했습니다',
+
+      versionRollback: '이 버전으로 롤백',
+
+      versionRolledBack: '선택한 버전으로 롤백했습니다',
+
+      versionActionFailed: '버전 작업 실패',
+
+      versionNoHistory: '버전 기록 없음',
     moveNoTargets: '호환되는 지식베이스가 없습니다 (동일한 유형과 임베딩 모델 필요)',
     moveModeReuseVectors: '벡터 재사용 (빠름)',
     moveModeReuseVectorsDesc: '청크와 벡터 인덱스를 직접 이동합니다. 청킹 설정이 동일할 때 사용합니다.',
@@ -8915,6 +8989,10 @@ export default {
     pdfDocFormat: 'pdf, doc 형식 파일, 최대 {size}MB',
     textMarkdownFormat: 'text, markdown 형식 파일, 최대 {size}MB',
     dragFileNotText: '텍스트나 링크가 아닌 파일을 드래그하세요',
+    kbRoutingAgentConflict: '자동 지식베이스 선택은 「빠른 Q&A」 모드에서만 적용됩니다; 스마트 추론/에이전트 모드에서는 에이전트 설정이 지식베이스 범위를 결정합니다',
+    kbRoutingToggle: '자동 지식베이스 선택(실험): 직접 선택하지 않으면 가장 관련성 높은 지식베이스를 자동 매칭',
+    weightedRankingAgentConflict: '정밀 랭킹은 「빠른 Q&A」 모드에서만 적용됩니다; 에이전트 모드에서는 에이전트 검색 설정이 결정합니다',
+    weightedRankingToggle: '정밀 랭킹(실험): 답변 전에 재정렬 모델로 검색 결과를 정밀 정렬 — 인용이 더 정확하지만 약간 느립니다',
     searchPlaceholder: '지식베이스 검색...',
     docSearchPlaceholder: '문서 이름 검색...',
     fileTypeFilter: '파일 유형',
@@ -8997,7 +9075,8 @@ export default {
     workspace: '워크스페이스',
     spaces: '나와 공유됨',
     favorites: '즐겨찾기',
-    recents: '최근'
+    recents: '최근',
+    portal: '포털'
   },
   batchManage: {
     selectAll: '전체 선택',
@@ -9246,6 +9325,13 @@ export default {
         desc: '지식 베이스, 프롬프트, 도구를 결합해 재사용 가능한 에이전트로 전문성을 축적하세요.'
       },
       chat: {
+        // 台账 T13 反馈闭环
+        feedback: {
+          up: '도움됨', down: '도움 안 됨',
+          downHeader: '이 답변의 문제는 무엇인가요?', submit: '제출', cancel: '취소',
+          thanks: '피드백 감사합니다!', failed: '피드백 제출에 실패했습니다', commentPlaceholder: '추가 설명(선택, 500자 이내)',
+          reason: { wrong_answer: '답변이 틀림', bad_citation: '인용이 답변과 맞지 않음', outdated: '정보가 오래됨', incomplete: '답변이 불완전함', style: '표현/스타일 문제', other: '기타' },
+        },
         title: 'AI 대화 시작하기',
         desc: '지식 베이스 내용을 기반으로 질문하고 출처가 포함된 정확한 답변을 받아보세요. 여기를 클릭해 새 대화를 시작하세요.'
       },
@@ -9378,6 +9464,26 @@ export default {
     apiChats: 'API 세션',
     noSessions: '대화가 없습니다'
   },
+  // 추가 개발 기능: 계층형 태그 트리 선택기
+  tagTreePicker: {
+    trigger: '태그 트리로 필터링',
+    title: '태그 트리 필터',
+    selectedCount: '{count}개 선택됨',
+    noKnowledgeBases: '사용 가능한 문서형 지식 베이스가 없습니다',
+    empty: '이 지식 베이스에는 아직 계층형 태그가 없습니다',
+    noLeaves: '태그 없음',
+    leafCount: '태그 {count}개',
+    loadFailed: '태그 트리를 불러오지 못했습니다',
+    browseSection: '계층별 탐색',
+    pickForUpload: '태그 트리에서 선택'
+  },
+
+  // 추가 개발 기능: UUM bridge 로그인 (외부 포털 SSO)
+  bridgeLogin: {
+    portalButton: '포털 통합 로그인',
+    callbackFailed: '포털 로그인에 실패했습니다. 포털에서 다시 진입해 주세요'
+  },
+
   // 관찰 속성의 표시 문구. 속성 이름으로 색인하며 여기서는 번역만 담당합니다.
   // 속성 이름의 점은 밑줄로 이스케이프합니다(contain.text → contain_text) —— vue-i18n 은
   // 키를 점 단위로 순회하므로 리터럴 'contain.text' 키는 해석되지 않습니다.

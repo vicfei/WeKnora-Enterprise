@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Tencent/WeKnora/internal/config"
@@ -82,6 +83,14 @@ var searchKnowledgeTool = BaseTool{
       "description": "Maximum chunks to return (default 10, max 30)",
       "minimum": 1,
       "maximum": 30
+    },
+    "time_min": {
+      "type": "string",
+      "description": "Optional: window start (inclusive), YYYY-MM-DD — the document's business date must be on/after this. Only pass when the user states a time constraint."
+    },
+    "time_max": {
+      "type": "string",
+      "description": "Optional: window end (inclusive), YYYY-MM-DD — the document's business date must be on/before this (as-of questions). Only pass when the user states a time constraint."
     }
   },
   "required": ["query"]
@@ -94,6 +103,12 @@ type SearchKnowledgeInput struct {
 	Mode             string   `json:"mode,omitempty"`
 	KnowledgeBaseIDs []string `json:"knowledge_base_ids,omitempty"`
 	Limit            int      `json:"limit,omitempty"`
+	// TimeMin/TimeMax carry the document business-date window (YYYY-MM-DD)
+	// extracted from the user's phrasing. Both empty = no time constraint.
+	// The server resolves them through the same resolveDocumentTimeScope as
+	// the chat pipeline (single-path rule).
+	TimeMin string `json:"time_min,omitempty"`
+	TimeMax string `json:"time_max,omitempty"`
 }
 
 // searchResultWithMeta wraps search result with metadata about which query matched it
@@ -115,6 +130,10 @@ type SearchKnowledgeTool struct {
 	searchTargets        types.SearchTargets // Pre-computed unified search targets
 	rerankModel          rerank.Reranker
 	config               *config.Config // Global config for fallback values
+	// ranking holds the resolved composite weights + MMR lambda applied to
+	// reranked candidates. Zero value means "legacy constants" so every
+	// construction site that never calls WithRanking keeps the historical formula.
+	ranking types.ResolvedRanking
 	// patternFilter, when set, keeps only results whose text matches it.
 	// It is not exposed to the model; the MCP grep_chunks endpoint uses it
 	// to keep grep semantics on top of index-backed retrieval.
@@ -158,7 +177,29 @@ func NewSearchKnowledgeTool(
 		searchTargets:        searchTargets,
 		rerankModel:          rerankModel,
 		config:               cfg,
+		ranking:              (&types.RankingConfig{}).Resolve(),
 	}
+}
+
+// WithRanking sets the retrieval-ranking parameters. A zero-value input is
+// normalized to the legacy defaults (0.6/0.3/0.1, MMR λ=0.7) so an unset
+// AgentConfig.Ranking can never zero out the composite score.
+func (t *SearchKnowledgeTool) WithRanking(r types.ResolvedRanking) *SearchKnowledgeTool {
+	if r == (types.ResolvedRanking{}) {
+		r = (&types.RankingConfig{}).Resolve()
+	}
+	t.ranking = r
+	return t
+}
+
+// effectiveRanking returns the ranking parameters to score with, normalizing
+// a zero value (a tool built via struct literal without WithRanking) to the
+// legacy defaults.
+func (t *SearchKnowledgeTool) effectiveRanking() types.ResolvedRanking {
+	if t.ranking == (types.ResolvedRanking{}) {
+		return (&types.RankingConfig{}).Resolve()
+	}
+	return t.ranking
 }
 
 // normalizeSearchMode validates the mode argument and applies the default.
@@ -201,6 +242,10 @@ func (t *SearchKnowledgeTool) Execute(ctx context.Context, args json.RawMessage)
 		return &types.ToolResult{Success: false, Error: err.Error()}, err
 	}
 	limit := clampSearchLimit(input.Limit)
+
+	// Time-aware retrieval (design §4.6): the model supplies absolute dates;
+	// anything unparseable or inverted is ignored rather than guessed.
+	timeCondition := buildAgentTimeCondition(ctx, input.TimeMin, input.TimeMax)
 
 	// Optional KB filter: reject hallucinated or out-of-scope handles.
 	searchTargets := t.searchTargets
@@ -253,7 +298,7 @@ func (t *SearchKnowledgeTool) Execute(ctx context.Context, args json.RawMessage)
 		query, mode, limit, topK, len(searchTargets), len(kbIDs))
 
 	allResults, searchFailures, searchCalls, embedFallbacks := t.concurrentSearchByTargets(ctx, query, mode,
-		kbModes, searchTargets, kbList, topK, vectorThreshold, keywordThreshold, kbTypeMap)
+		kbModes, searchTargets, kbList, topK, vectorThreshold, keywordThreshold, kbTypeMap, timeCondition)
 	// A hybrid search that ran keyword-only is reported like any other mode
 	// fallback, so an empty result is not read as "no semantic match".
 	for kbID, reason := range embedFallbacks {
@@ -289,7 +334,7 @@ func (t *SearchKnowledgeTool) Execute(ctx context.Context, args json.RawMessage)
 	// ranked results.
 	ranked, keptOutside := splitKeptOutsideTopK(ranked)
 	if len(ranked) > 0 {
-		if selected := selectMMR(ctx, ranked, min(len(ranked), retrievalLimit)); len(selected) > 0 {
+		if selected := t.selectMMR(ctx, ranked, min(len(ranked), retrievalLimit)); len(selected) > 0 {
 			ranked = selected
 		}
 	}
@@ -584,6 +629,7 @@ func (t *SearchKnowledgeTool) concurrentSearchByTargets(
 	topK int,
 	vectorThreshold, keywordThreshold float64,
 	kbTypeMap map[string]string,
+	timeCondition *types.SearchTimeCondition,
 ) (_ []*searchResultWithMeta, failures []string, calls int, embedFallbacks map[string]string) {
 	// Filter out non-searchable KBs (wiki-only / graph-only). Feeding a
 	// wiki-only KB into HybridSearch causes spurious "model ID cannot be
@@ -760,6 +806,7 @@ func (t *SearchKnowledgeTool) concurrentSearchByTargets(
 						KeywordThreshold:     keywordThreshold,
 						DisableVectorMatch:   usedMode == SearchModeKeyword,
 						DisableKeywordsMatch: usedMode == SearchModeSemantic,
+						TimeCondition:        timeCondition,
 						// Neighbor, parent and related chunks came back as
 						// extra rows that were never retrieved, tripling the
 						// rerank input; read_document(chunk://N, context=k) serves
@@ -798,6 +845,7 @@ func (t *SearchKnowledgeTool) concurrentSearchByTargets(
 						ScopeTagIDs:          st.ScopeTagIDs,
 						DisableVectorMatch:   usedMode == SearchModeKeyword,
 						DisableKeywordsMatch: usedMode == SearchModeSemantic,
+						TimeCondition:        timeCondition,
 						// Neighbor, parent and related chunks came back as
 						// extra rows that were never retrieved, tripling the
 						// rerank input; read_document(chunk://N, context=k) serves
@@ -1185,12 +1233,14 @@ func (t *SearchKnowledgeTool) getEnrichedPassage(ctx context.Context, result *ty
 }
 
 // selectMMR reduces redundancy among results through the shared MMR stage.
-func selectMMR(ctx context.Context, results []*searchResultWithMeta, k int) []*searchResultWithMeta {
+// λ 来自 effectiveRanking()（weighted-ranking 血统接线；未启用时等于
+// 官方 DefaultMMRLambda 0.7）。
+func (t *SearchKnowledgeTool) selectMMR(ctx context.Context, results []*searchResultWithMeta, k int) []*searchResultWithMeta {
 	rows := make([]*types.SearchResult, len(results))
 	for i, r := range results {
 		rows[i] = r.SearchResult
 	}
-	picks := reranking.SelectMMR(ctx, rows, k, reranking.DefaultMMRLambda)
+	picks := reranking.SelectMMR(ctx, rows, k, t.effectiveRanking().MMRLambda)
 	if picks == nil {
 		return nil
 	}
@@ -1199,4 +1249,55 @@ func selectMMR(ctx context.Context, results []*searchResultWithMeta, k int) []*s
 		selected[i] = results[p]
 	}
 	return selected
+}
+
+// buildAgentTimeCondition converts the model-supplied YYYY-MM-DD window into
+// a SearchTimeCondition for the same resolver the chat pipeline uses.
+// Unparseable dates, or a window whose end precedes its start, yield nil —
+// no time condition rather than a wrong one. A single bound produces an
+// open-ended window (gte or lte).
+func buildAgentTimeCondition(ctx context.Context, timeMin, timeMax string) *types.SearchTimeCondition {
+	parseDay := func(s string) (time.Time, bool) {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return time.Time{}, false
+		}
+		// Accept YYYY-MM-DD (schema contract); tolerate a full RFC3339 value.
+		if len(s) == 10 {
+			t, err := time.ParseInLocation("2006-01-02", s, time.Local)
+			return t, err == nil
+		}
+		t, err := time.Parse(time.RFC3339, s)
+		return t, err == nil
+	}
+	minT, hasMin := parseDay(timeMin)
+	maxT, hasMax := parseDay(timeMax)
+	if !hasMin && !hasMax {
+		return nil
+	}
+	// Inclusive end: move a bare day boundary to its last instant.
+	if hasMax {
+		maxT = maxT.Add(24*time.Hour - time.Second)
+	}
+	if hasMin && hasMax && maxT.Before(minT) {
+		logger.Warnf(ctx, "[Tool][KnowledgeSearch] ignoring inverted time window [%s, %s]", timeMin, timeMax)
+		return nil
+	}
+	tc := &types.SearchTimeCondition{
+		Field:      types.SearchTimeFieldBusinessDate,
+		Op:         types.SearchTimeOpBetween,
+		Start:      minT,
+		End:        maxT,
+		Strictness: types.SearchTimeStrictnessFilter,
+	}
+	switch {
+	case !hasMax:
+		tc.Op = types.SearchTimeOpGte
+		tc.End = time.Time{}
+	case !hasMin:
+		tc.Op = types.SearchTimeOpLte
+		tc.Start = tc.End
+		tc.End = time.Time{}
+	}
+	return tc
 }

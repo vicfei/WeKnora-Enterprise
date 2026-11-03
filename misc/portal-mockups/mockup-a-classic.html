@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案A · 经典企业门户</title>
+<style>
+  :root {
+    --brand: #0052D9; --brand-dark: #003CAB;
+    --navy: #12264F; --navy-deep: #0C1B3A;
+    --ink: #1A1A1A; --ink-2: #444; --ink-3: #8A94A6;
+    --bg: #F5F7FB; --card: #fff; --line: #E7ECF4;
+    --green: #0B8A4B; --orange: #D46B08; --gold: #A67C00;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--ink); }
+
+  /* ===== 顶部导航 ===== */
+  .topnav { background: linear-gradient(90deg, var(--navy-deep), var(--navy)); color: #fff; position: sticky; top: 0; z-index: 10; }
+  .topnav-in { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; height: 60px; padding: 0 24px; gap: 40px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 7px; background: linear-gradient(135deg, #3E7BFA, #0052D9); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .nav-menu { display: flex; gap: 6px; }
+  .nav-item { padding: 8px 18px; border-radius: 8px; font-size: 14.5px; color: rgba(255,255,255,.85); cursor: pointer; transition: all .15s; }
+  .nav-item:hover { color: #fff; background: rgba(255,255,255,.10); }
+  .nav-item.active { color: #fff; background: rgba(255,255,255,.16); font-weight: 600; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 13.5px; color: rgba(255,255,255,.85); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: #3E7BFA; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+
+  /* ===== Hero：大搜索 ===== */
+  .hero { background: linear-gradient(160deg, var(--navy) 0%, #1B3A75 55%, #24518F 100%); padding: 52px 24px 88px; text-align: center; position: relative; overflow: hidden; }
+  .hero::after { content: ""; position: absolute; inset: 0; background:
+    radial-gradient(600px 200px at 20% 110%, rgba(62,123,250,.25), transparent),
+    radial-gradient(500px 180px at 85% -30%, rgba(0,82,217,.30), transparent); }
+  .hero-in { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; }
+  .hero h1 { color: #fff; font-size: 30px; font-weight: 700; letter-spacing: 2px; margin-bottom: 10px; }
+  .hero p { color: rgba(255,255,255,.75); font-size: 14px; margin-bottom: 30px; }
+  .search-box { display: flex; align-items: center; background: #fff; border-radius: 999px; padding: 6px 6px 6px 24px; box-shadow: 0 12px 40px rgba(6, 18, 46, .35); }
+  .search-box .icon { color: var(--ink-3); font-size: 17px; margin-right: 12px; }
+  .search-box input { flex: 1; border: none; outline: none; font-size: 15.5px; color: var(--ink); background: transparent; }
+  .search-box input::placeholder { color: #A6AFBF; }
+  .search-btn { border: none; background: var(--brand); color: #fff; font-size: 15px; font-weight: 600; padding: 11px 34px; border-radius: 999px; cursor: pointer; }
+  .search-btn:hover { background: var(--brand-dark); }
+  .hot-tags { margin-top: 18px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .hot-tag { background: rgba(255,255,255,.14); color: #E8EEF9; border: 1px solid rgba(255,255,255,.22); padding: 4px 16px; border-radius: 999px; font-size: 12.5px; cursor: pointer; transition: all .15s; }
+  .hot-tag:hover { background: rgba(255,255,255,.25); }
+
+  /* ===== 主体 ===== */
+  .main { max-width: 1200px; margin: -52px auto 0; padding: 0 24px 48px; position: relative; z-index: 2; }
+  .quick { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 28px; }
+  .quick-item { background: var(--card); border-radius: 12px; border: 1px solid var(--line); padding: 18px 8px 14px; text-align: center; cursor: pointer; transition: all .18s; }
+  .quick-item:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(18,38,79,.10); border-color: #C9D8F2; }
+  .quick-icon { width: 44px; height: 44px; border-radius: 11px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .qi-1 { background: #E8F0FE; } .qi-2 { background: #E8F7EE; } .qi-3 { background: #FFF6E5; }
+  .qi-4 { background: #F0EAFE; } .qi-5 { background: #FDEAEF; } .qi-6 { background: #E5F4FB; }
+  .quick-item .t { font-size: 13.5px; font-weight: 600; }
+  .quick-item .d { font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+
+  .cols { display: grid; grid-template-columns: 1fr 320px; gap: 20px; }
+  .panel { background: var(--card); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; }
+  .panel-hd { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; border-bottom: 1px solid var(--line); }
+  .panel-hd h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .panel-hd h3::before { content: ""; width: 4px; height: 16px; border-radius: 2px; background: var(--brand); }
+  .panel-hd .more { font-size: 13px; color: var(--ink-3); cursor: pointer; }
+  .panel-hd .more:hover { color: var(--brand); }
+
+  .doc-item { display: flex; gap: 14px; padding: 14px 20px; border-bottom: 1px solid #F0F3F9; cursor: pointer; transition: background .15s; }
+  .doc-item:last-child { border-bottom: none; }
+  .doc-item:hover { background: #F7FAFF; }
+  .doc-type { width: 40px; height: 46px; border-radius: 6px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; writing-mode: vertical-lr; letter-spacing: 2px; }
+  .dt-pdf { background: #E8524A; } .dt-doc { background: #3E7BFA; } .dt-xls { background: #0B8A4B; }
+  .doc-main { flex: 1; min-width: 0; }
+  .doc-title { font-size: 14.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .doc-item:hover .doc-title { color: var(--brand); }
+  .doc-meta { display: flex; align-items: center; gap: 12px; margin-top: 6px; font-size: 12px; color: var(--ink-3); flex-wrap: wrap; }
+  .doc-meta .tag { padding: 1px 8px; border-radius: 4px; font-size: 11px; }
+  .tg-blue { background: #E8F0FE; color: var(--brand); }
+  .tg-green { background: #E8F7EE; color: var(--green); }
+  .tg-orange { background: #FFF3E0; color: var(--orange); }
+  .doc-time { margin-left: auto; white-space: nowrap; }
+  .new-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #E8524A; margin-right: 5px; vertical-align: 1px; }
+
+  /* 右栏 */
+  .side-stack { display: flex; flex-direction: column; gap: 20px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 20px; }
+  .stat { text-align: center; padding: 10px 0; }
+  .stat .num { font-size: 22px; font-weight: 700; color: var(--brand); }
+  .stat .num.g { color: var(--green); } .stat .num.o { color: var(--orange); } .stat .num.d { color: var(--gold); }
+  .stat .lbl { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .fav-item { display: flex; align-items: center; gap: 10px; padding: 11px 20px; font-size: 13.5px; cursor: pointer; border-bottom: 1px solid #F0F3F9; }
+  .fav-item:last-child { border-bottom: none; }
+  .fav-item:hover { color: var(--brand); background: #F7FAFF; }
+  .fav-item .star { color: #F7B500; }
+  .tagcloud { padding: 14px 20px 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .cloud-tag { font-size: 12.5px; padding: 4px 14px; border-radius: 999px; background: #F2F5FB; color: #4A5B7E; cursor: pointer; transition: all .15s; }
+  .cloud-tag:hover { background: #E8F0FE; color: var(--brand); }
+  .cloud-tag.big { font-size: 14.5px; font-weight: 600; color: var(--brand); background: #E8F0FE; }
+  .cloud-tag.mid { font-size: 13.5px; }
+
+  /* 部门库 */
+  .kb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 20px; }
+  .kb-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; cursor: pointer; transition: all .18s; position: relative; }
+  .kb-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(18,38,79,.10); border-color: #C9D8F2; }
+  .kb-icon { width: 40px; height: 40px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-bottom: 12px; }
+  .kb-name { font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .kb-org { font-size: 11px; color: var(--ink-3); margin-top: 4px; }
+  .kb-count { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+  .kb-count b { color: var(--ink); font-size: 14px; }
+  .kb-badge { position: absolute; top: 16px; right: 16px; font-size: 10.5px; color: var(--green); background: #E8F7EE; padding: 2px 8px; border-radius: 4px; }
+  .section-title { display: flex; align-items: center; justify-content: space-between; margin: 30px 0 4px; }
+  .section-title h2 { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .section-title h2::before { content: ""; width: 5px; height: 18px; border-radius: 3px; background: var(--brand); }
+
+  .footnote { text-align: center; color: #A6AFBF; font-size: 12px; padding: 28px 0 8px; }
+  .demo-tip { position: fixed; bottom: 16px; right: 16px; background: rgba(18,38,79,.88); color: #fff; font-size: 12px; padding: 8px 14px; border-radius: 8px; z-index: 99; }
+  .demo-tip a { color: #8FC1FF; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="topnav-in">
+    <div class="logo"><span class="logo-mark">资</span>资管知识门户</div>
+    <div class="nav-menu">
+      <div class="nav-item active">首页</div>
+      <div class="nav-item">知识库</div>
+      <div class="nav-item">智能问答</div>
+      <div class="nav-item">标签分类</div>
+      <div class="nav-item">合规制度</div>
+    </div>
+    <div class="nav-right">
+      <span>🔔</span><span>💬 提问</span>
+      <span class="avatar">演</span><span>演示员工</span>
+    </div>
+  </div>
+</div>
+
+<div class="hero">
+  <div class="hero-in">
+    <h1>知识连接决策</h1>
+    <p>投研 · 固收 · 合规风控 —— 一站式检索全公司知识资产</p>
+    <div class="search-box">
+      <span class="icon">🔍</span>
+      <input placeholder="搜索研报、制度、FAQ、标签… 支持「新能源 +2026」组合过滤">
+      <button class="search-btn">搜 索</button>
+    </div>
+    <div class="hot-tags">
+      <span class="hot-tag">锂电</span><span class="hot-tag">固收策略</span><span class="hot-tag">反洗钱</span>
+      <span class="hot-tag">量化中性</span><span class="hot-tag">城投债</span><span class="hot-tag">内控体系</span>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="quick">
+    <div class="quick-item"><div class="quick-icon qi-1">🤖</div><div class="t">智能问答</div><div class="d">RAG + 推理</div></div>
+    <div class="quick-item"><div class="quick-icon qi-2">📊</div><div class="t">最新研报</div><div class="d">本周 12 篇</div></div>
+    <div class="quick-item"><div class="quick-icon qi-3">🛡️</div><div class="t">合规制度</div><div class="d">制度/指引</div></div>
+    <div class="quick-item"><div class="quick-icon qi-4">🌳</div><div class="t">标签分类</div><div class="d">层级浏览</div></div>
+    <div class="quick-item"><div class="quick-icon qi-5">⭐</div><div class="t">我的收藏</div><div class="d">6 篇</div></div>
+    <div class="quick-item"><div class="quick-icon qi-6">🏢</div><div class="t">部门空间</div><div class="d">5 个部门</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <div class="panel-hd"><h3>最新上传 / 更新</h3><span class="more">查看全部 ›</span></div>
+      <div class="doc-item">
+        <div class="doc-type dt-pdf">研报</div>
+        <div class="doc-main">
+          <div class="doc-title"><span class="new-dot"></span>锂电行业 2026 年中期策略：产能出清与新技术周期</div>
+          <div class="doc-meta">
+            <span class="tag tg-blue">锂电</span><span class="tag tg-blue">新能源</span>
+            <span>张明 · 投研部</span><span>2026-08-24</span>
+            <span class="doc-time">2 小时前</span>
+          </div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <div class="doc-type dt-doc">制度</div>
+        <div class="doc-main">
+          <div class="doc-title"><span class="new-dot"></span>反洗钱客户尽职调查操作指引（2026 修订版）</div>
+          <div class="doc-meta">
+            <span class="tag tg-green">反洗钱</span><span class="tag tg-green">内控体系</span>
+            <span>合规风控部</span><span>2026-08-23</span>
+            <span class="doc-time">昨天</span>
+          </div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <div class="doc-type dt-pdf">研报</div>
+        <div class="doc-main">
+          <div class="doc-title">城投债信用风险专题：区域分化下的择券框架</div>
+          <div class="doc-meta">
+            <span class="tag tg-orange">固收</span><span class="tag tg-orange">城投债</span>
+            <span>李文 · 固收研究</span><span>2026-08-22</span>
+            <span class="doc-time">2 天前</span>
+          </div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <div class="doc-type dt-xls">月报</div>
+        <div class="doc-main">
+          <div class="doc-title">量化中性策略月报（2026-08）：超额收益归因与风格暴露</div>
+          <div class="doc-meta">
+            <span class="tag tg-blue">量化</span>
+            <span>王强 · 投研部</span><span>2026-08-21</span>
+            <span class="doc-time">3 天前</span>
+          </div>
+        </div>
+      </div>
+      <div class="doc-item">
+        <div class="doc-type dt-doc">指引</div>
+        <div class="doc-main">
+          <div class="doc-title">信息披露事务管理制度：重大事项报告流程与时限要求</div>
+          <div class="doc-meta">
+            <span class="tag tg-green">内控体系</span>
+            <span>合规风控部</span><span>2026-08-20</span>
+            <span class="doc-time">4 天前</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-stack">
+      <div class="panel">
+        <div class="panel-hd"><h3>知识资产总览</h3></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="num">3,842</div><div class="lbl">文档总数</div></div>
+          <div class="stat"><div class="num g">+67</div><div class="lbl">本周新增</div></div>
+          <div class="stat"><div class="num o">1,205</div><div class="lbl">本月检索</div></div>
+          <div class="stat"><div class="num d">312</div><div class="lbl">问答次数</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><h3>我的收藏</h3><span class="more">全部 ›</span></div>
+        <div class="fav-item"><span class="star">★</span>固收策略 2026 年度展望：利率中枢与久期选择</div>
+        <div class="fav-item"><span class="star">★</span>私募资管业务合规要点汇编（2026 版）</div>
+        <div class="fav-item"><span class="star">★</span>新能源车产业链数据库使用手册</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><h3>热门标签</h3><span class="more">标签分类 ›</span></div>
+        <div class="tagcloud">
+          <span class="cloud-tag big">固收</span><span class="cloud-tag big">锂电</span>
+          <span class="cloud-tag mid">反洗钱</span><span class="cloud-tag mid">城投债</span>
+          <span class="cloud-tag">新能源</span><span class="cloud-tag">量化</span>
+          <span class="cloud-tag">半导体</span><span class="cloud-tag">内控体系</span>
+          <span class="cloud-tag">人工智能</span><span class="cloud-tag">权益</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><h2>部门知识库</h2><span class="more" style="font-size:13px;color:#8A94A6;cursor:pointer">全部 5 个 ›</span></div>
+  <div class="kb-grid">
+    <div class="kb-card">
+      <span class="kb-badge">本部门</span>
+      <div class="kb-icon qi-1">📈</div>
+      <div class="kb-name">投研部知识库</div>
+      <div class="kb-org">投研部 · 128 个文档</div>
+      <div class="kb-count">本周新增 <b>12</b> · 成员 23 人</div>
+    </div>
+    <div class="kb-card">
+      <div class="kb-icon qi-2">💰</div>
+      <div class="kb-name">固收研究</div>
+      <div class="kb-org">固收研究部 · 342 个文档</div>
+      <div class="kb-count">本周新增 <b>8</b> · 成员 15 人</div>
+    </div>
+    <div class="kb-card">
+      <span class="kb-badge">共享 · 只读</span>
+      <div class="kb-icon qi-3">🛡️</div>
+      <div class="kb-name">合规风控库</div>
+      <div class="kb-org">合规风控部 · 517 个文档</div>
+      <div class="kb-count">制度 210 · 指引 156</div>
+    </div>
+    <div class="kb-card">
+      <span class="kb-badge">共享 · 只读</span>
+      <div class="kb-icon qi-6">📢</div>
+      <div class="kb-name">市场部资料</div>
+      <div class="kb-org">市场部 · 89 个文档</div>
+      <div class="kb-count">路演材料 · 宣传册</div>
+    </div>
+  </div>
+
+  <div class="footnote">演示稿 · 方案 A（经典企业门户）· 数据均为虚构 · 仅供形态评审</div>
+</div>
+
+<div class="demo-tip">方案 A · <a href="index.html">返回对比页</a></div>
+</body>
+</html>

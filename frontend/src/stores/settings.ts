@@ -16,7 +16,9 @@ interface Settings {
   selectedKnowledgeBases: string[];  // 当前选中的知识库ID列表
   selectedFiles: string[]; // 当前选中的文件ID列表
   selectedFileKbMap: Record<string, string>; // 文件ID -> 知识库ID，用于刷新后带 kb_id 拉取共享知识库文件
-  selectedTags: Array<{ id: string; name: string; kbId: string; kbName?: string }>;
+  // 二开扩展：tagTreeNode 仅在选择器选中"分组节点"时存在，携带该分组的叶子标签，
+  // 发送/追问参数构造时展开为逐叶子 tag id（父节点 id 不发后端）
+  selectedTags: Array<{ id: string; name: string; kbId: string; kbName?: string; tagTreeNode?: { leafTags: Array<{ id: string; name: string }> } }>;
   selectedMCPServices: string[];
   selectedSkills: string[];
   selectedTools?: string[];
@@ -24,6 +26,8 @@ interface Settings {
   ollamaConfig: OllamaConfig;  // Ollama配置
   localBrowserEnabled: boolean; // Explicit source preference; composer activates it only while the extension is online
   webSearchEnabled: boolean;  // 网络搜索是否启用
+  kbRoutingEnabled: boolean; // 二开特性: 自动选库(未手选知识库时按内容路由)
+  weightedRankingEnabled: boolean; // 二开特性: 精准排序(rerank_model_id=auto 随请求开启)
   conversationModels: ConversationModels;
   selectedAgentId: string;  // 当前选中的智能体ID
   selectedAgentSourceTenantId: string | null;  // 当使用共享智能体时，来源空间 ID（用于后端 model/KB/MCP 解析）
@@ -101,6 +105,8 @@ const defaultSettings: Settings = {
   },
   localBrowserEnabled: false,
   webSearchEnabled: false,  // 默认关闭网络搜索
+  kbRoutingEnabled: false, // 默认关闭自动选库
+  weightedRankingEnabled: false, // 默认关闭精准排序
   conversationModels: {
     summaryModelId: "",
     rerankModelId: "",
@@ -172,6 +178,8 @@ export const useSettingsStore = defineStore("settings", {
     // 本轮查询来源
     isLocalBrowserEnabled: (state) => state.settings.localBrowserEnabled === true,
     isWebSearchEnabled: (state) => state.settings.webSearchEnabled || false,
+    isKbRoutingEnabled: (state) => state.settings.kbRoutingEnabled || false,
+    isWeightedRankingEnabled: (state) => state.settings.weightedRankingEnabled || false,
     
     // 是否自动检查并下载更新
     isAutoCheckUpdateEnabled: (state) => state.settings.autoCheckUpdate ?? true,
@@ -328,6 +336,15 @@ export const useSettingsStore = defineStore("settings", {
       return this.settings.selectedKnowledgeBases || [];
     },
     
+    // 二开特性: 自动选库开关（与手选互斥生效, 路由仅当未手选任何库时介入）
+    toggleKbRouting(enabled: boolean) {
+      this.settings.kbRoutingEnabled = enabled;
+      if (enabled) {
+        this.settings.selectedKnowledgeBases = [];
+        this.settings.selectedFiles = [];
+      }
+    },
+
     // 本机浏览器与联网搜索可独立选择。
     toggleLocalBrowser(enabled: boolean) {
       this.settings.localBrowserEnabled = enabled;
@@ -336,6 +353,12 @@ export const useSettingsStore = defineStore("settings", {
 
     toggleWebSearch(enabled: boolean) {
       this.settings.webSearchEnabled = enabled;
+      localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
+    },
+
+    // 二开特性: 精准排序开关（随请求发 rerank_model_id=auto；与选库状态正交，可叠加）
+    toggleWeightedRanking(enabled: boolean) {
+      this.settings.weightedRankingEnabled = enabled;
       localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
     },
 
@@ -367,7 +390,7 @@ export const useSettingsStore = defineStore("settings", {
       localStorage.setItem("WeKnora_settings", JSON.stringify(this.settings));
     },
 
-    addTag(tag: { id: string; name: string; kbId: string; kbName?: string }) {
+    addTag(tag: { id: string; name: string; kbId: string; kbName?: string; tagTreeNode?: { leafTags: Array<{ id: string; name: string }> } }) {
       if (!this.settings.selectedTags) this.settings.selectedTags = [];
       if (!this.settings.selectedTags.some(t => t.id === tag.id && t.kbId === tag.kbId)) {
         this.settings.selectedTags.push(tag);
@@ -440,7 +463,9 @@ export const useSettingsStore = defineStore("settings", {
       const tags = this.settings.selectedTags || [];
       const tagScopes = Object.entries(tags.reduce<Record<string, string[]>>((scopes, tag) => {
         if (!tag.id || !tag.kbId) return scopes;
-        (scopes[tag.kbId] ||= []).push(tag.id);
+        // 二开扩展：分组节点 chip 展开为叶子 tag id（树分组 id 对后端无意义）
+        const ids = tag.tagTreeNode ? tag.tagTreeNode.leafTags.map(l => l.id) : [tag.id];
+        (scopes[tag.kbId] ||= []).push(...ids);
         return scopes;
       }, {})).map(([knowledge_base_id, ids]) => ({
         knowledge_base_id,
@@ -600,6 +625,12 @@ export const useSettingsStore = defineStore("settings", {
         if (typeof state.web_search_enabled === "boolean") {
           this.settings.webSearchEnabled = state.web_search_enabled;
         }
+        if (typeof state.kb_routing_enabled === "boolean") {
+          this.settings.kbRoutingEnabled = state.kb_routing_enabled;
+        }
+        if (typeof state.weighted_ranking_enabled === "boolean") {
+          this.settings.weightedRankingEnabled = state.weighted_ranking_enabled;
+        }
       } finally {
         // 复位必须延后到下一次 flush 之后：监听 selectedAgentId 的 watcher 默认
         // flush:'pre'，是异步执行的；若在此处同步复位，watcher 真正运行时标志早已
@@ -638,4 +669,6 @@ export interface SessionLastRequestStatePayload {
   }>;
   local_browser_enabled?: boolean;
   web_search_enabled?: boolean;
+  kb_routing_enabled?: boolean;
+  weighted_ranking_enabled?: boolean;
 }

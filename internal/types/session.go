@@ -365,6 +365,10 @@ type SessionLastRequestState struct {
 	MentionedItems      MentionedItems `json:"mentioned_items,omitempty"`
 	LocalBrowserEnabled bool           `json:"local_browser_enabled"`
 	WebSearchEnabled    bool           `json:"web_search_enabled"`
+	// 二开特性：自动选库开关随会话快照持久（与联网搜索同机制）
+	KbRoutingEnabled bool `json:"kb_routing_enabled,omitempty"`
+	// 二开特性：精准排序（rerank）开关随会话快照持久
+	WeightedRankingEnabled bool `json:"weighted_ranking_enabled,omitempty"`
 }
 
 // Value implements driver.Valuer for SessionLastRequestState (JSONB).

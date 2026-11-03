@@ -154,6 +154,17 @@ export function useStream() {
       if (params.web_search_enabled !== undefined) {
         postBody.web_search_enabled = params.web_search_enabled;
       }
+      // 二开特性：自动选库（快速问答 + 未显式选库时后端路由 top-K）
+      if (params.enable_kb_routing !== undefined) {
+        postBody.enable_kb_routing = params.enable_kb_routing;
+      }
+      // 二开特性：精准排序（'auto' = 后端自动选 rerank 模型精排；缺省不发=旧行为）
+      if (params.rerank_model_id) {
+        postBody.rerank_model_id = params.rerank_model_id;
+      }
+      if (params.enable_weighted_ranking !== undefined) {
+        postBody.enable_weighted_ranking = params.enable_weighted_ranking;
+      }
       // Preserve the explicit browser choice when rebuilding the HTTP body.
       if (params.local_browser_enabled !== undefined) {
         postBody.local_browser_enabled = params.local_browser_enabled;

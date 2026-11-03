@@ -1120,3 +1120,89 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_page_revisions_page_version
 
 CREATE INDEX IF NOT EXISTS idx_wiki_page_revisions_kb_slug
     ON wiki_page_revisions (knowledge_base_id, slug);
+
+CREATE TABLE IF NOT EXISTS tag_tree (
+    id                VARCHAR(36) PRIMARY KEY,
+    tenant_id         INTEGER NOT NULL,
+    knowledge_base_id VARCHAR(36) NOT NULL,
+    parent_id         VARCHAR(36),
+    name              VARCHAR(255) NOT NULL,
+    path              VARCHAR(1000) NOT NULL,
+    level             INTEGER NOT NULL DEFAULT 0,
+    tag_id            VARCHAR(36),
+    is_auto_extract   BOOLEAN NOT NULL DEFAULT 0,
+    sort_order        INTEGER NOT NULL DEFAULT 0,
+    created_by        VARCHAR(36),
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at        DATETIME
+);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_tenant_kb
+    ON tag_tree (tenant_id, knowledge_base_id);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_parent
+    ON tag_tree (parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_path
+    ON tag_tree (path);
+
+CREATE INDEX IF NOT EXISTS idx_tag_tree_tag
+    ON tag_tree (tag_id);
+
+CREATE TABLE IF NOT EXISTS external_identities (
+    id                VARCHAR(36) PRIMARY KEY,
+    uum_user_id       VARCHAR(128) NOT NULL,
+    user_id           VARCHAR(36) NOT NULL,
+    tenant_id         INTEGER NOT NULL,
+    uum_department_id VARCHAR(128),
+    source            VARCHAR(20) NOT NULL DEFAULT 'uum',
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_external_identities_uum_tenant
+    ON external_identities (uum_user_id, tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_external_identities_user
+    ON external_identities (user_id);
+
+CREATE INDEX IF NOT EXISTS idx_external_identities_department
+    ON external_identities (uum_department_id);
+
+CREATE TABLE IF NOT EXISTS uum_departments (
+    id                VARCHAR(36) PRIMARY KEY,
+    uum_department_id VARCHAR(128) NOT NULL,
+    tenant_id         INTEGER NOT NULL,
+    department_name   VARCHAR(255),
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_uum_id
+    ON uum_departments (uum_department_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_uum_departments_tenant
+    ON uum_departments (tenant_id);
+
+-- 000086 user_space_grants (v2 space permission grants, see versioned/000086)
+CREATE TABLE IF NOT EXISTS user_space_grants (
+    id           VARCHAR(36) PRIMARY KEY,
+    uum_user_id  VARCHAR(128) NOT NULL,
+    tenant_id    INTEGER NOT NULL,
+    role         VARCHAR(20) NOT NULL DEFAULT 'viewer',
+    status       VARCHAR(20) NOT NULL DEFAULT 'pending',
+    valid_until  DATETIME,
+    requested_by VARCHAR(128) NOT NULL DEFAULT '',
+    approved_by  VARCHAR(128),
+    reason       VARCHAR(255),
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_space_grants_uum_tenant
+    ON user_space_grants (uum_user_id, tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_uum  ON user_space_grants (uum_user_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_tenant ON user_space_grants (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_user_space_grants_status ON user_space_grants (status);
+
+ALTER TABLE tenants ADD COLUMN space_type VARCHAR(16) NOT NULL DEFAULT 'team';

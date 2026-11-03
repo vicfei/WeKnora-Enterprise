@@ -24,6 +24,8 @@ export interface UploadBatch {
   targetFolder: string
   tagIds?: string[]
   processConfig?: KnowledgeProcessOverrides
+  /** doc-versioning MVP：作为新版本上传（pending 待确认）。 */
+  asNewVersion?: boolean
 }
 
 export interface UploadPayload {
@@ -195,6 +197,7 @@ export function createUploadQueue(items: UploadItem[], batches: UploadBatch[], d
         size: upload.file.size,
         loaded: 0,
         transfer: 'queued',
+        asNewVersion: batch.asNewVersion || undefined,
       })
     }
     pump()

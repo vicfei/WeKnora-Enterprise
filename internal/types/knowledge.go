@@ -93,6 +93,30 @@ const (
 	ManualKnowledgeStatusPublish  = "publish"
 )
 
+// VersionGroupSummary is the list projection for pending-version queues and
+// version-history panels (doc-versioning MVP).
+type VersionGroupSummary struct {
+	KnowledgeID   string `json:"knowledge_id"`
+	Title         string `json:"title"`
+	VersionNumber int    `json:"version_number"`
+	VersionStatus string `json:"version_status"`
+	SupersededBy  string `json:"superseded_by,omitempty"`
+	ParseStatus   string `json:"parse_status"`
+	CreatedAt     string `json:"created_at"`
+}
+
+// Version-group states (doc-versioning MVP, 台账 T11). Empty = not versioned.
+const (
+	// VersionStatusPending: uploaded "as new version", awaiting confirmation;
+	// stays enable_status=disabled so it is invisible to retrieval.
+	VersionStatusPending = "pending"
+	// VersionStatusActive: the group's current version.
+	VersionStatusActive = "active"
+	// VersionStatusSuperseded: replaced by a newer confirmed version; disabled
+	// but retained (rollback re-enables without reparse).
+	VersionStatusSuperseded = "superseded"
+)
+
 // KnowledgeListFilter aggregates optional filters for listing knowledge entries
 // under a knowledge base. Empty / zero fields mean "no filter on that dimension".
 type KnowledgeListFilter struct {
@@ -227,6 +251,28 @@ type Knowledge struct {
 	// CustomMetadata is user-authored descriptive metadata. It is deliberately
 	// separate from Metadata, which contains internal ingestion state and IDs.
 	CustomMetadata JSON `json:"custom_metadata" gorm:"type:json;not null"`
+	// BusinessDate is the document's business point in time (report period,
+	// publication date, as-of date) — NOT a system timestamp. It drives
+	// time-aware retrieval (time_condition filtering and recency ranking);
+	// NULL means "unknown business time" and never matches a time filter.
+	// Existing rows are intentionally not backfilled (system time must not
+	// impersonate business time).
+	BusinessDate *time.Time `json:"business_date,omitempty" gorm:"type:timestamptz"`
+	// BusinessDateSpecified distinguishes an explicit null (clear the date)
+	// from an omitted field in partial update requests.
+	BusinessDateSpecified bool `json:"-" gorm:"-"`
+	// Version-group fields (二开特性 doc-versioning MVP, 台账 T11): a document
+	// uploaded "as new version" joins the group keyed by its normalized title
+	// and lands in pending until confirmed. Confirmation supersedes (disables)
+	// the previous active version — retrieval keeps honoring enable_status
+	// only, so versioning never touches the retrieval layer. All four fields
+	// stay zero on ordinary documents: existing behavior byte-for-byte.
+	VersionGroup  string `json:"version_group,omitempty" gorm:"column:version_group;type:varchar(512)"`
+	VersionNumber int    `json:"version_number,omitempty" gorm:"column:version_number"`
+	// VersionStatus is pending / active / superseded (empty = not versioned).
+	VersionStatus string `json:"version_status,omitempty" gorm:"column:version_status;type:varchar(16)"`
+	// SupersededBy records which knowledge id replaced this version.
+	SupersededBy string `json:"superseded_by,omitempty" gorm:"column:superseded_by;type:varchar(36)"`
 	// Last FAQ import result (for FAQ type knowledge only)
 	LastFAQImportResult JSON `json:"last_faq_import_result" gorm:"type:json"`
 	// Creation time of the knowledge
@@ -337,6 +383,9 @@ type ManualKnowledgePayload struct {
 	TagIDs        []string                   `json:"tag_ids"`
 	Channel       string                     `json:"channel"`
 	ProcessConfig *KnowledgeProcessOverrides `json:"process_config,omitempty"`
+	// BusinessDate is the optional document business time (time-aware
+	// retrieval). nil = unknown; NULL never matches a time filter.
+	BusinessDate *time.Time `json:"business_date,omitempty"`
 }
 
 // KnowledgeSearchScope defines a (tenant_id, knowledge_base_id) scope for knowledge search (e.g. own KBs + shared KBs).

@@ -1,0 +1,156 @@
+# 上游问题登记簿（Upstream Findings Register）
+
+> **用途**：登记二开过程中实测发现的官方库（Tencent/WeKnora）bug、不合理设计与体验债，
+> 按"可回馈上游 PR 候选"优先级排序，作为**新加坡节点（GitHub 网关 + PR 工作台）**的工作输入。
+> **来源**：上海节点第 4 棒（2026-09-07，分支 feature/weighted-ranking 期间）实测 + 前几棒交接档记录。
+> **维护规则**：每条必须附证据（file:line / 日志 / 复现步骤）；状态变化时更新"状态"列；
+> 回馈上游前先在新加波节点对 upstream/main 复现，fork 独有代码路径的问题不回馈。
+> **纪律**：回馈 PR 的分支从 upstream/main 切出（不带二开 flag 逻辑），提交前 grep 自查无密钥。
+
+## 总览（按 PR 候选优先级）
+
+| # | 优先级 | 问题 | 类型 | PR 可行性 | 状态 |
+|---|---|---|---|---|---|
+| U-01 | P0 | chat 链路从不接入 rerank 模型，精排阶段死代码 | 设计缺陷/bug | ★★★ 修法清晰、收益巨大 | fork 已绕过，待回馈 |
+| U-02 | P0 | 混合检索单路降级时分数不归一，复合分饱和 | bug | ★★★ 小修+易测 | 待修 |
+| U-03 | P1 | 排序公式在 chat/agent 两条路径重复实现 | 代码重复 | ★★★ 纯重构零风险 | fork 部分处理（留分叉） |
+| U-04 | P1 | SSE 偶发不收尾（答案落库、complete 事件丢失） | bug | ★★ 需先定位根因 | 待定位 |
+| U-05 | P1 | embedding 批量调用无退避节流（429 连环） | 韧性缺失 | ★★ 修法标准 | 待修 |
+| U-06 | P2 | 查询向量失败静默降级为关键词检索，无任何观测标记 | 设计缺陷 | ★★ 加响应标记即可 | 待修 |
+| U-07 | P2 | 会话标题并行"抢答"+ 零校验 | 设计不合理 | ★★ 自包含好提 | 待修 |
+| U-08 | P2 | 前端 streame.ts 白名单重建请求体，新字段静默丢失 | 脆弱设计 | ★★ 可提透传/告警 | fork 已防（自检 grep） |
+| U-09 | P2 | 快速问答不选库=默认检索全租户库，范围不可见 | 设计问题 | ★ 需 upstream 讨论 | fork 已绕过（kb-routing） |
+| U-10 | P3 | 新手引导遮罩拦截操作 / 模式切换失败无引导 / 图标无 aria | UX/可访问性债 | ★（aria 项适合首 PR） | 待修 |
+| U-11 | P3 | 知识对象状态字段语义混乱（status/parse_status/enable_status） | API 一致性 | ★ 需讨论 | 记录在案 |
+| U-12 | P3 | KB 路由质心缓存不持久化，冷缓存首问 36-38s | 特性缺口 | ★ 属新特性 | fork 记录在案 |
+| U-13 | P1 | agent 启动期失败（如 rerank 未配置）SSE 流不收尾，客户端挂死 | bug | ★★★ 修法清晰 | 2026-09-08 实测登记；**fork 已修 2026-09-15** |
+| U-14 | P0 | runtime_context 渲染全部知识库目录，无总量上限——多库租户的 kb=all 智能体首轮即塞爆窗口 | bug | ★★★ 修法清晰 | 2026-09-09 实测登记（附烧钱事故）；fork 已修 |
+| U-15 | P1 | 工具集被安全网清空的智能体：模型把原生工具调用协议标记当文本写进答案 | bug | ★★ 修法需讨论 | 2026-09-09 四模式基线实测登记；**fork 已修 2026-09-15** |
+| U-16 | P1 | Docker Hub `weknora-sandbox:latest`（08-05 构建）用户名为 `sandbox`，当前代码 exec 固定 `user` → 全部 exec 失败 | 发布缺陷 | ★★★ upstream 重打 :latest 即修 | 2026-09-15 沙箱实验室测登记 |
+| U-17 | P3 | skills/preloaded 预置技能在 QA 路径不可见（by design），无一键入 catalog 入口 | 特性缺口 | ★ 需讨论 | 2026-09-15 沙箱实验室测登记 |
+| U-20 | P3 | 技能 SKILL.md 内示例资源相对引用（./xxx.gif）泄漏进答案正文成裂图 | 前端渲染 | ★★ 渲染层过滤即可 | 2026-09-15 am-qa 演练登记 |
+| U-21 | P2 | 内置智能体 allowed_tools 在 provisioning 时固化，不随 DefaultAllowedTools 演进——新默认工具（search_conversations 等）对既有内置智能体不可用，且与 search_memory 的"开关注入"机制不一致，用户无从得知 | 设计不一致 | ★★ 需迁移或注入机制 | 2026-09-16 消息管理实测登记 |
+
+---
+
+## P0（强烈建议回馈上游）
+
+### U-01 chat 链路从不接入 rerank 模型——精排对聊天用户是死代码
+
+- **证据**：
+  - `internal/application/service/chat_pipeline/rerank.go` OnEvent：`RerankModelID == ""` → `skip reason="empty_model_id"`（实测日志 2026-09-07 15:49:06）；
+  - chat 入口播种 PipelineRequest（`session_knowledge_qa.go:118-163`）从不设置 RerankModelID，仅 agent 覆盖（`session_qa_helpers.go:229`）可设；
+  - 对照：search-only API（同文件 ~:905-918）有"RetrievalConfig.RerankModelID → 否则自动选第一个可用 rerank 模型"的完整解析——**同一服务两条入口行为不一致**。
+- **影响**：租户配置了 rerank 模型，聊天问答也从不精排；复合分（0.6/0.3/0.1）+ MMR + FAQ 加权整条链路对普通用户不生效。上海节点实测（eval-100 池模式，报告 `:5173/report-weighted-ranking-v1-100.html`）：接入后金标 top3 70.5→83.2、top5 77.0→90.3、EM 47.0→53.1。
+- **建议修法（upstream PR）**：把 search-only 的解析逻辑提取为共享 helper，chat 入口同样执行"租户 RetrievalConfig → 自动选第一个可用"。注意在 PR 里说明这是行为变更（默认开启 rerank 调用），可加全局开关（如 ConversationConfig.EnableRerank 或沿用现有 enable_rerank）。
+- **状态**：fork 用请求级 `rerank_model_id`（"auto"）绕过（feature/weighted-ranking @ 5d117c48），未动默认行为。
+
+### U-02 混合检索单路降级时分数不归一，复合分饱和
+
+- **证据**：`internal/application/service/knowledgebase_search_fusion.go`（fuseOrDeduplicate）：双路在场走 RRF（分数 ~0.01 量级）；**单路时 deduplicateByScore 保留原始分**。实测 2026-09-07 16:11（向量检索因限流产 0 条）关键词单路 base score=11.504，复合分 0.6×0.23+0.3×11.5+0.1 钳位到 1.0。
+- **影响**：单路降级时多候选复合分集体饱和=1.0，排序退化到 tie-breaker（KnowledgeID/ChunkIndex 字典序）。
+- **建议修法**：单路分数过一遍既有的 `retriever.EngineAwareNormalizer`（knowledgebase_search.go:249 已在用）再出融合层；补一个"单路分数必须∈[0,1]"的单测。
+- **状态**：待修（下一棒候选）。
+
+## P1（值得回馈）
+
+### U-03 compositeScore/applyMMR 双路径重复实现
+
+- **证据**：`chat_pipeline/rerank.go:439-538` 与 `internal/agent/tools/knowledge_search.go:1209-1249` 两份近似拷贝。
+- **影响**：必然漂移——fork 做权重可配置时只改了 chat 路径，agent 路径已是已知分叉（提交 8a77b068 注明）。
+- **建议修法**：提取到共享包（如 internal/searchutil），两处调用。纯重构，零行为变更，PR 风险最低。
+
+### U-04 SSE 偶发不收尾
+
+- **证据**：交接档记录 + 本轮评估 arm② 2 例（hp-0016 done=true 但 answer 空；hp-0035 客户端 180s 超时，答案已在 DB）。DB 有完整答案而 complete 事件未发。
+- **建议**：先在 upstream/main 加日志复现定位（疑点：流式 writer 异常路径漏发 complete），根因明确后再提 PR。定位期间评估端用 DB 补录（已有实践）。
+
+### U-05 embedding 批量调用无退避节流
+
+- **证据**：kb_router 冷缓存批量算质心（`kb_router.go:255` computeKBCentroid），实测一次 8 连发 429 + 大库批次（4955 篇池）持续 500 Internal（2026-09-07 16:11 日志）。
+- **建议修法**：BatchEmbed 加指数退避重试 + 并发上限/分批（标准云服务客户端姿势）。对 upstream 同样成立（任何多 KB 租户都可能触发）。
+
+### U-13 agent 启动期失败时 SSE 流不收尾
+
+- **证据**（2026-09-08 实测，agent-lab）：配置 KB+knowledge_search 但 rerank_model_id 为空的智能体，POST /api/v1/agent-chat 后 `AgentQA` 在引擎启动前返回错误（日志 qa.go:1072 "rerank model is not configured"，EventError 已 emit）；`AgentStreamHandler.handleError`（agent_stream_handler.go:594）只 AppendEvent(Done:true) 不终结流；引擎的 defer emitCompletion（executeLoop 内）只覆盖引擎已启动的路径。客户端无超时则永久挂起（实测 60s 客户端超时，期间无任何字节抵达）。同类问题可能覆盖一切"AgentQA 装配期 return err"的分支（模型缺失、附件 staging 失败等）。
+- **建议修法**：handleError 在 AppendEvent 后终结 SSE 流（与 complete 事件同路径收尾）；或在 executeQA 的 serviceErr 分支兜底 emit 一个终结性事件。与 U-04（偶发不收尾）可能同族，建议一起定位。
+- **状态**：**fork 已修（2026-09-15，复现→修→验）**。复现：空 rerank agent 提问，服务端 02:14:04 发 error 事件+落库，SSE 循环直到 45s 客户端断开才退出。修复：`stream.go handleAgentEventsForSSE` 把 `ResponseTypeError+Done` 当终止条件（与 stop watcher helpers.go:407 的既有终止语义对齐）——flush 残留内容后直接写 complete 帧收尾（stop 分支同款直写姿势，因 handleComplete 未跑、流存储里没有 complete 事件可转发）。修后：0.1s 内 agent_query→error→complete 干净收尾；正常回合回归通过（2.6s complete）。三处 EventError 发射点（qa.go:1074 / session_agent_qa.go:268 / engine.go:337）均为致命级，"error 即终止"无误伤面。
+
+### U-14 runtime_context 知识库目录无上限，kb=all 智能体在多库租户上首轮即塞爆上下文
+
+- **证据**（2026-09-08/09 实测，agent-lab 评估事故）：kb_selection_mode=all 的智能体在 541 库租户上，`formatKnowledgeBaseList`（internal/agent/prompts.go:129）把全部 KB 逐个渲染进用户消息的 `<runtime_context>`（每库含 id/name/描述 + 最多 2 篇近期文档及摘要），**没有任何总量上限**。实测第一轮用户消息 = **219,319 token**（`largest=user(219319)`），超过 200k 窗口本身。后果链：估算器正确报警（222k > 183,616 阈值）→ 压缩器正确拒绝（"Nothing outside the keep-recent budget"——重量就在当前轮）→ provider 截断输入（实测 prompt=175,640，finish=length，completion=1，内容为空）→ 空答 nudge 循环 15 轮 → 迭代耗尽合成兜底。**单题烧掉 ~260 万 token（175k × 15 轮）**；评估事故中 40 题在 26 分钟内烧穿 ~1 亿 token 导致账户 402（2026-09-08 03:08，DeepSeek）。开启 kb-routing 的同批问题不受影响（范围收窄到 3 库后用户消息正常 ~1.9k token）。
+- **影响**：任何"允许全部库"的智能体（含内置智能推理默认形态）在库数成百的租户上**功能性瘫痪且大量烧钱**；智能体越诚实（多轮重试）烧得越多。
+- **建议修法**：① runtime_context 目录设总量预算（如 >N 库时只渲染"N 个知识库可用，用 knowledge_search 检索"的摘要形态，去掉逐库 recent_documents 采样）；② 引擎加首轮守卫：用户轮估算超窗口 X% 时立即终止并报清晰错误，而不是 15 轮空转（每轮都是全价 prompt）。
+- **状态**：fork 已修（feature/agent-lab：>25 库切换紧凑目录形态，≤25 逐字节不变，单测钉死；E2E 验证 219k→8.5k），待回馈上游。
+
+### U-15 空工具集智能体的原生协议泄漏
+
+- **证据**（2026-09-09，四原生模式基线实测）：builtin-wiki-researcher（allowed_tools 全为 wiki 工具）在无 wiki 能力知识库的租户上，registerTools 的安全网把全部 wiki 工具剥除（防陈旧配置调用必错工具，行为正确）——但系统提示词仍按 wiki_researcher 模版指示调用 wiki_search。模型在**零函数调用通道**下把 DeepSeek 原生工具调用标记直接写进答案文本：实测答案形如 `<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="wiki_search">…`，原样泄漏给用户/评估器。
+- **影响**：模式-语料错配时用户看到的是协议乱码而非可理解的错误或直答；评估侧 EM 归零。
+- **建议修法**（需讨论）：registerTools 后若工具集为空且原 allowed_tools 非空，应在系统提示注入"当前环境未提供 X 工具，请直接基于已有知识回答或说明无法检索"，或直接拒绝执行并报配置错误。与 U-10 的"模式切换前置引导"是同一族问题（配置-能力错配的用户可见性）。
+- **状态**：**fork 已修（2026-09-15，复现→修→验，采取提示注入方案）**。修复：`agent_service.go CreateAgentEngine` 在全部注册完成后，若 registry 为空且 requested 非空（AllowedTools 或 DefaultAllowedTools 回退），`engine.SetNoToolsPrompt` 注入守卫段（点名缺失工具、禁止任何工具调用/函数调用标记、要求直答或声明能力不可用）+ WARN 日志（可观测）。修前实测：答案泄漏 `<｜｜DSML｜｜calls>…` 原文；修后同问题：模型明确声明"检索工具未提供，不做工具调用"，并基于参数知识直答（Paris）。注意：四模式基线中 wiki 臂 EM 5.0 的根因即此——修复后该臂预期转向参数记忆形态（类似 data-analyst），后续重测基线时数字会变。
+
+### U-16 sandbox 镜像 :latest 与代码 exec 用户名错配——拉最新 tag 的部署全部 exec 失败
+
+- **证据**（2026-09-15，沙箱实验室测）：`docker_remote_client.go:811-830` exec 固定以 `DefaultSandboxExecUser`（"user"）执行；本地已拉的 `wechatopenai/weknora-sandbox:latest`（Docker Hub 08-05 构建，e16da97e）`/etc/passwd` 只有 `sandbox:x:1000`，`Config.User` 为空。任何 shell_exec/文件工具 exec 均报 `Error response from daemon: unable to find user user: no matching entries in passwd file`。同 tag `v0.8.0`（09-03 构建）passwd 含 `user:x:1000:1000::/home/user` 且 `Config.User=user`，一切正常（L1-L5 全链通过）。代码里 `docker_remote_client.go:271` 注释也写明"standard image ends with USER user"——即代码与 v0.8.0 镜像配套，`:latest` 落后于代码。
+- **影响**：任何按官方文档 `image: wechatopenai/weknora-sandbox:${WEKNORA_VERSION:-latest}` 且未显式钉版本的部署，只要代码较新而本地缓存的 `:latest` 较旧，沙箱功能性瘫痪且报错信息（"unable to find user"）毫无指向性。
+- **建议修法**：upstream 重打 `:latest`（=v0.8.0 内容）；或代码层兼容（exec 用户回退：user→sandbox→uid 1000），或启动时校验镜像用户并给清晰报错。
+- **状态**：本机实验配置已钉 `v0.8.0`（tenant 10011 配置行 a14e55a4）；租户 10000 的既有行 test_sandbox1 仍指 `:latest`，**需要用户决定是否同样改钉版本**。
+
+### U-17 skills/preloaded 预置技能对 agent 不可见，无一键注册入口
+
+- **证据**（2026-09-15）：`skills/preloaded/` 5 个技能（citation-generator/data-processor/doc-coauthoring/document-analyzer/openmaic-classroom）由 SkillService 惰性扫描，但 `agent_service.go:250-253` 注释明说 QA 路径不再填充 SkillDirs——agent 的技能只来自沙箱镜像内的 tenant_skills。实测 `skills_selection_mode=all` + 未安装技能时 read_skill 不注册，模型只能用 shell 翻 `/opt/weknora/tenant/skills`（空）。要消费预置技能必须手工 zip → `POST /skills/catalog`（multipart）→ `POST /skills/catalog/:id/install`。
+- **影响**：预置技能形同虚设（compose 还专门 bind-mount 了该目录）；新租户开箱无任何可用技能且无 UI 引导。
+- **建议修法**（需讨论）：启动时把 preloaded 目录自动 upsert 进各工作区 catalog（幂等，版本对齐 SKILL.md）；或 UI 提供"从预置目录导入"一键入口。
+
+### U-20 技能文档示例资源引用泄漏进答案
+
+- **证据**（2026-09-15，am-qa 演练 E6）：privora 技能 SKILL.md 内的示例图片相对引用 `![数据平台演示](./lg-data-demo.gif)` 被 agent 原样抄进答案正文，聊天界面渲染为裂图（相对路径在消息上下文中无解析目标）。
+- **建议修法**：答案渲染层过滤无解析目标的相对资源引用；或技能文档装载时剥离资源行。
+- **状态**：候选，未修。
+
+### U-21 内置智能体工具清单固化，不随默认工具集演进
+
+- **证据**（2026-09-16，租户 10000 消息管理实测）：开启消息索引后用内置「智能推理」测试跨会话检索（A 会话给凭据、B 会话问），步骤树出现 `search_*` 工具但答案"未找到"。逐层排查：索引正常（A 的问答 12s 内入 `__chat_history__` 并回填 knowledge_id）、配置正常（enabled+模型齐）。根因：**内置智能体 DB 行的 allowed_tools 在 provisioning 时固化**（实测为 5 个 RAG 工具），而代码 `DefaultAllowedTools()`（definitions.go:119）已含 `search_conversations`（131 行）+ database_query + data_analysis 等——存量行永远拿不到新工具。叠加混淆因素：`search_memory` 是开关自动注入（agent_service.go:953 显式剥离重加），`search_conversations` 却走白名单——同一族"搜过去"的工具两套注册机制，模型只能用 memory 版查不到聊天档案。两个租户（10000/10011）的内置行同为旧清单。
+- **影响**：任何"新默认工具 + 存量内置智能体"组合都功能性静默缺失；用户视角是"功能开了但不生效"，且步骤树里两个同前缀工具难以分辨，排障成本高。
+- **建议修法**：内置智能体启动时对齐当前 preset（幂等合并默认工具）；或 search_conversations 改为与 search_memory 同款的开关注入（消息索引 enabled 即注册）。
+- **状态**：fork 侧已对租户 10000 的 builtin-smart-reasoning 行补工具（PUT allowed_tools += search_conversations），端到端验证 B 会话正确调用并命中；10011 未动（实验用 sandbox-lab-agent 自带该工具）。
+
+## P2（可选回馈 / 内部先修）
+
+### U-06 向量检索失败静默降级无观测标记
+- 证据：16:11:52 请求 `vector_len=0`，只剩关键词一路、仅 1 候选，用户端无任何异常。建议：响应/SSE 事件加 `degraded: keyword-only` 标记 + 日志 WARN（现在是 INFO 级 group_plan 才能看出来）。
+
+### U-07 会话标题并行"抢答"+ 零校验
+- 证据：`session.go:822+` 标题为独立 LLM 调用（仅喂问题、温度 0.3、与 RAG 并行，提问后 2s 落库）；实测 6 条标题 5 条直接是答案（"40"、"Yes, they were both American." 等，违反"中文 4-10 词、不要回答"指令）；生成后仅长度截断（sanitizeGeneratedTitle），无语言/字数/语义校验。
+- 建议修法：提示词加 few-shot 硬约束 + 生成后校验（不合格回退为问题前 N 字），或挪到答案完成后基于答案主题生成。
+
+### U-08 前端请求体白名单重建
+- 证据：`frontend/src/api/chat/streame.ts:86-130` 逐字段手工拷贝；kb-routing 曾因此静默丢字段（修复见 c6721e34 缺陷 1）。
+- 建议回馈：至少对 params 中未识别的顶层字段打 console.warn；理想是改成显式透传未知字段或集中字段注册表。fork 侧已靠"新字段必须进白名单+构建后双自检 grep"纪律防护。
+
+### U-09 快速问答默认全租户库检索且不可见
+- 证据：builtin-quick-answer 伪智能体默认填全部库（实测 combined_kb_count=541）；工具栏"知识库"弹层点卡片=跳详情页，无勾选/确认控件把库选进对话范围。
+- 定位：属产品设计讨论（默认范围该多大、UI 入口长什么样），适合先开 issue 征求 maintainer 意见再动代码。fork 侧 kb-routing（自动选库）已是另一种解法。
+
+## P3（记录在案 / 小 PR）
+
+### U-10 UX 与可访问性三件套
+- 新手引导遮罩拦截工具栏点击、每个新浏览器环境全量重播（guide__backdrop--hit/full 实测拦截 hover/click）；
+- 「智能推理」切换在内置智能体未配置时仅弹一闪 toast、模式不动（`Input-field.vue:2168-2196` selectAgentMode 守卫），缺下一步引导；
+- 工具栏图标按钮无 aria-label（ariaSnapshot 全是裸 img）——**此项是理想的首个贡献 PR**（纯增量、零风险）。
+
+### U-11 知识对象状态字段语义混乱
+- manual 灌库接口 `status` 只接受 draft/publish；就绪与否要看 `parse_status`/`enable_status`，并没有 `status` 就绪字段（前几棒灌库脚本踩坑）。
+
+### U-12 KB 路由质心缓存不持久化
+- 15 分钟 TTL 过期全量重算，冷缓存首问 36-38s（fork kb_router.go 已知问题，交接档有记录）。属新特性（缓存持久化/预热），非 bug。
+
+---
+
+## 给新加坡节点的执行建议
+
+1. **拉取**：`git fetch kbpaamc && git checkout feature/weighted-ranking -- docs/upstream-issues-register.md`（或直接读分支）。
+2. **流程**：每个候选项先在 upstream/main 建 issue（引用本文档证据），maintainer 认可后从 upstream/main 切修复分支提 PR；U-01 行为变更性质，PR 描述里必须带开关方案与评测数字（可直接引用 `:5173/report-weighted-ranking-v1-100.html` 的结论，但注意该报告在 fork 域名下，issue 里转述数字即可）。
+3. **顺序建议**：U-03（零风险热身）→ U-10 aria（首 PR）→ U-02（小修带测试）→ U-01（旗舰）→ U-05/U-07 → 其余。
+4. **不要回馈的**：fork 的请求级开关/flag 体系、kb-routing 本身（属二开特性非上游修复）；U-04 先定位后决定。

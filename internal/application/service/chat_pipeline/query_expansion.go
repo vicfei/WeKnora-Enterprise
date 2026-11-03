@@ -81,6 +81,9 @@ func (p *PluginSearch) runQueryExpansion(ctx context.Context, chatManage *types.
 					ScopeTagIDs:           t.ScopeTagIDs,
 					DisableVectorMatch:    true,
 					SkipContextEnrichment: true, // Pipeline handles context assembly in merge stage
+					// Expanded query variants must respect the same time
+					// window as the primary query (time-aware retrieval).
+					TimeCondition: chatManage.TimeCondition,
 				}
 				// Apply knowledge ID filter if this is a partial KB search
 				if t.Type == types.SearchTargetTypeKnowledge {

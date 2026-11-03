@@ -354,7 +354,7 @@ type ImageAttrSchemaData struct {
 
 // HybridSearch godoc
 // @Summary      混合搜索
-// @Description  底层召回：向量+关键词混合检索，默认不 rerank（可用 rerank 字段开启）；一般检索请用 /knowledge-search。推荐 POST，GET 带 JSON 体仅兼容旧客户端。
+// @Description  底层召回：向量+关键词混合检索，默认不 rerank（可用 rerank 字段开启）；一般检索请用 /knowledge-search。推荐 POST，GET 带 JSON 体仅兼容旧客户端。tag_ids 按知识库类型分流：文档型在服务端解析为 knowledge_ids 白名单（空解析=空结果），FAQ/混合型作为索引级 tag_id 过滤，空数组=不过滤。
 // @Tags         知识库
 // @Accept       json
 // @Produce      json
@@ -621,6 +621,7 @@ func (h *KnowledgeBaseHandler) ListKnowledgeBases(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	agentID := c.Query("agent_id")
+
 	if agentID != "" {
 		agent, err := resolveSharedAgentForRequest(c, agentID, h.agentShareService)
 		if err != nil {

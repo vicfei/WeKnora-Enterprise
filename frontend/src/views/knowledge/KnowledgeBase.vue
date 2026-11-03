@@ -3,6 +3,13 @@ import { useAssistantDataChange } from '@/utils/assistantDataChange';
 import { ref, onMounted, onUnmounted, watch, reactive, computed, nextTick } from "vue";
 import { MessagePlugin } from "tdesign-vue-next";
 import DocContent from "@/components/doc-content.vue";
+import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
+import { buildTagTreeRows, collectLeafTagIds } from '@/features/tag-tree/treeRows';
+import { docVersionsEnabled, tagTreeEnabled } from '@/features/common/flags';
+import {
+  listPendingVersions, confirmKnowledgeVersion, rejectKnowledgeVersion,
+  listKnowledgeVersions, rollbackKnowledgeVersion,
+} from '@/api/knowledge-base';
 import useKnowledgeBase from '@/hooks/useKnowledgeBase';
 import { useRoute, useRouter } from 'vue-router';
 import EmptyKnowledge from '@/components/empty-knowledge.vue';
@@ -1135,7 +1142,70 @@ const handleTagFilterChange = (tagIds: string[]) => {
   resetPage();
 };
 
+// 二开功能：层级标签浏览（feature flag 默认关闭；渲染在文档筛选弹层的标签区内，
+// 树数据在 kbId 就绪时预载，量小且带防重）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled());
+const tagTree = ref<TagTreeNode[]>([]);
+const tagTreeLoading = ref(false);
+const tagTreeLoaded = ref(false);
+const tagTreeExpanded = ref(new Set<string>());
+const tagTreeRows = computed(() => buildTagTreeRows(tagTree.value, tagTreeExpanded.value));
+
+const loadTagTree = async () => {
+  if (!kbId.value || tagTreeLoading.value || tagTreeLoaded.value) return;
+  tagTreeLoading.value = true;
+  try {
+    const res = await getTagTree(kbId.value);
+    tagTree.value = Array.isArray(res.data) ? res.data : [];
+    tagTreeLoaded.value = true;
+    // 默认展开第一层，避免看起来是空树
+    tagTreeExpanded.value = new Set(tagTree.value.filter(n => n.children?.length).map(n => n.id));
+  } catch {
+    // 静默降级：树浏览不可用时退回平铺 chips
+  } finally {
+    tagTreeLoading.value = false;
+  }
+};
+
+watch([kbId, tagTreeFeatureEnabled], ([id, enabled], [prevId]) => {
+  if (id !== prevId) {
+    // 切换知识库：重置树缓存，避免显示上一个库的标签树
+    tagTree.value = [];
+    tagTreeLoaded.value = false;
+    tagTreeExpanded.value = new Set();
+  }
+  if (id && enabled) loadTagTree();
+}, { immediate: true });
+
+const toggleTagTreeExpand = (id: string) => {
+  const next = new Set(tagTreeExpanded.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  tagTreeExpanded.value = next;
+};
+
+const tagTreeNodeLeafIds = (node: TagTreeNode) => collectLeafTagIds(node);
+
+const isTagTreeNodeSelected = (node: TagTreeNode) => {
+  const leaves = collectLeafTagIds(node);
+  return leaves.length > 0 && leaves.every(id => selectedTagIds.value.includes(id));
+};
+
+const handleTagTreeNodeClick = (node: TagTreeNode) => {
+  // 红线：无叶子的分组不可选（空 tag_ids = 无结果，不是不过滤）
+  const leaves = collectLeafTagIds(node);
+  if (leaves.length === 0) return;
+  const next = new Set(selectedTagIds.value);
+  if (isTagTreeNodeSelected(node)) {
+    leaves.forEach(id => next.delete(id));
+  } else {
+    leaves.forEach(id => next.add(id));
+  }
+  handleTagFilterChange([...next]);
+};
+
 const onTagCatalogChanged = (payload?: { deletedTagId?: string }) => {
+  if (!kbId.value) return;
   void loadTags(kbId.value, true);
   if (payload?.deletedTagId) {
     handleTagFilterChange(selectedTagIds.value.filter(id => id !== payload.deletedTagId));
@@ -1325,6 +1395,9 @@ const handleFileUploaded = (event: CustomEvent) => {
     void loadFolderTree(uploadedKbId);
     if (midBatch) return;
     loadTags(uploadedKbId);
+    // 勾了"作为新版本上传"的批次会落 pending 版本；不刷新面板用户就看不到
+    // 待确认队列，得退出重进页面才会出现。
+    if (docVersionsOn) loadPendingVersions();
     // 启动几次探测，尽快让面包屑的"索引中"亮起。
     scheduleWikiStatusProbes();
   }
@@ -1421,6 +1494,7 @@ onMounted(() => {
   editorResources.ensureParserEngines();
 
   window.addEventListener('knowledgeFileUploaded', handleFileUploaded as EventListener);
+  if (docVersionsOn) loadPendingVersions();
   window.addEventListener('openURLImportDialog', handleOpenURLImportDialog as EventListener);
   window.addEventListener('weknora:knowledge-file-drop', handleKnowledgeFileDrop as EventListener);
   window.addEventListener('weknora:open-knowledge', handleOpenKnowledgeEvent as EventListener);
@@ -1855,6 +1929,8 @@ const enqueueUploads = (
     tagIds?: string[];
     /** Destination folder confirmed in the upload dialog; '' is the root. */
     targetFolder?: string;
+    /** doc-versioning MVP：作为新版本上传。 */
+    asNewVersion?: boolean;
   } = {},
 ) => {
   const targetKbId = kbId.value;
@@ -1866,6 +1942,7 @@ const enqueueUploads = (
     targetFolder,
     tagIds: options.tagIds,
     processConfig: options.processConfig,
+    asNewVersion: options.asNewVersion || undefined,
     uploads: files.map(file => ({ file, fileName: buildUploadFileName(file, targetFolder) })),
   });
 };
@@ -1930,6 +2007,7 @@ const handleUploadConfirmResult = async (result: UploadConfirmResult) => {
       processConfig,
       tagIds,
       targetFolder: result.targetFolder || ROOT_FOLDER_PATH,
+      asNewVersion: (result as any).asNewVersion === true,
     });
   }
 
@@ -2380,7 +2458,7 @@ const downloadKnowledge = async (item: KnowledgeCard) => {
 
 // Bridge card-view actions back to existing per-card handlers.
 const handleCardAction = (
-  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage',
+  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions',
   item: KnowledgeCard,
 ) => {
   const idx = (cardList.value || []).findIndex((i: KnowledgeCard) => i.id === item.id);
@@ -2395,11 +2473,72 @@ const handleCardAction = (
   if (action === 'delete') return confirmDeleteKnowledge(idx, item);
   if (action === 'view-trace') return handleViewTrace(idx, item);
   if (action === 'batch-manage') return handleEnterBatchFromCard(item);
+  if (action === 'versions') return handleOpenVersions(item);
+};
+
+// ---------- doc-versioning MVP（台账 T11） ----------
+const docVersionsOn = docVersionsEnabled();
+const pendingVersions = ref<any[]>([]);
+const versionsDialog = reactive({ visible: false, title: '', loading: false, list: [] as any[] });
+
+const loadPendingVersions = async () => {
+  if (!docVersionsOn || !kbId.value) return;
+  try {
+    const res: any = await listPendingVersions(kbId.value);
+    pendingVersions.value = res?.data || [];
+  } catch { pendingVersions.value = []; }
+};
+
+const handleConfirmVersion = async (id: string) => {
+  try {
+    await confirmKnowledgeVersion(id);
+    MessagePlugin.success(t('knowledgeBase.versionConfirmed'));
+    await loadPendingVersions();
+    window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', { detail: { kbId: kbId.value } }));
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
+};
+
+const handleRejectVersion = async (id: string) => {
+  try {
+    await rejectKnowledgeVersion(id);
+    MessagePlugin.success(t('knowledgeBase.versionRejected'));
+    await loadPendingVersions();
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
+};
+
+const handleOpenVersions = async (item: any) => {
+  versionsDialog.title = item.title || item.file_name || item.id;
+  versionsDialog.visible = true;
+  versionsDialog.loading = true;
+  versionsDialog.list = [];
+  try {
+    const res: any = await listKnowledgeVersions(item.id);
+    versionsDialog.list = res?.data || [];
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  } finally {
+    versionsDialog.loading = false;
+  }
+};
+
+const handleRollbackVersion = async (row: any) => {
+  try {
+    await rollbackKnowledgeVersion(row.knowledge_id);
+    MessagePlugin.success(t('knowledgeBase.versionRolledBack'));
+    await handleOpenVersions({ id: row.knowledge_id, title: versionsDialog.title });
+    window.dispatchEvent(new CustomEvent('knowledgeFileUploaded', { detail: { kbId: kbId.value } }));
+  } catch (e: any) {
+    MessagePlugin.error(e?.message || t('knowledgeBase.versionActionFailed'));
+  }
 };
 
 // Bridge list-view actions back to existing per-card handlers.
 const handleListAction = (
-  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage',
+  action: 'download' | 'edit' | 'reparse' | 'cancel-parse' | 'move' | 'move-folder' | 'delete' | 'view-trace' | 'batch-manage' | 'versions',
   item: KnowledgeCard,
 ) => {
   const idx = (cardList.value || []).findIndex((i: KnowledgeCard) => i.id === item.id);
@@ -2411,6 +2550,7 @@ const handleListAction = (
   if (action === 'delete') return confirmDeleteKnowledge(idx, item);
   if (action === 'view-trace') return handleViewTrace(idx, item);
   if (action === 'batch-manage') return handleEnterBatchFromCard(item);
+  if (action === 'versions') return handleOpenVersions(item);
 };
 
 // Clear selection on filter/tag/kb change to avoid acting on hidden items.
@@ -2626,6 +2766,42 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
                             <span v-if="!tagLoading && !filterTagOptions.length" class="doc-filter-tags__empty">{{ $t(tagSearchQuery ? 'knowledgeBase.tagEmptyResult' : 'knowledgeBase.noTags') }}</span>
                           </div>
                           <t-button v-if="tagHasMore" variant="text" size="small" :loading="tagLoadingMore" @click="kbId && loadTags(kbId)">{{ $t('tenant.loadMore') }}</t-button>
+                          <!-- 二开功能：层级标签浏览（feature flag 默认关闭；树数据由 kbId 预载） -->
+                          <template v-if="tagTreeFeatureEnabled && tagTreeLoading">
+                            <div class="tag-filter-panel__divider"></div>
+                            <div class="tag-tree-browse tag-tree-browse--loading">
+                              <t-loading size="small" />
+                            </div>
+                          </template>
+                          <template v-else-if="tagTreeFeatureEnabled && tagTree.length > 0">
+                            <div class="tag-filter-panel__divider"></div>
+                            <div class="tag-filter-panel__subtitle">{{ $t('tagTreePicker.browseSection') }}</div>
+                            <div class="tag-tree-browse">
+                              <div v-for="row in tagTreeRows" :key="row.node.id" class="tag-tree-browse__row"
+                                :class="{
+                                  'is-selected': isTagTreeNodeSelected(row.node),
+                                  'is-disabled': !row.node.is_leaf && tagTreeNodeLeafIds(row.node).length === 0,
+                                }"
+                                :style="{ '--tag-tree-browse-depth': row.depth }"
+                                :title="tagTreeNodeLeafIds(row.node).length === 0
+                                  ? $t('tagTreePicker.noLeaves')
+                                  : row.node.path"
+                                @click="handleTagTreeNodeClick(row.node)">
+                                <button type="button" class="tag-tree-browse__caret"
+                                  :class="{ invisible: !row.hasChildren }"
+                                  :aria-expanded="tagTreeExpanded.has(row.node.id)"
+                                  @click.stop="toggleTagTreeExpand(row.node.id)">
+                                  <t-icon :name="tagTreeExpanded.has(row.node.id) ? 'chevron-down' : 'chevron-right'"
+                                    size="13px" />
+                                </button>
+                                <span class="tag-tree-browse__name">{{ row.node.name }}</span>
+                                <span v-if="!row.node.is_leaf && tagTreeNodeLeafIds(row.node).length > 0"
+                                  class="tag-tree-browse__count">
+                                  {{ tagTreeNodeLeafIds(row.node).length }}
+                                </span>
+                              </div>
+                            </div>
+                          </template>
                         </div>
                       </section>
                     </template>
@@ -2841,6 +3017,21 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
     :pre-selected-tag-ids="batchTagPreSelectedIds"
     :confirm-loading="batchTagging"
     @update:visible="batchTagDialogVisible = $event" @confirm="onBatchTagConfirm" />
+
+    <!-- doc-versioning MVP：版本组历史（回滚免二次确认为用户拍板） -->
+    <t-dialog v-model:visible="versionsDialog.visible" :header="t('knowledgeBase.versionHistory') + ' · ' + versionsDialog.title" :footer="false" width="560px">
+      <t-loading :loading="versionsDialog.loading" style="min-height: 120px">
+        <div v-for="row in versionsDialog.list" :key="row.knowledge_id" class="version-row">
+          <span class="version-no">v{{ row.version_number }}</span>
+          <span class="version-title">{{ row.title }}</span>
+          <span class="version-status" :class="row.version_status">{{ row.version_status }}</span>
+          <t-button v-if="row.version_status === 'superseded'" size="small" theme="default" @click="handleRollbackVersion(row)">
+            {{ t('knowledgeBase.versionRollback') }}</t-button>
+        </div>
+        <div v-if="!versionsDialog.loading && !versionsDialog.list.length" class="version-empty">
+          {{ t('knowledgeBase.versionNoHistory') }}</div>
+      </t-loading>
+    </t-dialog>
 
 </template>
 <style>
@@ -3650,4 +3841,108 @@ const handleKBEditorSuccess = (kbIdValue: string) => {
   background: var(--td-bg-color-container-hover);
 }
 
+
+  // 二开功能：层级标签浏览区块
+  .tag-filter-panel__divider {
+    height: 1px;
+    margin: 10px 0 6px;
+    background: var(--td-component-stroke);
+  }
+
+  .tag-filter-panel__subtitle {
+    font-size: 12px;
+    color: var(--td-text-color-secondary);
+    margin-bottom: 4px;
+  }
+
+  .tag-tree-browse {
+    max-height: 180px;
+    overflow: auto;
+    padding: 2px;
+
+    &--loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+    }
+
+    .tag-tree-browse__row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border-radius: var(--td-radius-default);
+      margin-left: calc(var(--tag-tree-browse-depth, 0) * 16px);
+      cursor: pointer;
+      user-select: none;
+
+      &:hover {
+        background: var(--td-bg-color-container-hover);
+      }
+
+      &.is-selected {
+        .tag-tree-browse__name {
+          color: var(--td-brand-color);
+          font-weight: 500;
+        }
+      }
+
+      &.is-disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+
+        &:hover {
+          background: transparent;
+        }
+      }
+    }
+
+    .tag-tree-browse__caret {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: none;
+      background: transparent;
+      color: var(--td-text-color-secondary);
+      padding: 0;
+      cursor: pointer;
+
+      &.invisible {
+        visibility: hidden;
+      }
+    }
+
+    .tag-tree-browse__name {
+      font-size: 12px;
+      color: var(--td-text-color-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    .tag-tree-browse__count {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--td-text-color-placeholder);
+    }
+  }
+</style>
+
+<style scoped>
+.kb-pending-versions { border: 1px solid var(--td-border-level-2-color); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+.kb-pending-versions .pending-header { font-weight: 600; margin-bottom: 6px; }
+.kb-pending-versions .pending-row { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.kb-pending-versions .pending-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-pending-versions .pending-status { color: var(--td-text-color-placeholder); font-size: 12px; }
+.version-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--td-border-level-1-color); }
+.version-row .version-no { font-family: monospace; color: var(--td-text-color-secondary); min-width: 44px; }
+.version-row .version-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.version-row .version-status { font-size: 12px; color: var(--td-text-color-placeholder); min-width: 72px; text-align: center; }
+.version-row .version-status.active { color: var(--td-success-color); }
+.version-row .version-status.pending { color: var(--td-warning-color); }
+.version-empty { color: var(--td-text-color-placeholder); text-align: center; padding: 24px 0; }
 </style>

@@ -53,6 +53,16 @@ export function listKnowledgeBases(params?: {
   return get(qs ? `/api/v1/knowledge-bases?${qs}` : '/api/v1/knowledge-bases');
 }
 
+/**
+ * 二开功能（决策 019，已从 ?scope=portal 抽离为独立端点）：门户聚合列表。
+ * 全部活跃 memberships 的 KB ∪ 组织共享进来的 KB（含 space_type=all 全员空间，
+ * 服务端按 kb_id 去重，注入 tenant_name/space_type/my_role 供分组）；
+ * 系统管理员=跨租户全量（条目带 tenant_id）。
+ */
+export function listPortalKnowledgeBases() {
+  return get('/api/v1/portal/knowledge-bases');
+}
+
 // Read-only vector-store binding metadata enriched onto every KB
 // response (list, create, get, update, pin). Source carries where the
 // binding points; status reports whether that target is currently
@@ -930,4 +940,56 @@ export function batchReparseKnowledge(kbId: string, ids: string[], processConfig
     ids,
     process_config: processConfig,
   });
+}
+
+// ---------- doc-versioning MVP（台账 T11） ----------
+
+/** 待确认版本队列（作为新版本上传、等待确认的知识）。 */
+export function listPendingVersions(kbId: string) {
+  return get<any>(`/api/v1/knowledge-bases/${kbId}/knowledge/pending-versions`)
+}
+
+/** 版本组历史（新→旧）。 */
+export function listKnowledgeVersions(knowledgeId: string) {
+  return get<any>(`/api/v1/knowledge/${knowledgeId}/versions`)
+}
+
+/** 确认 pending 版本生效（旧 active 自动下线）。 */
+export function confirmKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-confirm`, {})
+}
+
+/** 拒绝 pending 版本（删除）。 */
+export function rejectKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-reject`, {})
+}
+
+/** 回滚到历史版本（免二次确认；被回滚版 chunks 保留，无需重解析）。 */
+export function rollbackKnowledgeVersion(knowledgeId: string) {
+  return post<any>(`/api/v1/knowledge/${knowledgeId}/version-rollback`, {})
+}
+
+// ---------- 消息反馈（台账 T13 反馈闭环） ----------
+
+/** 提交点赞/点踩（同用户同消息后提交覆盖前值）。 */
+export function submitMessageFeedback(payload: {
+  message_id: string
+  session_id: string
+  rating: 'up' | 'down'
+  reason_code?: string
+  comment?: string
+}) {
+  return post<any>('/api/v1/feedback', payload)
+}
+
+/** 反馈管理列表（分页+过滤）。 */
+export function listMessageFeedback(params: {
+  rating?: string
+  reason_code?: string
+  page?: number
+  page_size?: number
+}) {
+  return get<any>(`/api/v1/feedback?${Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&')}`)
 }

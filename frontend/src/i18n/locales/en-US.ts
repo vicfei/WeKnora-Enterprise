@@ -689,7 +689,20 @@ export default {
         desc: 'Everything starts here: upload documents, web pages or FAQs and WeKnora parses and indexes them automatically. Click here to open knowledge bases.'
       },
       chat: {
-        title: 'Start an AI chat',
+
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: 'Helpful', down: 'Not helpful',
+
+          downHeader: 'What was wrong with this answer?', submit: 'Submit', cancel: 'Cancel',
+
+          thanks: 'Thanks for the feedback!', failed: 'Failed to submit feedback', commentPlaceholder: 'Add details (optional, ≤500 chars)',
+
+          reason: { wrong_answer: 'Wrong answer', bad_citation: 'Citations do not support it', outdated: 'Outdated', incomplete: 'Incomplete', style: 'Style or wording', other: 'Other' },
+
+        },        title: 'Start an AI chat',
         desc: 'Ask questions grounded in your knowledge base and get accurate answers with cited sources. Click here to start a new chat.'
       },
       agents: {
@@ -928,7 +941,8 @@ export default {
     workspace: 'Workspace',
     spaces: 'Shared with me',
     favorites: 'Starred',
-    recents: 'Recent'
+    recents: 'Recent',
+    portal: 'Portal'
   },
   resourceOrigin: {
     mine: 'Mine',
@@ -1199,6 +1213,27 @@ export default {
     deleteDocument: 'Delete Document',
     moveDocument: 'Move to...',
     moveToKnowledgeBase: 'Move to Knowledge Base',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: 'Version history',
+
+      pendingVersionsTitle: 'Pending versions',
+
+      versionConfirm: 'Confirm',
+
+      versionReject: 'Reject',
+
+      versionConfirmed: 'New version active; previous version superseded',
+
+      versionRejected: 'Pending version rejected and deleted',
+
+      versionRollback: 'Roll back to this version',
+
+      versionRolledBack: 'Rolled back to the selected version',
+
+      versionActionFailed: 'Version operation failed',
+
+      versionNoHistory: 'No versions recorded',
     moveNoTargets: 'No compatible knowledge bases found (same type and embedding model required)',
     moveModeReuseVectors: 'Reuse Vectors (Fast)',
     moveModeReuseVectorsDesc: 'Directly move chunks and vector indices. Use when chunking config is the same.',
@@ -1273,6 +1308,10 @@ export default {
     pdfDocFormat: 'pdf, doc format files, max {size}MB',
     textMarkdownFormat: 'text, markdown format files, max {size}MB',
     dragFileNotText: 'Please drag files instead of text or links',
+    kbRoutingAgentConflict: 'Auto KB selection applies to Quick Q&A only; in Smart-Reasoning/agent mode the agent config decides the KB scope',
+    kbRoutingToggle: 'Auto-select KBs (experimental): match the most relevant knowledge bases when none is picked',
+    weightedRankingAgentConflict: 'Precise ranking applies to Quick Q&A only; in agent mode the agent retrieval config decides',
+    weightedRankingToggle: 'Precise ranking (experimental): rerank retrieval results before answering — more accurate citations, slightly slower',
     searchPlaceholder: 'Search knowledge bases...',
     docSearchPlaceholder: 'Search document names...',
     fileTypeFilter: 'File Type',
@@ -1313,6 +1352,7 @@ export default {
     imageVectorRequiresIndex: "Enable vector indexing in knowledge base settings first.",
     documentSummary: "Document summary",
     documentSummaryDescription: "Choose whether to automatically summarize documents in this import.",
+      asNewVersion: { label: 'Upload as new version', description: 'Auto-joins the previous version by normalized title: invisible to search until confirmed; confirming supersedes the old version (rollback available)' },
     generateSummary: "Generate document summaries",
     generateSummaryHint: "Enabled by default. Disable to skip summaries while parsing, indexing, and other configured steps continue.",
 
@@ -1690,8 +1730,7 @@ export default {
       allowedTools: 'Allowed Tools',
       multiTurn: 'Multi-turn Conversation',
       historyTurns: 'History Turns',
-      retainRetrievalHistory: 'Keep retrieval results',
-      memoryEnabled: 'Long-term Memory',
+      retainRetrievalHistory: 'Keep retrieval results',      memoryEnabled: 'Long-term Memory',
       retrievalStrategy: 'Retrieval Strategy',
       embeddingTopK: 'Embedding Top K',
       keywordThreshold: 'Keyword Threshold',
@@ -3491,6 +3530,13 @@ export default {
     create: 'Create Knowledge Base',
     subtitle: 'Manage and organize your knowledge bases, supporting document-based and FAQ-based knowledge bases',
     sharedToOrgs: 'Shared to {count} space(s)',
+    portalTenantBadge: 'Cross-tenant entry (tenant {id})',
+    portalGroupPersonal: 'Personal spaces',
+    portalGroupTeam: 'Team spaces',
+    portalGroupAll: 'Company public',
+    portalGroupShared: 'Shared with me',
+    portalGroupCount: '{count} knowledge bases',
+    portalRoleBadge: 'My role: {role}',
     uninitializedBanner: 'Some knowledge bases are not initialized. Configure model information in settings before adding documents.',
     empty: {
       title: 'No knowledge bases yet',
@@ -3849,7 +3895,40 @@ export default {
       asr: 'Audio',
       datasource: 'Data Sources',
       share: 'Sharing',
-      activity: 'Activity'
+      activity: 'Activity',
+      tagTree: 'Tag Hierarchy'
+    },
+    tagTree: {
+      title: 'Hierarchical Tag Tree',
+      description: 'Organize tags in a tree: leaf nodes are bound to native tags and drive retrieval pre-filters; group nodes provide the directory structure.',
+      stats: '{nodes} nodes · {leaves} leaves',
+      refresh: 'Refresh',
+      create: 'New Node',
+      toggleExpand: 'Expand/Collapse',
+      empty: 'No hierarchical tags yet',
+      leafBadge: 'Leaf',
+      groupBadge: 'Group',
+      sortUp: 'Move up',
+      sortDown: 'Move down',
+      rename: 'Rename',
+      move: 'Move to…',
+      moveTitle: 'Move node: {name}',
+      moveTarget: 'Target parent',
+      delete: 'Delete',
+      deleteConfirm: 'Delete "{name}" and its whole subtree?',
+      deleteWarning: 'This cannot be undone: native tags of the leaves in the subtree, document tag relations and FAQ chunk tags are cascade-cleaned. Documents themselves are kept (only unclassified).',
+      deleted: 'Deleted {nodes} nodes and {tags} tags; removed {relations} document relations',
+      parentLabel: 'Parent node',
+      rootLevel: '(root level)',
+      nameLabel: 'Node name',
+      namePlaceholder: 'Enter a node name',
+      nameRequired: 'Enter a node name',
+      demoteHint: 'The target parent is currently a leaf: after saving it will be demoted to a group and its native tag plus document bindings will be removed.',
+      createSuccess: 'Node created',
+      renameSuccess: 'Node renamed',
+      moveSuccess: 'Node moved',
+      loadFailed: 'Failed to load the tag tree',
+      operationFailed: 'Operation failed, please retry'
     },
     errors: {
       vectorStoreBindingInvalid: 'The selected vector store cannot be used. Choose a different store or use the system default.',
@@ -4891,7 +4970,18 @@ export default {
     }
   },
   system: {
-    title: 'System Information',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: 'Message feedback', filterRating: 'Filter by rating', filterReason: 'Filter by reason',
+
+          up: 'Up', down: 'Down',
+
+          columns: { time: 'Time', rating: 'Rating', reason: 'Reason', question: 'Question', answer: 'Answer excerpt', comment: 'Comment' },
+
+        },    title: 'System Information',
     sectionDescription: 'View system version information and user account configuration',
     loadingInfo: 'Loading information...',
     retry: 'Retry',
@@ -7172,6 +7262,7 @@ export default {
     }
   },
   tools: {
+    kbRouter: 'Auto-selecting knowledge bases',
     multiKbSearch: 'Cross-KB Search',
     searchKnowledge: 'Search knowledge',
     readDocument: 'Read document',
@@ -9378,6 +9469,26 @@ export default {
     loadFailed: 'Failed to load platform API keys',
     createFailed: 'Failed to create platform API key'
   },
+  // Second-development feature: hierarchical tag tree picker
+  tagTreePicker: {
+    trigger: 'Filter by tag tree',
+    title: 'Tag tree filter',
+    selectedCount: '{count} selected',
+    noKnowledgeBases: 'No document knowledge bases available',
+    empty: 'This knowledge base has no hierarchical tags yet',
+    noLeaves: 'no tags',
+    leafCount: '{count} tags',
+    loadFailed: 'Failed to load the tag tree',
+    browseSection: 'Browse by hierarchy',
+    pickForUpload: 'Pick from tag tree'
+  },
+
+  // Second-development feature: UUM bridge login (external portal SSO)
+  bridgeLogin: {
+    portalButton: 'Portal single sign-on',
+    callbackFailed: 'Portal login failed, please re-enter from the portal'
+  },
+
   // Display text for the observed image attributes, keyed by attribute name.
   // Attribute names escape their dots (contain.text → contain_text) because
   // vue-i18n walks a key segment by segment on the dots, so a literal

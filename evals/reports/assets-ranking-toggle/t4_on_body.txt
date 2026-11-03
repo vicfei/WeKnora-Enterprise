@@ -1,0 +1,59 @@
+新对话
+知识库
+智能体
+共享空间
+今天
+40
+50名成员。
+demo-ranking rerank on
+demo-ranking off (现状, rerank 跳过)
+eval hp-0099 wr3-mmroff-r1
+eval hp-0098 wr3-mmroff-r1
+eval hp-0097 wr3-mmroff-r1
+eval hp-0096 wr3-mmroff-r1
+eval hp-0095 wr3-mmroff-r1
+eval hp-0094 wr3-mmroff-r1
+eval hp-0093 wr3-mmroff-r1
+eval hp-0092 wr3-mmroff-r1
+eval hp-0091 wr3-mmroff-r1
+eval hp-0090 wr3-mmroff-r1
+eval hp-0089 wr3-mmroff-r1
+eval hp-0088 wr3-mmroff-r1
+eval hp-0087 wr3-mmroff-r1
+eval hp-0086 wr3-mmroff-r1
+eval hp-0085 wr3-mmroff-r1
+eval hp-0084 wr3-mmroff-r1
+eval hp-0083 wr3-mmroff-r1
+eval hp-0082 wr3-mmroff-r1
+eval hp-0081 wr3-mmroff-r1
+eval hp-0080 wr3-mmroff-r1
+eval hp-0079 wr3-mmroff-r1
+eval hp-0078 wr3-mmroff-r1
+eval hp-0077 wr3-mmroff-r1
+eval hp-0076 wr3-mmroff-r1
+eval hp-0075 wr3-mmroff-r1
+eval hp-0074 wr3-mmroff-r1
+eval hp-0073 wr3-mmroff-r1
+H
+hotpot-eval-runner
+hotpot-eval-runner@uum.invalid
+40
+今天 15:49
+Ken Pruitt was a Republican member of an upper house of the legislature with how many members?
+图片无法显示
+预览
+检索完成
+引用了6篇文档
+
+肯·普鲁伊特（Ken Pruitt）是共和党成员，曾在2000年至2009年担任佛罗里达州参议院议员，代表第28选区。
+Ken Pruitt
+ 佛罗里达州参议院是该州立法机构的上议院，共有 40名成员。
+Flori...enate
+
+图片无法显示
+预览
+图片无法显示
+预览
+快速问答
+deepseek-v4-flash
+200K

@@ -1,4 +1,33 @@
-use_default_settings: true
+# Egress reality (2026-09-15, Shanghai CN node): direct engine access is
+# unreliable — google/brave/duckduckgo SNI-reset, baidu serves CAPTCHA to the
+# datacenter IP, sogou/360 rate-limit into anti-bot pages within ~10 queries.
+# Fix: tunnel egress through the Singapore relay's squid (SSH -L bound to the
+# docker bridge gateway 172.18.0.1:8889, see .context/sessions/2026-09-15).
+# keep_only restricts the ~250 default engines to a general-search set that
+# is solid via that route.
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - bing
+      - brave
+      - wikipedia
+      - mojeek
+
+# searxng's shipped defaults mark these engines disabled:true (opt-in via UI
+# preferences) — category queries would select zero engines and return empty
+# in ~3ms. Re-enable the kept set explicitly.
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: mojeek
+    disabled: false
 
 general:
   instance_name: "WeKnora SearXNG"
@@ -47,3 +76,6 @@ outgoing:
   pool_connections: 100
   pool_maxsize: 20
   enable_http2: true
+  # SSH -L tunnel to Singapore relay squid (see header comment). Applies to
+  # every engine request; the tunnel must be up or searches fail visibly.
+  proxies: http://172.18.0.1:8889

@@ -101,7 +101,7 @@ func (s *sessionService) AgentQA(
 	req.CustomAgent.EnsureDefaults()
 
 	// Build AgentConfig from custom agent and tenant info
-	agentConfig, err := s.buildAgentConfig(ctx, req, tenantInfo, agentTenantID)
+	agentConfig, err := s.buildAgentConfig(ctx, req, tenantInfo, agentTenantID, eventBus)
 	if err != nil {
 		return err
 	}
@@ -517,6 +517,7 @@ func (s *sessionService) buildAgentConfig(
 	req *types.QARequest,
 	tenantInfo *types.Tenant,
 	agentTenantID uint64,
+	eventBus *event.EventBus,
 ) (*types.AgentConfig, error) {
 	if inherited, err := inheritedConfigFromBinding(ctx); err != nil {
 		return nil, err
@@ -618,6 +619,21 @@ func (s *sessionService) buildAgentConfig(
 	if systemPrompt, _ := s.cfg.ResolveCustomAgentPrompts(customAgent); systemPrompt != "" {
 		agentConfig.UseCustomSystemPrompt = true
 		agentConfig.SystemPrompt = systemPrompt
+	}
+
+	// 二开特性（多维度加权排序，agent 侧）：与 chat 管线同一条解析链——
+	// 请求级 RankingConfig 覆盖智能体属主租户的 RetrievalConfig.Ranking，
+	// Resolve() 把未设字段回落到旧版硬编码常量。knowledge_search 工具
+	// 以前用自己的一份常量拷贝（upstream U-03），现在消费这里的解析结果。
+	if req.EnableWeightedRanking {
+		var tenantRanking *types.RankingConfig
+		if tenantInfo != nil {
+			tenantRanking = tenantInfo.RetrievalConfig.GetEffectiveRanking()
+		}
+		agentConfig.Ranking = tenantRanking.Merge(req.Ranking).Resolve()
+		logger.Infof(ctx, "Weighted ranking enabled for agent run: %+v", agentConfig.Ranking)
+	} else {
+		agentConfig.Ranking = (&types.RankingConfig{}).Resolve()
 	}
 
 	logger.Infof(ctx, "Custom agent config applied: MaxIterations=%d, Temperature=%.2f, AllowedTools=%v, WebSearchEnabled=%v",

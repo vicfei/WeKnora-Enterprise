@@ -105,6 +105,8 @@ const manage = () => {
               </t-button>
             </div>
           </template>
+          <!-- 二开功能挂载点：层级标签浏览区块（不传 slot 时零渲染，上游行为不变） -->
+          <slot name="browse" />
         </div>
         <div v-if="canManage" class="tag-filter-panel__footer">
           <t-button variant="text" size="small" class="tag-manage-link" @click="manage">

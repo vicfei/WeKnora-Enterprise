@@ -565,6 +565,12 @@
         <DataSourceSettings :kb-id="activeKbId" @count="dsCount = $event" />
       </div>
 
+      <!-- 层级标签树（二开功能，仅编辑模式 + 文档型 KB + feature flag） -->
+      <div v-if="editorMode === 'edit' && activeKbId && tagTreeFeatureEnabled && !isFAQ && currentSection === 'tagTree'"
+        class="section">
+        <KBTagTreeSettings :kb-id="activeKbId" :active="currentSection === 'tagTree'" />
+      </div>
+
       <!-- 共享设置（仅编辑模式） -->
       <div v-if="editorMode === 'edit' && activeKbId && currentSection === 'share'" class="section">
         <KBShareSettings :kb-id="activeKbId" :can-share="canShareKB" />
@@ -612,6 +618,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import KbCreateContextualGuide from '@/components/KbCreateContextualGuide.vue'
+import KBTagTreeSettings from '@/features/tag-tree/KBTagTreeSettings.vue'
+import { tagTreeEnabled } from '@/features/common/flags'
 import { KB_EDITOR_FOCUS_SECTION_EVENT, markContextualGuideDone } from '@/config/contextualGuides'
 import { MessagePlugin, DialogPlugin } from 'tdesign-vue-next'
 import { useModalShell } from '@/composables/useModalShell'
@@ -820,6 +828,9 @@ const DEFAULT_CHUNKING_PRESET = {
 const INSTANT_SECTIONS = new Set(['datasource', 'share', 'activity'])
 const isInstantSection = computed(() => INSTANT_SECTIONS.has(currentSection.value))
 
+// 二开功能开关：层级标签树（构建期注入，运行期不变）
+const tagTreeFeatureEnabled = computed(() => tagTreeEnabled())
+
 const navItems = computed(() => {
   const items: { key: string; icon: string; label: string; badge?: number }[] = [
     { key: 'basic', icon: 'info-circle', label: t('knowledgeEditor.sidebar.basic') },
@@ -843,6 +854,11 @@ const navItems = computed(() => {
     )
     if (editorMode.value === 'edit' && activeKbId.value) {
       items.push({ key: 'datasource', icon: 'cloud-download', label: t('knowledgeEditor.sidebar.datasource'), badge: dsCount.value || undefined })
+    }
+    // 二开功能：层级标签树管理（feature flag 默认关闭；仅编辑模式——内容区同样
+    // 以 editorMode === 'edit' 为准，新建模式下推入导航项会出现空白标签页）
+    if (editorMode.value === 'edit' && activeKbId.value && tagTreeFeatureEnabled.value) {
+      items.push({ key: 'tagTree', icon: 'tag', label: t('knowledgeEditor.sidebar.tagTree') })
     }
   }
   if (editorMode.value === 'edit' && activeKbId.value && !authStore.isLiteMode) {
@@ -873,7 +889,7 @@ const navGroups = computed(() => {
     {
       key: 'data',
       label: t('knowledgeEditor.navGroups.data'),
-      items: pickItems(['storage', 'datasource']),
+      items: pickItems(['storage', 'datasource', 'tagTree']),
     },
     {
       key: 'integration',

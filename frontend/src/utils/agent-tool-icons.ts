@@ -20,6 +20,9 @@ export function getAgentToolIconName(
     }
     return 'data-search'
   }
+  if (toolName === 'kb_router') {
+    return 'city'
+  }
   if (toolName === 'wiki_search') {
     return 'search'
   }

@@ -780,6 +780,21 @@
     :artifacts="liveArtifacts"
     :preview-index="artifactPreviewIndex"
   />
+  <!-- 台账 T13：点踩理由对话框（与 botmsg 同款） -->
+  <t-dialog v-model:visible="feedbackDialogVisible" :header="t('chat.feedback.downHeader')"
+    :confirm-btn="{ content: t('chat.feedback.submit'), theme: 'primary', loading: feedbackSending, disabled: !downReason }"
+    :cancel-btn="{ content: t('chat.feedback.cancel') }" width="420px" @confirm="submitFeedback('down')">
+    <t-radio-group v-model="downReason" variant="default-radio" class="feedback-reasons">
+      <t-radio value="wrong_answer">{{ t('chat.feedback.reason.wrong_answer') }}</t-radio>
+      <t-radio value="bad_citation">{{ t('chat.feedback.reason.bad_citation') }}</t-radio>
+      <t-radio value="outdated">{{ t('chat.feedback.reason.outdated') }}</t-radio>
+      <t-radio value="incomplete">{{ t('chat.feedback.reason.incomplete') }}</t-radio>
+      <t-radio value="style">{{ t('chat.feedback.reason.style') }}</t-radio>
+      <t-radio value="other">{{ t('chat.feedback.reason.other') }}</t-radio>
+    </t-radio-group>
+    <t-textarea v-model="downComment" :placeholder="t('chat.feedback.commentPlaceholder')"
+      :maxlength="500" :autosize="{ minRows: 2, maxRows: 4 }" style="margin-top: 12px" />
+  </t-dialog>
 </template>
 
 <script setup lang="ts">
@@ -822,6 +837,8 @@ import { isCollectingSkillArtifacts } from '@/utils/skillArtifacts';
 import { useArtifactArriveMotion } from '@/composables/useArtifactArriveMotion';
 import { useChatSandboxPanel } from '@/composables/useChatSandboxPanel';
 import { persistedAssistantId } from '@/utils/steerStreamFork';
+import { feedbackEnabled } from '@/features/common/flags';
+import { submitMessageFeedback } from '@/api/knowledge-base';
 import ChatMemoryStep from './ChatMemoryStep.vue';
 import { useChatMemoryRow, type UsedMemory } from '@/composables/useChatMemoryRow';
 import { countGrepDocuments, groupGrepChunkResults } from '@/utils/grepResultsGroup';
@@ -1353,6 +1370,37 @@ const sessionIdForArtifacts = computed(() => props.sessionId ?? '');
 const messageIdForArtifacts = computed(() =>
   persistedAssistantId(props.session) || String(props.session?.request_id || ''),
 );
+// 台账 T13 反馈闭环状态（自 botmsg 移植；消息 ID 与 artifact 按钮同源）
+const feedbackOn = feedbackEnabled();
+const feedbackDialogVisible = ref(false);
+const feedbackSending = ref(false);
+const myRating = ref('');
+const downReason = ref('');
+const downComment = ref('');
+
+async function submitFeedback(rating: 'up' | 'down') {
+  const mid = messageIdForArtifacts.value;
+  if (!mid || feedbackSending.value) return;
+  feedbackSending.value = true;
+  try {
+    await submitMessageFeedback({
+      message_id: mid,
+      session_id: String(props.sessionId || ''),
+      rating,
+      reason_code: rating === 'down' ? downReason.value : '',
+      comment: rating === 'down' ? downComment.value : '',
+    });
+    myRating.value = rating;
+    feedbackDialogVisible.value = false;
+    downReason.value = '';
+    downComment.value = '';
+    MessagePlugin.success(t('chat.feedback.thanks'));
+  } catch (e: any) {
+    MessagePlugin.error(e?.response?.data?.error?.message || t('chat.feedback.failed'));
+  } finally {
+    feedbackSending.value = false;
+  }
+}
 // Set when the drawer is opened from an inline artifact card in the answer, so
 // it lands on that file's preview instead of the list.
 const artifactPreviewIndex = ref<number | null>(null);
@@ -4408,4 +4456,8 @@ const handleAddToKnowledge = (answerEvent: any) => {
      descriptor during the build and crash with "reading 'scoped'". -->
 <style lang="less">
 @import "@/components/css/wiki-graph-drawer.less";
+</style>
+<style scoped>
+.answer-toolbar .t-button.is-rated { color: var(--td-brand-color); border-color: var(--td-brand-color); }
+.feedback-reasons { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; }
 </style>

@@ -76,6 +76,10 @@ type qaRequestContext struct {
 	reasoningEffort       string
 	localBrowserEnabled   bool
 	webSearchEnabled      bool
+	enableKBRouting       bool
+	enableWeightedRanking bool
+	ranking               *types.RankingConfig
+	rerankModelID         string
 	mentionedItems        types.MentionedItems
 	effectiveTenantID     uint64                   // when using shared agent, tenant ID for model/KB/MCP resolution; 0 = use context tenant
 	sharedAgentReadOnly   bool                     // access was granted by a read-only agent share
@@ -525,6 +529,10 @@ func (h *Handler) parseQARequest(c *gin.Context, logPrefix string) (*qaRequestCo
 		reasoningEffort:       request.ReasoningEffort,
 		webSearchEnabled:      request.WebSearchEnabled,
 		localBrowserEnabled:   request.LocalBrowserEnabled,
+		enableKBRouting:       request.EnableKBRouting,
+		enableWeightedRanking: request.EnableWeightedRanking,
+		ranking:               request.Ranking,
+		rerankModelID:         request.RerankModelID,
 		mentionedItems:        convertMentionedItems(request.MentionedItems),
 		effectiveTenantID:     effectiveTenantID,
 		sharedAgentReadOnly:   sharedAgentReadOnly,
@@ -2086,19 +2094,20 @@ func (h *Handler) persistLastRequestState(parentCtx context.Context, reqCtx *qaR
 	}
 
 	state := &types.SessionLastRequestState{
-		AgentID:             reqCtx.reqAgentID,
-		AgentEnabled:        agentEnabled,
-		ModelID:             reqCtx.summaryModelID,
-		ReasoningEffort:     reqCtx.reasoningEffort,
-		KnowledgeBaseIDs:    reqCtx.knowledgeBaseIDs,
-		KnowledgeIDs:        reqCtx.knowledgeIDs,
-		TagIDs:              reqCtx.tagIDs,
-		MCPServiceIDs:       reqCtx.mcpServiceIDs,
-		SkillNames:          reqCtx.skillNames,
-		MentionedItems:      reqCtx.mentionedItems,
-		WebSearchEnabled:    reqCtx.webSearchEnabled,
-		LocalBrowserEnabled: reqCtx.localBrowserEnabled,
-	}
+		AgentID:                reqCtx.reqAgentID,
+		AgentEnabled:           agentEnabled,
+		ModelID:                reqCtx.summaryModelID,
+		ReasoningEffort:        reqCtx.reasoningEffort,
+		KnowledgeBaseIDs:       reqCtx.knowledgeBaseIDs,
+		KnowledgeIDs:           reqCtx.knowledgeIDs,
+		TagIDs:                 reqCtx.tagIDs,
+		MCPServiceIDs:          reqCtx.mcpServiceIDs,
+		SkillNames:             reqCtx.skillNames,
+		MentionedItems:         reqCtx.mentionedItems,
+		WebSearchEnabled:       reqCtx.webSearchEnabled,
+		LocalBrowserEnabled:    reqCtx.localBrowserEnabled,
+		KbRoutingEnabled:       reqCtx.enableKBRouting,
+		WeightedRankingEnabled: reqCtx.enableWeightedRanking}
 
 	if err := h.sessionService.UpdateSessionLastRequestState(ctx, reqCtx.sessionID, state); err != nil {
 		logger.Warnf(ctx, "persist last_request_state failed for session %s: %v", reqCtx.sessionID, err)

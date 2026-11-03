@@ -689,7 +689,20 @@ export default {
         desc: 'すべてはここから始まります。ドキュメント、Webページ、FAQをアップロードすると、WeKnoraが自動で解析してインデックスを作成します。ここをクリックしてナレッジベースを開いてください。'
       },
       chat: {
-        title: 'AIチャットを開始',
+
+        // 台账 T13 反馈闭环
+
+        feedback: {
+
+          up: '役に立った', down: '役に立たなかった',
+
+          downHeader: 'この回答の問題は？', submit: '送信', cancel: 'キャンセル',
+
+          thanks: 'フィードバックありがとうございます', failed: '送信に失敗しました', commentPlaceholder: '補足説明（任意・500字以内）',
+
+          reason: { wrong_answer: '回答が誤り', bad_citation: '引用が回答と不一致', outdated: '情報が古い', incomplete: '回答が不完全', style: '表現・スタイル', other: 'その他' },
+
+        },        title: 'AIチャットを開始',
         desc: 'ナレッジベースに基づいて質問すると、出典付きの正確な回答が得られます。ここをクリックして新しいチャットを開始してください。'
       },
       agents: {
@@ -928,7 +941,8 @@ export default {
     workspace: 'ワークスペース',
     spaces: '共有された項目',
     favorites: 'お気に入り',
-    recents: '最近'
+    recents: '最近',
+    portal: 'ポータル',
   },
   resourceOrigin: {
     mine: '自分',
@@ -947,6 +961,10 @@ export default {
     documentCount: '{count} 件のドキュメント',
     filters: '絞り込み',
     clearFilters: '絞り込みをクリア',
+    kbRoutingToggle: '自動KB選択（実験）：未選択時に最も関連性の高いナレッジベースを自動マッチ',
+    kbRoutingAgentConflict: '自動KB選択は「クイックQ&A」のみ有効。スマート推論/エージェントモードではエージェント設定がKB範囲を決定します',
+    weightedRankingToggle: '高精度ランキング（実験）：回答前にリランクモデルで検索結果を再排序 — 引用はより正確、やや遅い',
+    weightedRankingAgentConflict: '高精度ランキングは「クイックQ&A」のみ有効。エージェントモードではエージェントの検索設定に従います',
 
     title: 'ナレッジベース',
     fileContent: 'ファイル内容',
@@ -1199,6 +1217,27 @@ export default {
     deleteDocument: 'ドキュメントを削除',
     moveDocument: '移動先を選択...',
     moveToKnowledgeBase: 'ナレッジベースに移動',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: 'バージョン履歴',
+
+      pendingVersionsTitle: '確認待ちバージョン',
+
+      versionConfirm: '確定',
+
+      versionReject: '却下',
+
+      versionConfirmed: '新バージョンを有効化し、旧バージョンを自動終了しました',
+
+      versionRejected: '確認待ちバージョンを却下して削除しました',
+
+      versionRollback: 'このバージョンへ戻す',
+
+      versionRolledBack: '選択バージョンへロールバックしました',
+
+      versionActionFailed: 'バージョン操作に失敗しました',
+
+      versionNoHistory: 'バージョン記録なし',
     moveNoTargets: '移動可能なナレッジベースがありません（同じタイプかつ同じ埋め込みモデルである必要があります）',
     moveModeReuseVectors: 'ベクトルを再利用（高速）',
     moveModeReuseVectorsDesc: 'チャンクとベクトルインデックスをそのまま移動します。チャンク分割設定が同じ場合に使用してください。',
@@ -1313,6 +1352,7 @@ export default {
     imageVectorRequiresIndex: "先にナレッジベース設定でベクトル索引を有効にしてください。",
     documentSummary: "ドキュメントの要約",
     documentSummaryDescription: "今回インポートするドキュメントの要約を自動生成するか選択します。",
+      asNewVersion: { label: '新バージョンとしてアップロード', description: 'タイトル正規化で旧版に自動紐付け：確定前は検索対象外、確定で旧版を自動終了（ロールバック可）' },
     generateSummary: "ドキュメントの要約を生成",
     generateSummaryHint: "既定で有効です。無効にすると要約生成をスキップし、解析、インデックス作成、その他の処理は設定どおり実行されます。",
 
@@ -3492,6 +3532,13 @@ export default {
     subtitle: 'ナレッジベースを管理・整理します。ドキュメント型とFAQ型のナレッジベースに対応しています',
     sharedToOrgs: '{count}件の共有スペースに共有中',
     uninitializedBanner: '一部のナレッジベースが初期化されていません。ドキュメントを追加する前に、設定でモデル情報を設定してください。',
+    portalGroupAll: '会社共有',
+    portalGroupPersonal: '個人スペース',
+    portalGroupTeam: 'チームスペース',
+    portalGroupShared: '共有されている',
+    portalGroupCount: '{count} 件のナレッジベース',
+    portalRoleBadge: '自分の役割：{role}',
+    portalTenantBadge: 'テナント横断エントリ（テナント {id}）',
     empty: {
       title: 'ナレッジベースがまだありません',
       description: '右上の「ナレッジベースを作成」をクリックして、最初のナレッジベースを追加してください。',
@@ -3693,6 +3740,39 @@ export default {
     defaultLocaleBrowser: 'ブラウザ／ホストのデフォルト'
   },
   knowledgeEditor: {
+    // 二开台账 T7：层级标签树
+    tagTree: {
+      title: '階層タグツリー',
+      description: 'タグをツリー構造で整理：葉ノードはネイティブタグに紐付き検索プリフィルタに使われ、グループノードはディレクトリ構造を提供します。',
+      empty: '階層タグはまだありません',
+      create: '新規ノード',
+      createSuccess: 'ノードを作成しました',
+      rename: '名前を変更',
+      renameSuccess: 'ノードの名前を変更しました',
+      delete: '削除',
+      deleteConfirm: '「{name}」とそのサブツリー全体を削除しますか？',
+      deleted: '{nodes} 件のノードと {tags} 件のタグを削除し、{relations} 件のドキュメント関連を解除しました',
+      deleteWarning: 'この操作は元に戻せません：サブツリー内の葉のネイティブタグ、ドキュメントのタグ関連、FAQチャンクのタグが段階的にクリアされます。ドキュメント自体は保持されます（分類解除のみ）。',
+      move: '移動先…',
+      moveTitle: 'ノードを移動：{name}',
+      moveTarget: '移動先の親',
+      moveSuccess: 'ノードを移動しました',
+      demoteHint: '移動先の親は現在葉ノードです：保存後は自動的にグループに降格し、そのネイティブタグとドキュメントとの関連が解除されます。',
+      nameLabel: 'ノード名',
+      namePlaceholder: 'ノード名を入力してください',
+      nameRequired: 'ノード名を入力してください',
+      parentLabel: '親ノード',
+      rootLevel: '（ルート階層）',
+      groupBadge: 'グループ',
+      leafBadge: '葉',
+      stats: '{nodes} 件のノード · {leaves} 件の葉',
+      refresh: '更新',
+      sortUp: '上へ移動',
+      sortDown: '下へ移動',
+      toggleExpand: '展開/折りたたみ',
+      loadFailed: 'タグツリーの読み込みに失敗しました',
+      operationFailed: '操作に失敗しました。再試行してください',
+    },
     activity: {
       title: 'アクティビティ',
       description: 'このナレッジベースの重要な変更履歴と、バックグラウンドタスクへの導線を表示します。保持期間は監査ログのポリシーに従います。',
@@ -3842,6 +3922,7 @@ export default {
       vectorStore: 'ベクトルストア',
       chunking: 'チャンク設定',
       storage: 'ストレージエンジン',
+      tagTree: '階層タグ',
       advanced: '詳細設定',
       faq: 'FAQ設定',
       graph: 'ナレッジグラフ',
@@ -4891,7 +4972,18 @@ export default {
     }
   },
   system: {
-    title: 'システム情報',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: 'メッセージフィードバック', filterRating: '評価で絞り込み', filterReason: '理由で絞り込み',
+
+          up: '高評価', down: '低評価',
+
+          columns: { time: '時間', rating: '評価', reason: '理由', question: '質問', answer: '回答抜粋', comment: 'コメント' },
+
+        },    title: 'システム情報',
     sectionDescription: 'システムのバージョン情報とユーザアカウント設定を表示します',
     loadingInfo: '情報を読み込み中...',
     retry: '再試行',
@@ -7177,6 +7269,7 @@ export default {
     readDocument: 'ドキュメントを読む',
     listDocuments: 'ドキュメント一覧',
     knowledgeSearch: 'ナレッジベース検索',
+    kbRouter: 'ナレッジベースを自動選択',
     grepChunks: 'テキストパターン検索',
     getChunkDetail: 'チャンク詳細の取得',
     listKnowledgeChunks: 'ナレッジチャンクの一覧',
@@ -9496,5 +9589,25 @@ export default {
       description:
         'まず画像の特徴を観察して説明を生成し、その特徴に基づいて OCR を実行するかどうかを判断します。モデル呼び出しを節約し、解析速度を向上させます 画像が補正可能な書類やラベルの写真と判定された場合、認識前にページを傾き補正・トリミングして OCR 精度を高めます。補正に失敗した場合は元の画像を使用します。'
     }
+  },
+
+  // Second-development feature: UUM bridge login (external portal SSO)
+  bridgeLogin: {
+    portalButton: 'ポータルでシングルサインオン',
+    callbackFailed: 'ポータルログインに失敗しました。ポータルから再度お入りください'
+  },
+
+  // 二开台账 T7：上传/列表页的标签树筛选器
+  tagTreePicker: {
+    title: 'タグツリーフィルタ',
+    trigger: 'タグツリーで絞り込み',
+    browseSection: '階層で閲覧',
+    pickForUpload: 'タグツリーから選択',
+    empty: 'このナレッジベースには階層タグがまだありません',
+    noKnowledgeBases: '利用可能なドキュメント型ナレッジベースがありません',
+    noLeaves: 'タグなし',
+    leafCount: '{count} 件のタグ',
+    selectedCount: '{count} 件選択中',
+    loadFailed: 'タグツリーの読み込みに失敗しました'
   }
 }

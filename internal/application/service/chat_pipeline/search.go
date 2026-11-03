@@ -593,6 +593,7 @@ func (p *PluginSearch) searchByTargets(
 						MatchCount:            chatManage.EmbeddingTopK,
 						SkipContextEnrichment: true,
 						DisableVectorMatch:    disableVector,
+						TimeCondition:         chatManage.TimeCondition,
 						DisableKeywordsMatch:  chatManage.DisableKeywordsMatch,
 					}
 					res, err := p.knowledgeBaseService.HybridSearch(ctx, fullKBIDs[0], params)
@@ -673,6 +674,7 @@ func (p *PluginSearch) searchSingleTarget(
 		ScopeTagIDs:           t.ScopeTagIDs,
 		SkipContextEnrichment: true,
 		DisableVectorMatch:    disableVector,
+		TimeCondition:         chatManage.TimeCondition,
 		DisableKeywordsMatch:  chatManage.DisableKeywordsMatch,
 	}
 	if t.Type == types.SearchTargetTypeKnowledge {

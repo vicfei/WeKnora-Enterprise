@@ -349,8 +349,7 @@ import {
   isDefaultContextWindow,
   effectiveContextWindow,
 } from '@/utils/contextWindow'
-
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const authStore = useAuthStore()
 const uiStore = useUIStore()
 const chatResources = useChatResourcesStore()

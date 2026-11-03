@@ -3,6 +3,8 @@ package chatpipeline
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 
 	"github.com/Tencent/WeKnora/internal/reranking"
 	"github.com/Tencent/WeKnora/internal/tracing/langfuse"
@@ -119,6 +121,21 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 	if chatManage.FAQPriorityEnabled {
 		opts.FAQScoreBoost = chatManage.FAQScoreBoost
 	}
+	// 二开特性（weighted-ranking）：开启时 composite 打分与 MMR λ 都改读
+	// Ranking 配置（recency 走 business_date 优先轴）；关闭时走官方原公式，
+	// 一个常量都不变。
+	if chatManage.EnableWeightedRanking {
+		ranking := chatManage.Ranking.Resolve()
+		opts.Ranking = &ranking
+		pipelineInfo(ctx, "Rerank", "weighted_ranking", map[string]interface{}{
+			"rerank_weight":          ranking.RerankWeight,
+			"retrieval_weight":       ranking.RetrievalWeight,
+			"source_weight":          ranking.SourceWeight,
+			"recency_weight":         ranking.RecencyWeight,
+			"recency_half_life_days": ranking.RecencyHalfLifeDays,
+			"mmr_lambda":             ranking.MMRLambda,
+		})
+	}
 	res := reranking.Rerank(ctx, rerankModel, chatManage.RewriteQuery, chatManage.SearchResult, opts)
 	*diag = res.Diagnostics
 	diag.ModelID = chatManage.RerankModelID
@@ -140,6 +157,9 @@ func (p *PluginRerank) OnEvent(ctx context.Context,
 	}
 
 	chatManage.RerankResult = res.Results
+	// 信号分布观测（roadmap 主题 3）：每轮一条汇总行，权重调优靠实测分布
+	// 而非猜测；recency 仅在加权排序开启时存在。
+	logSignalDistribution(ctx, res.Scored)
 	for i := 0; i < min(3, len(res.Scored)); i++ {
 		pipelineInfo(ctx, "Rerank", "composite_top", map[string]interface{}{
 			"rank":        i + 1,
@@ -262,4 +282,38 @@ func logRerankInputScoreSample(ctx context.Context, results []*types.SearchResul
 			"truncated": len(results) - limit,
 		})
 	}
+}
+
+// logSignalDistribution emits one compact summary per rerank round covering
+// every signal that feeds the composite score, so weight tuning can be driven
+// by observed spread instead of guesswork.
+func logSignalDistribution(ctx context.Context, results []*types.SearchResult) {
+	if len(results) == 0 {
+		return
+	}
+	pick := func(key string) []float64 {
+		vals := make([]float64, 0, len(results))
+		for _, r := range results {
+			if r.Metadata != nil {
+				if v, err := strconv.ParseFloat(r.Metadata[key], 64); err == nil {
+					vals = append(vals, v)
+				}
+			}
+		}
+		sort.Float64s(vals)
+		return vals
+	}
+	stat := func(vals []float64) string {
+		if len(vals) == 0 {
+			return "n/a"
+		}
+		return fmt.Sprintf("min=%.3f p50=%.3f p90=%.3f",
+			vals[0], vals[len(vals)/2], vals[min(9*len(vals)/10, len(vals)-1)])
+	}
+	pipelineInfo(ctx, "Rerank", "signal_distribution", map[string]interface{}{
+		"n":       len(results),
+		"model":   stat(pick("model_score")),
+		"base":    stat(pick("base_score")),
+		"recency": stat(pick("recency")),
+	})
 }

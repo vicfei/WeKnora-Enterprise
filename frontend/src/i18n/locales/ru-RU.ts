@@ -2736,6 +2736,7 @@ export default {
     unavailable: 'Unavailable'
   },
   tools: {
+    kbRouter: 'Умный выбор баз знаний',
     multiKbSearch: 'Кросс-КБ поиск',
     searchKnowledge: 'Поиск по базе знаний',
     readDocument: 'Чтение документа',
@@ -4118,6 +4119,7 @@ export default {
     phaseUploadFailed: 'Ошибка загрузки',
     phaseParseFailed: 'Ошибка разбора',
     phaseDuplicate: 'Такой файл уже есть',
+    phaseDuplicateAsNewVersion: 'Файл побайтово совпадает с существующим документом — новая версия не создана; загрузите изменённый файл с тем же именем',
     phaseCancelled: 'Отменено',
     phaseDeleted: 'Удалено',
     cancel: 'Отменить',
@@ -4468,7 +4470,18 @@ export default {
     }
   },
   system: {
-    title: 'Системная информация',
+
+        // 台账 T13 管理列表
+
+        feedback: {
+
+          tabLabel: 'Обратная связь', filterRating: 'Фильтр по оценке', filterReason: 'Фильтр по причине',
+
+          up: 'Плюс', down: 'Минус',
+
+          columns: { time: 'Время', rating: 'Оценка', reason: 'Причина', question: 'Вопрос', answer: 'Фрагмент ответа', comment: 'Комментарий' },
+
+        },    title: 'Системная информация',
     sectionDescription: 'Просмотр сведений о версии системы и конфигурации учётной записи пользователя',
     loadingInfo: 'Загрузка данных...',
     retry: 'Повторить',
@@ -6086,7 +6099,40 @@ export default {
       asr: 'Аудио',
       datasource: 'Источники данных',
       share: 'Sharing',
-      activity: 'История активности'
+      activity: 'История активности',
+      tagTree: 'Дерево тегов'
+    },
+    tagTree: {
+      title: 'Иерархическое дерево тегов',
+      description: 'Теги организованы в дерево: листовые узлы связаны с нативными тегами и управляют префильтрацией поиска; узлы-группы образуют структуру каталога.',
+      stats: '{nodes} узлов · {leaves} листьев',
+      refresh: 'Обновить',
+      create: 'Новый узел',
+      toggleExpand: 'Развернуть/свернуть',
+      empty: 'Иерархические теги ещё не созданы',
+      leafBadge: 'Лист',
+      groupBadge: 'Группа',
+      sortUp: 'Вверх',
+      sortDown: 'Вниз',
+      rename: 'Переименовать',
+      move: 'Переместить в…',
+      moveTitle: 'Переместить узел: {name}',
+      moveTarget: 'Целевой родитель',
+      delete: 'Удалить',
+      deleteConfirm: 'Удалить «{name}» и всё его поддерево?',
+      deleteWarning: 'Действие необратимо: нативные теги листьев поддерева, связи тегов документов и теги FAQ-блоков будут каскадно очищены. Сами документы сохраняются (только без классификации).',
+      deleted: 'Удалено узлов: {nodes}, тегов: {tags}; снято связей документов: {relations}',
+      parentLabel: 'Родительский узел',
+      rootLevel: '(корневой уровень)',
+      nameLabel: 'Название узла',
+      namePlaceholder: 'Введите название узла',
+      nameRequired: 'Введите название узла',
+      demoteHint: 'Целевой родитель сейчас лист: после сохранения он станет группой, а его нативный тег и связи с документами будут удалены.',
+      createSuccess: 'Узел создан',
+      renameSuccess: 'Узел переименован',
+      moveSuccess: 'Узел перемещён',
+      loadFailed: 'Не удалось загрузить дерево тегов',
+      operationFailed: 'Операция не выполнена, повторите попытку'
     },
     navGroups: {
       basic: 'Основное',
@@ -6371,6 +6417,13 @@ export default {
     create: 'Создать базу знаний',
     subtitle: 'Управляйте и организуйте свои базы знаний, поддерживаются документные и FAQ-базы знаний',
     sharedToOrgs: 'Shared to {count} space(s)',
+    portalTenantBadge: 'Из другого пространства (ID {id})',
+    portalGroupPersonal: 'Личные пространства',
+    portalGroupTeam: 'Пространства команд',
+    portalGroupAll: 'Общедоступные компании',
+    portalGroupShared: 'Мне предоставлен доступ',
+    portalGroupCount: 'баз знаний: {count}',
+    portalRoleBadge: 'Моя роль: {role}',
     uninitializedBanner: 'Некоторые базы знаний не инициализированы. Сначала настройте модели в разделе настроек, чтобы добавлять документы.',
     features: {
       knowledgeGraph: 'Граф знаний включен',
@@ -8292,8 +8345,7 @@ export default {
       allowedTools: 'Allowed Tools',
       multiTurn: 'Multi-turn Conversation',
       historyTurns: 'History Turns',
-      retainRetrievalHistory: 'Сохранять результаты поиска',
-      memoryEnabled: 'Долговременная память',
+      retainRetrievalHistory: 'Сохранять результаты поиска',      memoryEnabled: 'Долговременная память',
       retrievalStrategy: 'Retrieval Strategy',
       embeddingTopK: 'Embedding Top K',
       keywordThreshold: 'Keyword Threshold',
@@ -8560,6 +8612,7 @@ export default {
     imageVectorRequiresIndex: "Сначала включите векторную индексацию в настройках базы знаний.",
     documentSummary: "Сводка документа",
     documentSummaryDescription: "Выберите, создавать ли сводки документов при этом импорте.",
+      asNewVersion: { label: 'Загрузить как новую версию', description: 'Автопривязка к прежней версии по нормализованному названию: до подтверждения не участвует в поиске; подтверждение отключает старую версию (с возможностью отката)' },
     generateSummary: "Создавать сводки документов",
     generateSummaryHint: "Включено по умолчанию. При отключении создание сводок пропускается, а разбор, индексация и другие этапы выполняются согласно настройкам.",
 
@@ -8841,6 +8894,27 @@ export default {
     deleteDocument: 'Удалить документ',
     moveDocument: 'Переместить в...',
     moveToKnowledgeBase: 'Переместить в базу знаний',
+      // doc-versioning MVP（台账 T11）
+
+      versionHistory: 'История версий',
+
+      pendingVersionsTitle: 'Версии на подтверждении',
+
+      versionConfirm: 'Подтвердить',
+
+      versionReject: 'Отклонить',
+
+      versionConfirmed: 'Новая версия активна, прежняя автоматически отключена',
+
+      versionRejected: 'Версия отклонена и удалена',
+
+      versionRollback: 'Откатиться к этой версии',
+
+      versionRolledBack: 'Откат выполнен к выбранной версии',
+
+      versionActionFailed: 'Ошибка операции с версией',
+
+      versionNoHistory: 'Нет записей версий',
     moveNoTargets: 'Совместимые базы знаний не найдены (требуется одинаковый тип и модель эмбеддинга)',
     moveModeReuseVectors: 'Повторное использование векторов (быстро)',
     moveModeReuseVectorsDesc: 'Прямое перемещение чанков и векторных индексов. Используйте при одинаковой конфигурации разбиения.',
@@ -8915,6 +8989,10 @@ export default {
     pdfDocFormat: 'Файлы pdf, doc формата, не более {size} МБ',
     textMarkdownFormat: 'Файлы text, markdown формата, не более {size} МБ',
     dragFileNotText: 'Пожалуйста, перетащите файлы, а не текст или ссылки',
+    kbRoutingAgentConflict: 'Автовыбор базы знаний работает только в режиме «Быстрых вопросов»; в режиме агента область баз определяет конфигурация агента',
+    kbRoutingToggle: 'Автовыбор баз знаний (эксперимент): автоматически подбирает наиболее релевантные базы, если ничего не выбрано',
+    weightedRankingAgentConflict: 'Точный ранжирование работает только в режиме «Быстрых вопросов»; в режиме агента его определяет конфигурация поиска агента',
+    weightedRankingToggle: 'Точное ранжирование (эксперимент): переупорядочивает результаты поиска перед ответом — цитаты точнее, но чуть медленнее',
     searchPlaceholder: 'Поиск по базам знаний...',
     docSearchPlaceholder: 'Поиск документов...',
     fileTypeFilter: 'Тип файла',
@@ -8997,7 +9075,8 @@ export default {
     workspace: 'Рабочая область',
     spaces: 'Доступно мне',
     favorites: 'Избранное',
-    recents: 'Недавние'
+    recents: 'Недавние',
+    portal: 'Портал'
   },
   batchManage: {
     selectAll: 'Выбрать все',
@@ -9246,6 +9325,13 @@ export default {
         desc: 'Объединяйте базы знаний, промпты и инструменты в переиспользуемых агентов, закрепляя свою экспертизу.'
       },
       chat: {
+        // 台账 T13 反馈闭环
+        feedback: {
+          up: 'Полезно', down: 'Бесполезно',
+          downHeader: 'Что не так с этим ответом?', submit: 'Отправить', cancel: 'Отмена',
+          thanks: 'Спасибо за отзыв!', failed: 'Не удалось отправить отзыв', commentPlaceholder: 'Дополнительно (необязательно, до 500 символов)',
+          reason: { wrong_answer: 'Неверный ответ', bad_citation: 'Цитаты не подтверждают ответ', outdated: 'Устаревшая информация', incomplete: 'Неполный ответ', style: 'Стиль или формулировка', other: 'Другое' },
+        },
         title: 'Начните чат с ИИ',
         desc: 'Задавайте вопросы на основе вашей базы знаний и получайте точные ответы со ссылками на источники. Нажмите здесь, чтобы начать новый чат.'
       },
@@ -9378,6 +9464,26 @@ export default {
     apiChats: 'Сессии API',
     noSessions: 'Пока нет диалогов'
   },
+  // Функция доработки: выбор иерархического дерева тегов
+  tagTreePicker: {
+    trigger: 'Фильтр по дереву тегов',
+    title: 'Фильтр по дереву тегов',
+    selectedCount: 'выбрано: {count}',
+    noKnowledgeBases: 'Нет доступных документных баз знаний',
+    empty: 'В этой базе знаний ещё нет иерархических тегов',
+    noLeaves: 'нет тегов',
+    leafCount: 'тегов: {count}',
+    loadFailed: 'Не удалось загрузить дерево тегов',
+    browseSection: 'Обзор по иерархии',
+    pickForUpload: 'Выбрать из дерева тегов'
+  },
+
+  // Функция доработки: вход через UUM bridge (единый вход внешнего портала)
+  bridgeLogin: {
+    portalButton: 'Единый вход через портал',
+    callbackFailed: 'Не удалось войти через портал, попробуйте войти снова'
+  },
+
   // Тексты для наблюдаемых атрибутов изображения, с ключом по имени атрибута.
   // Точки в имени атрибута экранируются подчёркиванием (contain.text → contain_text):
   // vue-i18n разбирает ключ по точкам, поэтому литеральный ключ 'contain.text'

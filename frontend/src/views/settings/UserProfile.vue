@@ -222,8 +222,7 @@ watch(passwordPopupVisible, (open) => {
     return
   }
   resetPasswordForm()
-  void loadPasswordPolicy()
-})
+  void loadPasswordPolicy()})
 
 const passwordRules = computed<Record<string, FormRule[]>>(() => ({
   oldPassword: [

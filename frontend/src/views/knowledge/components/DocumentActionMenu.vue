@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { docVersionsEnabled } from '@/features/common/flags'
 
 interface KnowledgeItem {
   id: string;
@@ -7,6 +8,7 @@ interface KnowledgeItem {
   title?: string;
   type?: string;
   parse_status?: string;
+  version_group?: string;
 }
 
 const props = defineProps<{
@@ -23,6 +25,7 @@ const emit = defineEmits<{
   (e: 'edit'): void;
   (e: 'view-trace'): void;
   (e: 'reparse'): void;
+  (e: 'versions'): void;
   (e: 'cancel-parse'): void;
   (e: 'move'): void;
   (e: 'move-folder'): void;
@@ -58,6 +61,10 @@ const fileName = computed(() => props.item.file_name || props.item.title || prop
   </div>
 
   <!-- 查看处理过程 -->
+  <!-- doc-versioning MVP（台账 T11）：仅版本组成员可见 -->
+  <div v-if="docVersionsEnabled() && item.version_group" class="doc-action-menu-item" @click.stop="emit('versions')">
+    <span>{{ $t('knowledgeBase.versionHistory') }}</span>
+  </div>
   <div v-if="traceVisible" class="doc-action-menu-item" @click.stop="emit('view-trace')">
     <t-icon class="icon" name="chart-bar" />
     <span>{{ $t('knowledgeStages.viewTrace') }}</span>

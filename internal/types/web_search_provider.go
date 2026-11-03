@@ -29,6 +29,7 @@ const (
 	WebSearchProviderTypeExa        WebSearchProviderType = "exa"
 	WebSearchProviderTypeMetaso     WebSearchProviderType = "metaso"
 	WebSearchProviderTypeBocha      WebSearchProviderType = "bocha"
+	WebSearchProviderTypeDoubao     WebSearchProviderType = "doubao"
 	WebSearchProviderTypeSerply     WebSearchProviderType = "serply"
 	WebSearchProviderTypeDeepSeek   WebSearchProviderType = "deepseek"
 	WebSearchProviderTypeSearchAPI  WebSearchProviderType = "searchapi"

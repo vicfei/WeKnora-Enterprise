@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>沙箱/技能/搜索组合验证 v1（2026-09-15）</title>
+<style>
+body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#1f2328;line-height:1.65}
+h1{font-size:22px;border-bottom:2px solid #d0d7de;padding-bottom:8px}
+h2{font-size:17px;margin-top:28px;border-left:4px solid #0969da;padding-left:8px}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13.5px}
+th,td{border:1px solid #d0d7de;padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#f6f8fa}
+.pass{color:#1a7f37;font-weight:600}.fail{color:#cf222e;font-weight:600}.note{color:#9a6700}
+code{background:#f6f8fa;padding:1px 5px;border-radius:4px;font-size:12.5px}
+pre{background:#f6f8fa;padding:10px;border-radius:6px;overflow-x:auto;font-size:12.5px}
+.meta{color:#57606a;font-size:13px}
+</style>
+</head>
+<body>
+<h1>沙箱 / 技能 / 搜索 组合验证 v1 —— 任务完成度检查表</h1>
+<p class="meta">2026-09-15 · 分支 feature/agent-lab @ 71f7ebab · 租户 10011（hotpot-eval-runner，admin）·
+智能体 sandbox-lab-agent（15dfe656）· 模型 DeepSeek + qwen3-rerank · 沙箱 docker 后端 wechatopenai/weknora-sandbox:<b>v0.8.0</b>（配置 a14e55a4）·
+评估方式：<b>检查表式任务完成度</b>（每项需容器/DB/文件侧独立证据，不用 EM/F1）</p>
+
+<h2>0. 基础设施栈（本次搭通）</h2>
+<table>
+<tr><th>组件</th><th>状态</th><th>证据</th></tr>
+<tr><td>沙箱硬开关</td><td class="pass">✓ 开</td><td>dev.env 增 <code>WEKNORA_SANDBOX_DOCKER_ENABLED=true</code>（默认 false，internal/sandbox/docker_enabled.go:19），POST /sandbox-configs 201</td></tr>
+<tr><td>Docker 后端连通</td><td class="pass">✓</td><td>后端进程拨 unix socket 创建容器（moby Engine API，非 sock 挂载）</td></tr>
+<tr><td>searxng 出站</td><td class="pass">✓ 走新加坡中继</td><td>上海直连 google/ddg/brave 全部 SNI 重置，baidu 验证码，sogou/360 十连内限流；改 squid@中继 + SSH -L 隧道（172.18.0.1:8889），google/bing/brave/wikipedia 稳定 32±1 条/查询（中英文）</td></tr>
+<tr><td>searxng 引擎配置坑</td><td class="note">⚠ 已排雷</td><td><code>keep_only</code> 过滤后引擎继承 <code>disabled:true</code> 默认 → 类目查询 3ms 秒回空；须在 <code>engines:</code> 段显式 <code>disabled:false</code>（docker/searxng/settings.yml 已修并注释）</td></tr>
+<tr><td>SSRF 白名单</td><td class="pass">✓</td><td>dev.env 增 <code>SSRF_WHITELIST_EXTRA=127.0.0.1</code>（searxng BaseURL 为环回，须过安全拨号器）</td></tr>
+<tr><td>web_search provider</td><td class="pass">✓</td><td>POST /web-search-providers 201（searxng-local，is_default，10011）</td></tr>
+<tr><td>镜像版本坑</td><td class="note">⚠ 排雷</td><td>本地 <code>:latest</code>（08-05 构建）用户名 <code>sandbox</code>，当前代码 exec 指定 <code>user</code> → 全部 exec 报 "unable to find user"；改 <code>:v0.8.0</code>（09-03，passwd 含 user:x:1000）后正常。已登记 <b>U-16</b></td></tr>
+</table>
+
+<h2>1. L1 —— 沙箱代码执行</h2>
+<p>任务：Python 计算 SHA256('weknora-sandbox-lab') 与 2<sup>64</sup>−1，写入 /workspace/report.txt 并读回。</p>
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>容器按会话创建</td><td class="pass">✓</td><td>docker ps 出现新容器（v0.8.0 镜像，CapDrop=ALL+no-new-privileges）</td></tr>
+<tr><td>shell_exec 执行</td><td class="pass">✓</td><td>工具序列 write_sandbox_file → shell_exec → read_sandbox_file</td></tr>
+<tr><td>计算正确</td><td class="pass">✓</td><td>SHA256 = 8b973cea…4bff728、2<sup>64</sup>−1 = 18446744073709551615，与本地独立计算一致</td></tr>
+<tr><td>文件落盘</td><td class="pass">✓</td><td>容器内 /workspace/report.txt 86 字节，属主 user:user</td></tr>
+<tr><td>时延</td><td class="pass">✓</td><td>端到端 5.6s</td></tr>
+</table>
+
+<h2>2. L2 —— 文件工具 roundtrip 与会话语义</h2>
+<p>任务：write→edit→list（T1）；同会话 read + 存在性检查（T2）。</p>
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>四工具全链</td><td class="pass">✓</td><td>T1: write_sandbox_file/edit_sandbox_file/list_sandbox_files（5.9s）；T2: read_sandbox_file+list（3.6s），内容 # Lab / line-two 正确</td></tr>
+<tr><td>同会话容器复用</td><td class="pass">✓</td><td>T2 直接读到 T1 产物（Redis binding 恢复，不重建）</td></tr>
+<tr><td>跨会话隔离</td><td class="pass">✓</td><td>新会话容器中 /workspace/report.txt 不存在（agent 明确回答"不存在"）</td></tr>
+</table>
+
+<h2>3. L3 —— web 搜索接入</h2>
+<p>任务："Go 语言最新稳定版本？"（知识库无此信息）。</p>
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>先 KB 后 web 的决策</td><td class="pass">✓</td><td>knowledge_search+grep_chunks 空转后转 web_search+web_fetch</td></tr>
+<tr><td>结果正确性</td><td class="pass">✓</td><td>答 go1.27.1 / 2026-09-01；独立核对 go.dev/dl?mode=json = go1.27.1 一致</td></tr>
+<tr><td>引用标记</td><td class="pass">✓</td><td>答案内联 <code>&lt;web url="https://go.dev/doc/devel/release"/&gt;</code></td></tr>
+<tr><td>时延</td><td class="pass">✓</td><td>23.7s（含 KB 两路检索 + web 两跳）</td></tr>
+</table>
+
+<h2>4. L4 —— 技能安装与消费</h2>
+<p>L4a：宿主 skills/preloaded 直读 —— <b>设计上不可见</b>（agent_service.go:250 注释：QA 路径不再填 SkillDirs，技能只来自沙箱镜像）。预置 5 技能须打包上传 catalog 再安装，已登记 <b>U-17</b>。</p>
+<p>L4b：正式安装流（zip → catalog → install → 快照）。</p>
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>catalog 注册</td><td class="pass">✓</td><td>POST /skills/catalog（multipart zip）201，条目"数据处理器"</td></tr>
+<tr><td>安装执行</td><td class="pass">✓</td><td>POST …/install 202；installing→ready ~30s（内置 installer agent 在沙箱跑 + docker commit）</td></tr>
+<tr><td>快照链</td><td class="pass">✓</td><td>tenant_skills.ready；镜像 weknora-sk-t10011-…-g1-b5b8840c（614MB）；config.skill_image generation=1、base=v0.8.0、含 owner_fingerprint</td></tr>
+<tr><td>agent 消费</td><td class="pass">✓</td><td>read_skill 总结三脚本 → execute_skill_script 跑 analyze.py：count=3/avg=32/median=30/std=6.6833 全对 → age_stats.txt 落盘</td></tr>
+<tr><td>镜像切换</td><td class="pass">✓</td><td>新会话容器直接跑快照镜像（docker ancestor 过滤命中）；/opt/weknora/tenant/skills/数据处理器 在镜像内</td></tr>
+</table>
+
+<h2>5. L5 —— 四能力组合任务</h2>
+<p>任务：KB 检索 Tokarev 任教大学 → web 查该校学生规模 → 技能脚本整理 JSON → 写 /workspace/report.md 并给 Markdown 表格。</p>
+<table>
+<tr><th>检查项</th><th>结果</th><th>证据</th></tr>
+<tr><td>knowledge_search 命中</td><td class="pass">✓</td><td>莫斯科国立大学，答案内联 <code>&lt;kb doc="Sergei Aleksandrovich Tokarev" chunk_id="233975f8…"/&gt;</code>（与 hotpot 金标一致）</td></tr>
+<tr><td>web_search 多口径</td><td class="pass">✓</td><td>47,000/38,150/40,000+/29,235 多来源 + <code>&lt;web/&gt;</code> 引用；web_fetch 失败一次后诚实标注"页面正文未获核验"（韧性降级不造假）</td></tr>
+<tr><td>技能脚本</td><td class="pass">✓</td><td>execute_skill_script（format_converter）产出结构化 JSON</td></tr>
+<tr><td>文件产物</td><td class="pass">✓</td><td>report.md 容器内核验（结论+JSON+表格齐全）；answer 含 <code>resource://1uXx…</code> 工件标记 + artifacts_pending 事件</td></tr>
+<tr><td>端到端</td><td class="pass">✓</td><td>33.4s，9 种工具协同，1 次 web_fetch 错误自恢复</td></tr>
+</table>
+
+<h2>6. 结论与登记</h2>
+<ul>
+<li><b>L1-L5 全部通过</b>（检查表 19/19；L4a 为设计排除项非缺陷）。沙箱-技能-搜索三系统在 fork 栈上端到端可用。</li>
+<li><b>运行拓扑</b>：沙箱按会话创建容器（空闲 30min 回收）；技能=镜像快照链（generation 递增，旧代 superseded 不删）；搜索=searxng sidecar+新加坡 squid 隧道出站。</li>
+<li><b>新登记 U-16</b>（P1）：Docker Hub <code>weknora-sandbox:latest</code> 与代码 exec 用户名错配（镜像 sandbox vs 代码 user）→ 拉最新 tag 的部署全部 exec 失败。</li>
+<li><b>新登记 U-17</b>（P3）：skills/preloaded 5 技能在 QA 路径不可见（by design），无 UI/API 从该目录一键入 catalog —— 预置技能形同虚设，需文档或一键注册入口。</li>
+<li><b>运维要点</b>：SSH 隧道（172.18.0.1:8889）是搜索链路单点，断了引擎全超时；沙箱容器每会话一个，串行使用（内存 3.6G 约束）。</li>
+</ul>
+<p class="meta">复现：/tmp/agent_lab/{ask_agent.py,l2_file_tools.py}；agent 15dfe656-9df3-4aa4-99bc-b4019141aef3；
+沙箱配置 a14e55a4（image=v0.8.0）；catalog 29543600（数据处理器）。会话：L1 e5a9afca / L2 1885acbc / L3、L4b、L5 见正文。</p>
+</body>
+</html>

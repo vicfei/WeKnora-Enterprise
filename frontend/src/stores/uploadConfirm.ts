@@ -33,6 +33,8 @@ export interface UploadConfirmResult {
    * the dialog.
    */
   targetFolder?: string
+  /** doc-versioning MVP：作为新版本上传（file 模式）。 */
+  asNewVersion?: boolean
 }
 
 export interface OpenUploadConfirmOptions {

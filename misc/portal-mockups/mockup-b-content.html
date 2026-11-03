@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案B · 内容信息流门户</title>
+<style>
+  :root {
+    --brand: #0052D9; --brand-bg: #E8F0FE;
+    --green: #0B8A4B; --green-bg: #E8F7EE;
+    --orange: #D46B08; --orange-bg: #FFF3E0;
+    --purple: #5B33B8; --purple-bg: #F0EAFE;
+    --ink: #1A1A1A; --ink-2: #444; --ink-3: #8A8A8A;
+    --bg: #F7F8FA; --card: #fff; --line: #EBEBEB;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--ink); }
+
+  /* ===== 顶栏（浅色，工具感弱化） ===== */
+  .topnav { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .topnav-in { max-width: 1180px; margin: 0 auto; display: flex; align-items: center; height: 56px; padding: 0 24px; gap: 28px; }
+  .logo { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; }
+  .logo-mark { width: 28px; height: 28px; border-radius: 7px; background: linear-gradient(135deg, #3E7BFA, #0052D9); color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .nav-menu { display: flex; gap: 4px; }
+  .nav-item { padding: 7px 16px; border-radius: 8px; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+  .nav-item:hover { background: #F2F3F5; }
+  .nav-item.active { background: var(--brand-bg); color: var(--brand); font-weight: 600; }
+  .nav-search { margin-left: auto; display: flex; align-items: center; background: #F2F3F5; border-radius: 999px; padding: 7px 16px; width: 300px; gap: 10px; color: #9A9A9A; font-size: 13.5px; cursor: pointer; }
+  .nav-search:hover { background: #EAECEF; }
+  .nav-right { display: flex; align-items: center; gap: 14px; font-size: 13.5px; color: var(--ink-2); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: #3E7BFA; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; }
+
+  /* ===== 主体三栏：树导航 | 内容流 | 侧边 ===== */
+  .layout { max-width: 1180px; margin: 20px auto 0; padding: 0 24px 48px; display: grid; grid-template-columns: 232px 1fr 260px; gap: 20px; align-items: start; }
+
+  /* 标签树面板 */
+  .tree-panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 12px; position: sticky; top: 76px; }
+  .tree-title { font-size: 13px; font-weight: 600; color: var(--ink-3); padding: 0 10px 10px; letter-spacing: 1px; }
+  .tnode { display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
+  .tnode:hover { background: #F5F7FB; color: var(--brand); }
+  .tnode.active { background: var(--brand-bg); color: var(--brand); font-weight: 600; }
+  .tnode .cnt { margin-left: auto; font-size: 11px; color: #A6A6A6; }
+  .caret { font-size: 10px; color: #B3B3B3; width: 12px; text-align: center; }
+  .tnode .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .d-blue { background: #3E7BFA; } .d-green { background: #0B8A4B; } .d-orange { background: #D46B08; }
+  .t-l2 { padding-left: 34px; font-size: 13px; }
+  .tree-divider { height: 1px; background: var(--line); margin: 10px 6px; }
+
+  /* 内容流 */
+  .feed-hd { display: flex; align-items: center; gap: 18px; margin-bottom: 14px; padding: 0 4px; }
+  .feed-tab { font-size: 15px; color: var(--ink-3); cursor: pointer; padding: 4px 2px; }
+  .feed-tab.active { color: var(--ink); font-weight: 700; border-bottom: 2.5px solid var(--brand); }
+  .feed-hd .filter { margin-left: auto; font-size: 13px; color: var(--ink-3); display: flex; gap: 14px; }
+  .filter span { cursor: pointer; }
+  .filter span.on { color: var(--brand); }
+
+  .post { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; cursor: pointer; transition: all .16s; }
+  .post:hover { border-color: #C9D8F2; box-shadow: 0 6px 18px rgba(18,38,79,.07); transform: translateY(-2px); }
+  .post-kb { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); margin-bottom: 8px; }
+  .kb-chip { background: #F2F3F5; border-radius: 4px; padding: 2px 8px; }
+  .post h2 { font-size: 16.5px; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
+  .post:hover h2 { color: var(--brand); }
+  .post-abs { font-size: 13.5px; color: #777; line-height: 1.75; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 12px; }
+  .post-meta { display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--ink-3); flex-wrap: wrap; }
+  .meta-item { display: flex; align-items: center; gap: 5px; }
+  .meta-item b { color: var(--ink-2); font-weight: 500; }
+  .post-tags { margin-left: auto; display: flex; gap: 6px; }
+  .ptag { font-size: 11.5px; padding: 2px 9px; border-radius: 4px; }
+  .pb { background: var(--brand-bg); color: var(--brand); }
+  .pg { background: var(--green-bg); color: var(--green); }
+  .po { background: var(--orange-bg); color: var(--orange); }
+  .pp { background: var(--purple-bg); color: var(--purple); }
+  .post-actions { display: flex; gap: 16px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed #F0F0F0; font-size: 12.5px; color: #999; }
+  .post-actions span { cursor: pointer; display: flex; align-items: center; gap: 5px; }
+  .post-actions span:hover { color: var(--brand); }
+
+  /* 右侧 */
+  .side { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 16px; }
+  .side-panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .side-hd { font-size: 14.5px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .side-hd .more { font-size: 12px; color: var(--ink-3); cursor: pointer; font-weight: 400; }
+  .qa-box { background: linear-gradient(135deg, #F5F8FF, #EEF4FF); border: 1px solid #DCE6FA; border-radius: 10px; padding: 16px; }
+  .qa-box .qt { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .qa-box .qd { font-size: 12px; color: #6B7A99; line-height: 1.7; margin-bottom: 12px; }
+  .qa-btn { display: block; text-align: center; background: var(--brand); color: #fff; font-size: 13.5px; font-weight: 600; border-radius: 8px; padding: 9px 0; cursor: pointer; }
+  .qa-btn:hover { background: #0040B5; }
+  .rank-item { display: flex; gap: 10px; padding: 8px 0; font-size: 13px; color: var(--ink-2); border-bottom: 1px solid #F5F5F5; cursor: pointer; }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-item:hover { color: var(--brand); }
+  .rank-no { width: 18px; height: 18px; border-radius: 5px; background: #F2F3F5; color: #999; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .rn-1 { background: #FFE9E7; color: #E8524A; } .rn-2 { background: #FFF3E0; color: #D46B08; } .rn-3 { background: #FFFBE5; color: #A67C00; }
+  .rank-item .rv { margin-left: auto; color: #BBB; font-size: 11.5px; }
+
+  .footnote { text-align: center; color: #B3B3B3; font-size: 12px; padding: 20px 0 8px; }
+  .demo-tip { position: fixed; bottom: 16px; right: 16px; background: rgba(18,38,79,.88); color: #fff; font-size: 12px; padding: 8px 14px; border-radius: 8px; z-index: 99; }
+  .demo-tip a { color: #8FC1FF; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="topnav-in">
+    <div class="logo"><span class="logo-mark">资</span>知识门户</div>
+    <div class="nav-menu">
+      <div class="nav-item active">推荐</div>
+      <div class="nav-item">最新</div>
+      <div class="nav-item">我的收藏</div>
+      <div class="nav-item">智能问答</div>
+    </div>
+    <div class="nav-search">🔍 搜索研报、制度、FAQ…</div>
+    <div class="nav-right"><span class="avatar">演</span><span>演示员工</span></div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- 左：层级标签树（已建成能力的门户化呈现） -->
+  <div class="tree-panel">
+    <div class="tree-title">按分类浏览</div>
+    <div class="tnode"><span class="caret">▾</span><span class="dot d-blue"></span>行业研究<span class="cnt">1,284</span></div>
+    <div class="tnode t-l2"><span class="caret">▾</span>新能源<span class="cnt">412</span></div>
+    <div class="tnode t-l2 active"><span class="caret">·</span>锂电<span class="cnt">186</span></div>
+    <div class="tnode t-l2"><span class="caret">▸</span>半导体<span class="cnt">231</span></div>
+    <div class="tnode t-l2"><span class="caret">▸</span>人工智能<span class="cnt">298</span></div>
+    <div class="tree-divider"></div>
+    <div class="tnode"><span class="caret">▸</span><span class="dot d-orange"></span>资产类别<span class="cnt">1,655</span></div>
+    <div class="tnode t-l2" style="padding-left:34px"><span class="caret">·</span>固收<span class="cnt">902</span></div>
+    <div class="tnode t-l2"><span class="caret">·</span>权益<span class="cnt">598</span></div>
+    <div class="tree-divider"></div>
+    <div class="tnode"><span class="caret">▸</span><span class="dot d-green"></span>合规风控<span class="cnt">903</span></div>
+    <div class="tree-divider"></div>
+    <div class="tnode"><span class="caret">▸</span><span class="dot d-blue" style="background:#8E6CEF"></span>部门空间<span class="cnt">5</span></div>
+  </div>
+
+  <!-- 中：文档信息流（元数据高亮呈现） -->
+  <div>
+    <div class="feed-hd">
+      <span class="feed-tab active">推荐</span>
+      <span class="feed-tab">最新</span>
+      <span class="feed-tab">热榜</span>
+      <div class="filter"><span class="on">全部类型</span><span>研报</span><span>制度</span><span>FAQ</span></div>
+    </div>
+
+    <div class="post">
+      <div class="post-kb"><span class="kb-chip">投研部知识库</span><span>行业研究 / 新能源 / 锂电</span><span>·</span><span>PDF</span></div>
+      <h2>锂电行业 2026 年中期策略：产能出清与新技术周期</h2>
+      <div class="post-abs">
+        2026 上半年锂电板块经历产能加速出清，碳酸锂价格中枢下移带动中游盈利修复。本报告从供需平衡表、技术迭代（固态/复合集流体）与海外扩张三个维度梳理下半年投资主线……
+      </div>
+      <div class="post-meta">
+        <span class="meta-item">👤 <b>张明</b></span>
+        <span class="meta-item">📅 <b>2026-08-24</b></span>
+        <span class="meta-item">评级 <b>看好</b></span>
+        <div class="post-tags"><span class="ptag pb">锂电</span><span class="ptag pb">新能源</span></div>
+      </div>
+      <div class="post-actions"><span>💬 问答</span><span>⭐ 收藏</span><span>🔗 引用</span><span>👁 326 次浏览</span></div>
+    </div>
+
+    <div class="post">
+      <div class="post-kb"><span class="kb-chip">固收研究</span><span>资产类别 / 固收</span><span>·</span><span>PDF</span></div>
+      <h2>城投债信用风险专题：区域分化下的择券框架</h2>
+      <div class="post-abs">
+        在化债政策深化背景下，区域财力与再融资能力的分化成为城投利差的核心驱动。本文构建三级择券框架（区域-平台-债项），梳理 12 个重点省份的短期兑付压力与安全边际……
+      </div>
+      <div class="post-meta">
+        <span class="meta-item">👤 <b>李文</b></span>
+        <span class="meta-item">📅 <b>2026-08-22</b></span>
+        <span class="meta-item">评级 <b>中性</b></span>
+        <div class="post-tags"><span class="ptag po">固收</span><span class="ptag po">城投债</span></div>
+      </div>
+      <div class="post-actions"><span>💬 问答</span><span>⭐ 收藏</span><span>🔗 引用</span><span>👁 512 次浏览</span></div>
+    </div>
+
+    <div class="post">
+      <div class="post-kb"><span class="kb-chip" style="background:#E8F7EE;color:#0B8A4B">合规风控库</span><span>合规风控 / 反洗钱</span><span>·</span><span>DOCX</span></div>
+      <h2>反洗钱客户尽职调查操作指引（2026 修订版）</h2>
+      <div class="post-abs">
+        根据《金融机构反洗钱和反恐怖融资监督管理办法》最新要求，本次修订明确受益所有人识别的穿透层级、高风险客户的强化尽调措施以及可疑交易报告的内部时限……
+      </div>
+      <div class="post-meta">
+        <span class="meta-item">👤 <b>合规风控部</b></span>
+        <span class="meta-item">📅 <b>2026-08-23</b></span>
+        <span class="meta-item">生效 <b>2026-09-01</b></span>
+        <div class="post-tags"><span class="ptag pg">反洗钱</span><span class="ptag pg">内控体系</span></div>
+      </div>
+      <div class="post-actions"><span>💬 问答</span><span>⭐ 收藏</span><span>🔗 引用</span><span>👁 1,024 次浏览</span></div>
+    </div>
+
+    <div class="post">
+      <div class="post-kb"><span class="kb-chip">投研部知识库</span><span>行业研究 / 人工智能</span><span>·</span><span>XLSX</span></div>
+      <h2>量化中性策略月报（2026-08）：超额收益归因与风格暴露</h2>
+      <div class="post-abs">
+        本月中性组合绝对收益 +0.87%，超额 +1.21%。归因显示 alpha 主要来自量价因子多头端，风格暴露控制在 0.3 倍标准差以内；基差成本环比抬升 12bp，值得警惕……
+      </div>
+      <div class="post-meta">
+        <span class="meta-item">👤 <b>王强</b></span>
+        <span class="meta-item">📅 <b>2026-08-21</b></span>
+        <div class="post-tags"><span class="ptag pp">量化</span><span class="ptag pb">人工智能</span></div>
+      </div>
+      <div class="post-actions"><span>💬 问答</span><span>⭐ 收藏</span><span>🔗 引用</span><span>👁 198 次浏览</span></div>
+    </div>
+
+    <div class="footnote">演示稿 · 方案 B（内容信息流）· 数据均为虚构</div>
+  </div>
+
+  <!-- 右：问答入口 + 热榜 + 收藏 -->
+  <div class="side">
+    <div class="side-panel">
+      <div class="qa-box">
+        <div class="qt">🤖 智能问答</div>
+        <div class="qd">基于全公司知识库的 RAG 问答，支持按标签圈定范围提问。</div>
+        <div class="qa-btn">开始提问</div>
+      </div>
+    </div>
+    <div class="side-panel">
+      <div class="side-hd">本周热榜<span class="more">更多 ›</span></div>
+      <div class="rank-item"><span class="rank-no rn-1">1</span>固收策略 2026 年度展望<span class="rv">2.1k</span></div>
+      <div class="rank-item"><span class="rank-no rn-2">2</span>私募资管业务合规要点汇编<span class="rv">1.8k</span></div>
+      <div class="rank-item"><span class="rank-no rn-3">3</span>锂电行业中期策略<span class="rv">1.4k</span></div>
+      <div class="rank-item"><span class="rank-no">4</span>新能源车产业链数据手册<span class="rv">980</span></div>
+      <div class="rank-item"><span class="rank-no">5</span>信息披露事务管理制度<span class="rv">866</span></div>
+    </div>
+    <div class="side-panel">
+      <div class="side-hd">我的收藏<span class="more">全部 ›</span></div>
+      <div class="rank-item"><span style="color:#F7B500">★</span>固收策略 2026 年度展望<span class="rv">08-18</span></div>
+      <div class="rank-item"><span style="color:#F7B500">★</span>私募资管合规要点汇编<span class="rv">08-15</span></div>
+      <div class="rank-item"><span style="color:#F7B500">★</span>产业链数据库使用手册<span class="rv">08-09</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="demo-tip">方案 B · <a href="index.html">返回对比页</a></div>
+</body>
+</html>

@@ -212,6 +212,7 @@ func (e *AgentEngine) systemPromptOptions(ctx context.Context) *BuildSystemPromp
 		Config:           e.appConfig,
 		SkillInstallMode: e.config.SkillInstallMode(),
 		MemoryPrompt:     e.memoryPrompt,
+		NoToolsPrompt:    e.noToolsPrompt,
 		ProtocolPrompt:   e.modelContext.ProtocolPrompt(),
 		WorkspaceLayout:  e.workspaceLayout,
 		DesktopEnabled:   e.desktopEnabled,
@@ -262,6 +263,16 @@ func (e *AgentEngine) SetRunNote(note string) {
 // input leaves the system prompt untouched.
 func (e *AgentEngine) SetMemoryPrompt(prompt string) {
 	e.memoryPrompt = prompt
+}
+
+// SetNoToolsPrompt supplies the no-function-channel guard for this run:
+// every configured tool was stripped by the capability safety net, so the
+// model must be told in the prompt not to attempt tool calls at all —
+// providers with native function-calling markup (e.g. DeepSeek DSML)
+// otherwise leak the markers into the visible answer (U-15). Empty input
+// leaves the system prompt untouched.
+func (e *AgentEngine) SetNoToolsPrompt(prompt string) {
+	e.noToolsPrompt = prompt
 }
 
 // NewAgentEngineWithSkills creates a new agent engine with skills support

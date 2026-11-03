@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>层级标签树 · 二开功能演示页</title>
+<!--
+  ══════════════════════════════════════════════════════════════════
+  二开功能演示页（非正式 UI）— 阶段一「层级标签树」可视化演示
+  ══════════════════════════════════════════════════════════════════
+  · 单文件 / 零依赖：原生 fetch，无框架、无构建工具
+  · 打开方式（二选一）：
+      1) 直接双击本文件（file://）。后端 CORS 为 AllowOrigins:["*"] 且
+         本页使用 Authorization 头（非 cookie），跨域完全合法；
+         默认 API 地址已预填演示服务器，改掉即可。
+      2) 用任意静态服务器托管本文件后通过 http(s) 打开
+         （此时默认 API 地址自动取同源 origin，仅需填端口对应的后端）。
+  · 凭证：粘贴任一有效账号的 access token（登录接口返回的 token 字段）。
+  · 功能边界（演示用）：加载树 / 新建子节点 / 删除节点。
+    不含：移动、重命名、检索预过滤测试（对应 API 均已实现，见文档）。
+  ══════════════════════════════════════════════════════════════════
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #f5f6f8; color: #24292f; padding-bottom: 60px; }
+  .banner { position: sticky; top: 0; z-index: 9; background: #b35900; color: #fff; text-align: center; font-weight: 700; padding: 10px; letter-spacing: 1px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+  fieldset { border: 1px solid #d0d7de; border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; background: #fff; }
+  legend { font-weight: 700; padding: 0 6px; }
+  label { display: block; font-size: 12px; color: #57606a; margin: 10px 0 4px; }
+  input[type=text], textarea { width: 100%; padding: 7px 9px; border: 1px solid #d0d7de; border-radius: 6px; font: inherit; }
+  textarea { height: 54px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button { padding: 7px 16px; border: 0; border-radius: 6px; background: #1f6feb; color: #fff; font: inherit; cursor: pointer; }
+  button.secondary { background: #6e7781; }
+  button.danger { background: #cf222e; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .api { font: 11px ui-monospace, Consolas, monospace; color: #1f6feb; background: #ddf4ff; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+  .hint { font-size: 12px; color: #57606a; }
+  #status { margin: 0 0 14px; padding: 8px 12px; border-radius: 6px; display: none; font-size: 13px; }
+  #status.ok { display: block; background: #dafbe1; color: #116329; }
+  #status.err { display: block; background: #ffebe9; color: #82071e; white-space: pre-wrap; }
+  .tree { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 10px 14px; min-height: 120px; }
+  .tree ul { list-style: none; padding-left: 22px; }
+  .tree > ul { padding-left: 0; }
+  .node { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+  .node:hover { background: #f3f4f6; }
+  .node.selected { background: #ddf4ff; outline: 1px solid #1f6feb; }
+  .node .caret { width: 14px; text-align: center; color: #57606a; user-select: none; flex: none; }
+  .node .name { font-weight: 600; }
+  .node .leaf { font-size: 10px; color: #116329; background: #dafbe1; border-radius: 4px; padding: 0 5px; flex: none; }
+  .node .tagid { font: 11px ui-monospace, Consolas, monospace; color: #8b949e; }
+  .node .lvl { font-size: 10px; color: #8b949e; flex: none; }
+  .empty { color: #8b949e; padding: 10px; text-align: center; }
+  #actions { margin-top: 18px; }
+  #actions .sel { font-size: 12px; color: #57606a; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div class="banner">⚠ 二开功能演示页（非正式 UI）—— 仅用于演示层级标签树 API，不替代正式前端</div>
+
+<main>
+  <fieldset>
+    <legend>连接配置 <span class="hint">（保存在浏览器 localStorage）</span></legend>
+    <label>API 地址</label>
+    <input type="text" id="apiBase" placeholder="http://<服务器地址>:8080">
+    <label>Access Token（任一有效账号登录返回的 token）</label>
+    <textarea id="token" placeholder="粘贴登录接口返回的 token（access token）"></textarea>
+    <div class="row">
+      <div>
+        <label>知识库 ID</label>
+        <input type="text" id="kbId" placeholder="例如 a4b23c87-fa92-4376-a1f6-ff68c5c97dd6">
+      </div>
+      <div style="flex:0; align-self:flex-end;">
+        <button id="btnLoad">加载标签树</button>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:8px">调用：<span class="api">GET /api/v1/knowledge-bases/{kbId}/tag-tree</span></p>
+  </fieldset>
+
+  <div id="status"></div>
+
+  <fieldset>
+    <legend>标签树 <span class="hint">（点击节点选中；点 ▸/▾ 展开收起）</span></legend>
+    <div class="tree" id="tree"><div class="empty">尚未加载——填好上方配置后点「加载标签树」</div></div>
+  </fieldset>
+
+  <fieldset id="actions">
+    <legend>节点操作</legend>
+    <div class="sel" id="selectedInfo">未选中节点</div>
+    <div class="row" style="align-items:flex-end;">
+      <div>
+        <label>新建子节点名称 <span class="hint">（留空 = 在根级创建）</span></label>
+        <input type="text" id="childName" placeholder="例如：半导体">
+      </div>
+      <div style="flex:0; display:flex; gap:8px;">
+        <button id="btnCreate">新建子节点</button>
+        <button class="danger" id="btnDelete">删除选中节点</button>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px">
+      调用：<span class="api">POST /api/v1/knowledge-bases/{kbId}/tag-tree/nodes</span>
+      　<span class="hint">body: {name, parent_id}</span>；
+      删除：<span class="api">DELETE /api/v1/knowledge-bases/{kbId}/tag-tree/nodes/{node_id}</span>
+      　<span class="hint">（物理级联：整棵子树 + 叶子原生标签一并清理，需先 confirm）</span>
+    </p>
+    <p class="hint">未在本页演示的其他端点：PUT .../nodes/{id}（重命名/排序）· POST .../nodes/{id}/move（移动）· GET .../nodes/{id}/leaves（检索预过滤取叶子 tag_ids）</p>
+  </fieldset>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── 配置持久化 ──────────────────────────────────────────────
+  var LS = { base: "demo.apiBase", token: "demo.token", kb: "demo.kbId" };
+  var $ = function (id) { return document.getElementById(id); };
+
+  // file:// 下预填演示服务器；http(s) 托管时取同源。
+  var defaultBase = location.origin && location.origin.indexOf("http") === 0
+    ? location.origin : "http://43.134.172.70:8080";
+
+  $("apiBase").value = localStorage.getItem(LS.base) || defaultBase;
+  $("token").value = localStorage.getItem(LS.token) || "";
+  $("kbId").value = localStorage.getItem(LS.kb) || "";
+
+  function persist() {
+    localStorage.setItem(LS.base, $("apiBase").value.trim());
+    localStorage.setItem(LS.token, $("token").value.trim());
+    localStorage.setItem(LS.kb, $("kbId").value.trim());
+  }
+
+  function status(kind, msg) {
+    var el = $("status");
+    el.className = kind || "";
+    el.textContent = msg || "";
+  }
+
+  // ── API 封装（与页面按钮对应的三个调用）────────────────────
+  function api(method, path, body) {
+    persist();
+    var base = $("apiBase").value.trim().replace(/\/+$/, "");
+    var token = $("token").value.trim();
+    if (!base || !token) { return Promise.reject(new Error("请先填写 API 地址和 Access Token")); }
+    return fetch(base + path, {
+      method: method,
+      headers: {
+        "Authorization": "Bearer " + token,
+        ...(body ? { "Content-Type": "application/json" } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok || data.success === false) {
+          var e = (data.error && (data.error.message || data.error.code)) || ("HTTP " + res.status);
+          throw new Error(e + (data.error && data.error.details ? "\n" + data.error.details : ""));
+        }
+        return data.data;
+      });
+    });
+  }
+
+  // ── 树状态 ────────────────────────────────────────────────
+  var nodesById = {};      // id -> node（含 children 引用，来自嵌套响应）
+  var expanded = {};       // id -> bool
+  var selectedId = null;
+
+  function loadTree() {
+    var kb = $("kbId").value.trim();
+    if (!kb) { status("err", "请先填写知识库 ID"); return; }
+    status("", "");
+    api("GET", "/api/v1/knowledge-bases/" + kb + "/tag-tree").then(function (forest) {
+      nodesById = {}; selectedId = null; expanded = {};
+      renderForest(forest || []);
+      status("ok", "已加载 " + countNodes(forest || []) + " 个节点（GET .../tag-tree 成功）");
+      renderSelection();
+    }).catch(function (e) { status("err", "加载失败：" + e.message); });
+  }
+
+  function countNodes(forest) {
+    var n = 0;
+    (function walk(list) { list.forEach(function (nd) { n++; walk(nd.children || []); }); })(forest);
+    return n;
+  }
+
+  function renderForest(forest) {
+    var root = $("tree");
+    root.innerHTML = "";
+    if (!forest.length) {
+      root.innerHTML = '<div class="empty">该知识库还没有任何节点——在下方「新建子节点」输入名称（留空 parent = 根级）创建第一个</div>';
+      return;
+    }
+    root.appendChild(buildList(forest, true));
+  }
+
+  function buildList(list, isRoot) {
+    var ul = document.createElement("ul");
+    list.forEach(function (nd) { ul.appendChild(buildRow(nd)); });
+    return ul;
+  }
+
+  function buildRow(nd) {
+    nodesById[nd.id] = nd;
+    var li = document.createElement("li");
+
+    var row = document.createElement("div");
+    row.className = "node" + (nd.id === selectedId ? " selected" : "");
+    row.dataset.id = nd.id;
+
+    // 展开收起
+    var hasKids = nd.children && nd.children.length;
+    var caret = document.createElement("span");
+    caret.className = "caret";
+    caret.textContent = !hasKids ? "·" : (expanded[nd.id] ? "▾" : "▸");
+    if (hasKids) {
+      caret.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        expanded[nd.id] = !expanded[nd.id];
+        var sub = li.querySelector(":scope > ul");
+        if (sub) sub.style.display = expanded[nd.id] ? "" : "none";
+        caret.textContent = expanded[nd.id] ? "▾" : "▸";
+      });
+    }
+    row.appendChild(caret);
+
+    var name = document.createElement("span");
+    name.className = "name";
+    name.textContent = nd.name;
+    row.appendChild(name);
+
+    if (nd.is_leaf) {
+      var leaf = document.createElement("span");
+      leaf.className = "leaf"; leaf.textContent = "叶子";
+      row.appendChild(leaf);
+    }
+    var lvl = document.createElement("span");
+    lvl.className = "lvl"; lvl.textContent = "L" + nd.level;
+    row.appendChild(lvl);
+
+    if (nd.tag_id) {
+      var tag = document.createElement("span");
+      tag.className = "tagid"; tag.textContent = "tag:" + String(nd.tag_id).slice(0, 8) + "…";
+      row.appendChild(tag);
+    }
+
+    row.addEventListener("click", function () {
+      selectedId = (selectedId === nd.id) ? null : nd.id;
+      document.querySelectorAll(".node").forEach(function (el) {
+        el.classList.toggle("selected", el.dataset.id === selectedId);
+      });
+      renderSelection();
+    });
+    li.appendChild(row);
+
+    if (hasKids) {
+      var sub = buildList(nd.children);
+      if (!expanded[nd.id]) sub.style.display = "none";
+      li.appendChild(sub);
+    }
+    return li;
+  }
+
+  function renderSelection() {
+    var info = $("selectedInfo");
+    var nd = selectedId ? nodesById[selectedId] : null;
+    $("btnCreate").disabled = false;
+    $("btnDelete").disabled = !nd;
+    $("childName").placeholder = nd ? "在「" + nd.name + "」下创建子节点" : "根级节点名称";
+    info.textContent = nd
+      ? "已选中：" + nd.path + "　（level " + nd.level + (nd.is_leaf ? " · 叶子" : " · 父节点") + "）"
+      : "未选中节点（新建将落在根级）";
+  }
+
+  // ── 操作：新建 / 删除 ──────────────────────────────────────
+  function createChild() {
+    var kb = $("kbId").value.trim();
+    var name = $("childName").value.trim();
+    if (!name) { status("err", "请输入新节点名称"); return; }
+    var parent = selectedId ? nodesById[selectedId] : null;
+    if (parent && parent.is_leaf) {
+      status("", "");
+      if (!window.confirm("「" + parent.name + "」当前是叶子节点（挂有原生标签）。\n在其下创建子节点会使它降级为父节点：其原生标签将被硬删、已打标文档解除该分类（文档本身保留）。\n\n继续吗？")) return;
+    }
+    var body = { name: name, parent_id: parent ? parent.id : "" };
+    api("POST", "/api/v1/knowledge-bases/" + kb + "/tag-tree/nodes", body).then(function (created) {
+      status("ok", "已创建节点「" + created.name + "」(" + created.path + ")"
+        + (parent ? "——注意：若触发了父节点降级，详见服务端 WARN 日志" : ""));
+      $("childName").value = "";
+      if (parent) expanded[parent.id] = true;
+      loadTree();
+    }).catch(function (e) { status("err", "创建失败：" + e.message); });
+  }
+
+  function deleteSelected() {
+    var kb = $("kbId").value.trim();
+    var nd = selectedId ? nodesById[selectedId] : null;
+    if (!nd) { status("err", "请先选中一个节点"); return; }
+    if (!window.confirm("确定删除节点「" + nd.name + "」及其整棵子树吗？\n路径：" + nd.path + "\n\n此操作不可恢复：子树内所有叶子节点的原生标签及文档打标关联将被物理删除（文档本身保留）。")) return;
+    api("DELETE", "/api/v1/knowledge-bases/" + kb + "/tag-tree/nodes/" + nd.id).then(function (result) {
+      status("ok", "已删除 " + (result && result.deleted_nodes || "?") + " 个节点、"
+        + (result && result.deleted_tags || "?") + " 个原生标签（级联统计见响应）");
+      selectedId = null;
+      loadTree();
+    }).catch(function (e) { status("err", "删除失败：" + e.message); });
+  }
+
+  $("btnLoad").addEventListener("click", loadTree);
+  $("btnCreate").addEventListener("click", createChild);
+  $("btnDelete").addEventListener("click", deleteSelected);
+  renderSelection();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>v2 空间授权管理台（测试脚手架）</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f4f6f9;color:#24292f}
+.nav{background:#1f2733;color:#fff;padding:10px 24px;display:flex;gap:16px;align-items:center}
+.nav .brand{font-weight:700}.nav .warn{color:#fbbf24;font-size:12px;margin-left:auto}
+.container{max-width:1000px;margin:20px auto;padding:0 16px}
+.card{background:#fff;border:1px solid #e3e8ef;border-radius:10px;padding:16px 20px;margin-bottom:16px}
+input,select,button{border:1px solid #cbd5e1;border-radius:8px;padding:7px 10px;background:#fff}
+button{cursor:pointer}.primary{background:#2563eb;color:#fff;border-color:#2563eb}.danger{background:#fee2e2;color:#b91c1c}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+table{width:100%;border-collapse:collapse}th,td{padding:7px 10px;border-bottom:1px solid #eef1f5;text-align:left;font-size:13px}th{color:#64748b}
+.st.active{color:#16a34a}.st.pending{color:#d97706}.st.revoked,.st.expired{color:#dc2626}
+h3{margin:4px 0 10px}.muted{color:#94a3b8;font-size:12px}
+#msg{margin:10px 0;padding:8px 12px;border-radius:8px;background:#eef2ff;color:#4338ca;display:none}
+</style>
+</head>
+<body>
+<div class="nav"><span class="brand">WeKnora v2 · 空间授权管理台</span><span class="warn">测试脚手架（正式管理控制台由 Java 团队按 /api/v1/admin/* 契约开发）</span></div>
+<div class="container">
+
+<div class="card">
+  <h3>1 · 管理员登录</h3>
+  <div class="row">
+    <input id="email" placeholder="管理员邮箱（is_system_admin）" value="review-v2-admin@test.local">
+    <input id="pwd" type="password" placeholder="密码" value="review123456">
+    <button class="primary" onclick="login()">登录</button>
+    <span id="loginState" class="muted">未登录</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3>2 · 空间管理</h3>
+  <div class="row">
+    <input id="spName" placeholder="空间名称">
+    <select id="spType"><option value="team">team（团队空间）</option><option value="all">all（全员公共空间）</option></select>
+    <button class="primary" onclick="createSpace()">创建空间</button>
+  </div>
+  <table id="spaces"><tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th></tr></table>
+</div>
+
+<div class="card">
+  <h3>3 · 授权管理</h3>
+  <div class="row">
+    <input id="gUum" placeholder="工号 uum_user_id（可为未建号用户=预授权）" style="min-width:260px">
+    <select id="gTenant"></select>
+    <select id="gRole"><option value="viewer">viewer（只读）</option><option value="contributor">contributor（可编辑）</option><option value="admin">admin（空间管理员）</option></select>
+    <input id="gDays" type="number" placeholder="有效天数（空=永久）" style="width:120px">
+    <label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="gNow" checked> 立即生效</label>
+    <button class="primary" onclick="saveGrant()">保存授权</button>
+  </div>
+  <div class="row">
+    <input id="gFilter" placeholder="按工号过滤" oninput="renderGrants()">
+    <span class="muted">回收=移除成员关系，用户下一请求即失效（无需吊销 token）</span>
+  </div>
+  <table id="grants"><tr><th>工号</th><th>空间</th><th>角色</th><th>状态</th><th>有效期至</th><th>操作</th></tr></table>
+</div>
+
+<div id="msg"></div>
+<p class="muted">契约：GET/POST /api/v1/admin/spaces、PUT /admin/spaces/:id、GET/POST /admin/grants、PUT /admin/grants/:id、PUT /admin/grants/:id/approve、DELETE /admin/grants/:id（全部要求系统管理员 JWT）。</p>
+</div>
+
+<script>
+let TOKEN = '';
+const $ = id => document.getElementById(id);
+function msg(t){ $('msg').style.display='block'; $('msg').textContent = t; }
+async function api(method, url, body) {
+  const r = await fetch(url, {method, headers: Object.assign({'Content-Type':'application/json'}, TOKEN ? {Authorization: 'Bearer '+TOKEN} : {}), body: body ? JSON.stringify(body) : undefined});
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok || j.success === false) throw new Error((j.error && j.error.message) || r.status);
+  return j.data;
+}
+async function login(){
+  try {
+    const r = await fetch('/api/v1/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email: $('email').value, password: $('pwd').value})});
+    const j = await r.json();
+    TOKEN = j.token; $('loginState').textContent = '已登录'; loadAll();
+  } catch(e){ msg('登录失败：'+e.message); }
+}
+async function loadAll(){ await Promise.all([loadSpaces(), renderGrants()]); }
+async function loadSpaces(){
+  const list = await api('GET','/api/v1/admin/spaces');
+  $('spaces').innerHTML = '<tr><th>ID</th><th>名称</th><th>类型</th><th>状态</th></tr>' +
+    list.map(s=>`<tr><td>${s.id}</td><td>${s.name}</td><td>${s.space_type}</td><td>${s.status}</td></tr>`).join('');
+  $('gTenant').innerHTML = list.map(s=>`<option value="${s.id}">${s.name}（${s.space_type}）</option>`).join('');
+}
+async function createSpace(){
+  try { await api('POST','/api/v1/admin/spaces', {name: $('spName').value, space_type: $('spType').value}); msg('空间已创建'); loadAll(); }
+  catch(e){ msg('创建失败：'+e.message); }
+}
+let allGrants = [];
+async function renderGrants(){
+  if (!TOKEN) return;
+  allGrants = await api('GET','/api/v1/admin/grants');
+  const q = $('gFilter').value.trim();
+  const rows = allGrants.filter(g => !q || g.uum_user_id.includes(q));
+  $('grants').innerHTML = '<tr><th>工号</th><th>空间</th><th>角色</th><th>状态</th><th>有效期至</th><th>操作</th></tr>' +
+    rows.map(g=>`<tr><td>${g.uum_user_id}</td><td>${g.tenant_id}</td><td>${g.role}</td><td class="st ${g.status}">${g.status}</td>
+      <td>${g.valid_until ? new Date(g.valid_until).toLocaleString() : '永久'}</td>
+      <td>${g.status==='pending' ? `<button onclick="approve('${g.id}')">审批</button> ` : ''}${g.status==='active' ? `<button class="danger" onclick="revoke('${g.id}')">回收</button>` : ''}</td></tr>`).join('');
+}
+async function saveGrant(){
+  const body = {uum_user_id: $('gUum').value.trim(), tenant_id: Number($('gTenant').value), role: $('gRole').value, activate_now: $('gNow').checked};
+  const d = $('gDays').value; if (d) body.valid_until = new Date(Date.now()+d*86400000).toISOString();
+  try { await api('POST','/api/v1/admin/grants', body); msg('授权已保存（未建号用户将在首次登录时生效）'); renderGrants(); }
+  catch(e){ msg('保存失败：'+e.message); }
+}
+async function approve(id){ try { await api('PUT', `/api/v1/admin/grants/${id}/approve`); msg('已审批'); renderGrants(); } catch(e){ msg(e.message); } }
+async function revoke(id){ if(!confirm('确认回收？'))return; try { await api('DELETE', `/api/v1/admin/grants/${id}`); msg('已回收，用户下次请求即失效'); renderGrants(); } catch(e){ msg(e.message); } }
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>方案C · 紧凑工作台</title>
+<style>
+  :root {
+    --brand: #0052D9; --brand-bg: #E8F0FE;
+    --green: #0B8A4B; --green-bg: #E8F7EE;
+    --orange: #D46B08; --orange-bg: #FFF3E0;
+    --ink: #1A1A1A; --ink-2: #444; --ink-3: #8A94A6;
+    --bg: #F0F2F5; --card: #fff; --line: #E3E6EB;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--ink); }
+
+  /* ===== 顶栏（与现有系统风格延续） ===== */
+  .topnav { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+  .topnav-in { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; height: 54px; padding: 0 24px; gap: 24px; }
+  .logo { font-size: 16.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .logo-mark { width: 26px; height: 26px; border-radius: 6px; background: linear-gradient(135deg, #3E7BFA, #0052D9); color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .nav-menu { display: flex; gap: 2px; }
+  .nav-item { padding: 7px 15px; border-radius: 8px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; }
+  .nav-item:hover { background: #F2F3F5; }
+  .nav-item.active { color: var(--brand); font-weight: 600; }
+  .nav-right { margin-left: auto; display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--ink-2); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: #3E7BFA; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+
+  /* ===== 全局搜索带 ===== */
+  .searchband { background: #fff; border-bottom: 1px solid var(--line); }
+  .searchband-in { max-width: 1160px; margin: 0 auto; padding: 18px 24px; display: flex; gap: 12px; align-items: center; }
+  .gsearch { flex: 1; display: flex; align-items: center; background: #fff; border: 1.5px solid #D4D9E0; border-radius: 10px; padding: 10px 16px; gap: 12px; transition: border-color .15s; }
+  .gsearch:hover, .gsearch:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,82,217,.08); }
+  .gsearch .icon { color: var(--ink-3); font-size: 16px; }
+  .gsearch input { flex: 1; border: none; outline: none; font-size: 14.5px; }
+  .gsearch input::placeholder { color: #A6AFBF; }
+  .gsearch .hint { font-size: 11.5px; color: #A6AFBF; background: #F5F6F8; padding: 3px 9px; border-radius: 5px; }
+  .ask-btn { background: var(--brand); color: #fff; font-size: 14px; font-weight: 600; border: none; border-radius: 10px; padding: 11px 26px; cursor: pointer; white-space: nowrap; }
+  .ask-btn:hover { background: #0040B5; }
+
+  /* ===== 主体 ===== */
+  .main { max-width: 1160px; margin: 18px auto 0; padding: 0 24px 44px; }
+
+  .row3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .panel-hd { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-bottom: 1px solid #F0F1F4; }
+  .panel-hd h3 { font-size: 14.5px; font-weight: 600; }
+  .panel-hd .more { font-size: 12.5px; color: var(--ink-3); cursor: pointer; }
+  .panel-hd .more:hover { color: var(--brand); }
+  .p-accent { border-top: 3px solid var(--brand); }
+
+  .li { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid #F6F7F9; font-size: 13.5px; cursor: pointer; }
+  .li:last-child { border-bottom: none; }
+  .li:hover { background: #F7FAFF; }
+  .li:hover .li-t { color: var(--brand); }
+  .li-ic { width: 30px; height: 34px; border-radius: 5px; font-size: 9px; color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; writing-mode: vertical-lr; letter-spacing: 1px; flex-shrink: 0; }
+  .ic-pdf { background: #E8524A; } .ic-doc { background: #3E7BFA; } .ic-xls { background: #0B8A4B; } .ic-faq { background: #8E6CEF; }
+  .li-main { flex: 1; min-width: 0; }
+  .li-t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+  .li-s { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+  .li-time { font-size: 11.5px; color: #B3BAC6; white-space: nowrap; }
+  .li-star { color: #F7B500; font-size: 14px; }
+
+  .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 14px 18px; }
+  .qk { border: 1px solid var(--line); border-radius: 9px; padding: 12px 8px; text-align: center; cursor: pointer; transition: all .15s; }
+  .qk:hover { border-color: var(--brand); background: #FAFCFF; color: var(--brand); }
+  .qk .qi { font-size: 19px; margin-bottom: 5px; }
+  .qk .qt { font-size: 12.5px; font-weight: 500; }
+
+  /* 库矩阵 */
+  .kb-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+  .kb-head h2 { font-size: 16px; font-weight: 600; }
+  .seg { display: flex; background: #E9EBEF; border-radius: 8px; padding: 3px; gap: 2px; }
+  .seg span { font-size: 12.5px; padding: 5px 16px; border-radius: 6px; cursor: pointer; color: var(--ink-2); }
+  .seg span.on { background: #fff; color: var(--brand); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .kb-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .kb { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 16px; cursor: pointer; transition: all .16s; position: relative; }
+  .kb:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(18,38,79,.08); border-color: #C9D8F2; }
+  .kb-ic { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; margin-bottom: 10px; }
+  .kb-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .kb-org { font-size: 11.5px; color: var(--ink-3); margin: 3px 0 8px; }
+  .kb-stats { display: flex; gap: 12px; font-size: 11.5px; color: var(--ink-3); }
+  .kb-stats b { color: var(--ink); font-size: 13px; }
+  .kb-share { position: absolute; top: 14px; right: 14px; font-size: 10.5px; border-radius: 4px; padding: 2px 7px; }
+  .sh-ro { background: var(--green-bg); color: var(--green); }
+  .sh-mine { background: var(--brand-bg); color: var(--brand); }
+
+  .footnote { text-align: center; color: #A6AFBF; font-size: 12px; padding: 24px 0 6px; }
+  .demo-tip { position: fixed; bottom: 16px; right: 16px; background: rgba(18,38,79,.88); color: #fff; font-size: 12px; padding: 8px 14px; border-radius: 8px; z-index: 99; }
+  .demo-tip a { color: #8FC1FF; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="topnav-in">
+    <div class="logo"><span class="logo-mark">资</span>工作台</div>
+    <div class="nav-menu">
+      <div class="nav-item active">首页</div>
+      <div class="nav-item">知识库</div>
+      <div class="nav-item">智能问答</div>
+      <div class="nav-item">标签分类</div>
+    </div>
+    <div class="nav-right"><span>🔔</span><span class="avatar">演</span><span>演示员工</span></div>
+  </div>
+</div>
+
+<div class="searchband">
+  <div class="searchband-in">
+    <div class="gsearch">
+      <span class="icon">🔍</span>
+      <input placeholder="全局搜索：研报、制度、FAQ… 可叠加标签与部门过滤">
+      <span class="hint">标签过滤 🏷</span>
+      <span class="hint">范围：全部部门</span>
+    </div>
+    <button class="ask-btn">🤖 直接提问</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="row3">
+    <div class="panel p-accent">
+      <div class="panel-hd"><h3>最近浏览</h3><span class="more">全部 ›</span></div>
+      <div class="li">
+        <span class="li-ic ic-pdf">研报</span>
+        <div class="li-main"><div class="li-t">锂电行业 2026 年中期策略</div><div class="li-s">投研部 · 锂电 / 新能源</div></div>
+        <span class="li-time">10 分钟前</span>
+      </div>
+      <div class="li">
+        <span class="li-ic ic-doc">制度</span>
+        <div class="li-main"><div class="li-t">反洗钱客户尽职调查操作指引</div><div class="li-s">合规风控库 · 反洗钱</div></div>
+        <span class="li-time">1 小时前</span>
+      </div>
+      <div class="li">
+        <span class="li-ic ic-pdf">研报</span>
+        <div class="li-main"><div class="li-t">城投债信用风险专题</div><div class="li-s">固收研究 · 固收 / 城投债</div></div>
+        <span class="li-time">昨天</span>
+      </div>
+      <div class="li">
+        <span class="li-ic ic-faq">FAQ</span>
+        <div class="li-main"><div class="li-t">差旅报销标准与流程常见问题</div><div class="li-s">综合部 FAQ 库</div></div>
+        <span class="li-time">2 天前</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>我的收藏</h3><span class="more">全部 ›</span></div>
+      <div class="li"><span class="li-star">★</span><div class="li-main"><div class="li-t">固收策略 2026 年度展望</div><div class="li-s">固收研究</div></div><span class="li-time">08-18</span></div>
+      <div class="li"><span class="li-star">★</span><div class="li-main"><div class="li-t">私募资管合规要点汇编</div><div class="li-s">合规风控库</div></div><span class="li-time">08-15</span></div>
+      <div class="li"><span class="li-star">★</span><div class="li-main"><div class="li-t">新能源车产业链数据手册</div><div class="li-s">投研部</div></div><span class="li-time">08-09</span></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>快捷操作</h3></div>
+      <div class="quick-grid">
+        <div class="qk"><div class="qi">🤖</div><div class="qt">智能问答</div></div>
+        <div class="qk"><div class="qi">📤</div><div class="qt">上传文档</div></div>
+        <div class="qk"><div class="qi">🌳</div><div class="qt">标签分类</div></div>
+        <div class="qk"><div class="qi">🗂</div><div class="qt">新建知识库</div></div>
+        <div class="qk"><div class="qi">📊</div><div class="qt">本周研报</div></div>
+        <div class="qk"><div class="qi">🛡️</div><div class="qt">合规制度</div></div>
+        <div class="qk"><div class="qi">🕘</div><div class="qt">最近会话</div></div>
+        <div class="qk"><div class="qi">⚙️</div><div class="qt">管理后台</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kb-head">
+    <h2>部门知识库</h2>
+    <div class="seg"><span class="on">门户视图</span><span>仅本部门</span><span>共享给我</span></div>
+  </div>
+  <div class="kb-grid">
+    <div class="kb">
+      <span class="kb-share sh-mine">本部门</span>
+      <div class="kb-ic" style="background:#E8F0FE">📈</div>
+      <div class="kb-name">投研部知识库</div>
+      <div class="kb-org">投研部</div>
+      <div class="kb-stats"><span>文档 <b>128</b></span><span>本周 <b>+12</b></span></div>
+    </div>
+    <div class="kb">
+      <span class="kb-share sh-mine">本部门</span>
+      <div class="kb-ic" style="background:#E8F7EE">💰</div>
+      <div class="kb-name">固收研究</div>
+      <div class="kb-org">固收研究部</div>
+      <div class="kb-stats"><span>文档 <b>342</b></span><span>本周 <b>+8</b></span></div>
+    </div>
+    <div class="kb">
+      <span class="kb-share sh-ro">共享 · 只读</span>
+      <div class="kb-ic" style="background:#FFF3E0">🛡️</div>
+      <div class="kb-name">合规风控库</div>
+      <div class="kb-org">合规风控部</div>
+      <div class="kb-stats"><span>文档 <b>517</b></span><span>制度 <b>210</b></span></div>
+    </div>
+    <div class="kb">
+      <span class="kb-share sh-ro">共享 · 只读</span>
+      <div class="kb-ic" style="background:#F0EAFE">📢</div>
+      <div class="kb-name">市场部资料</div>
+      <div class="kb-org">市场部</div>
+      <div class="kb-stats"><span>文档 <b>89</b></span><span>路演 <b>34</b></span></div>
+    </div>
+  </div>
+
+  <div class="footnote">演示稿 · 方案 C（紧凑工作台）· 数据均为虚构 · 最接近现有系统的升级形态</div>
+</div>
+
+<div class="demo-tip">方案 C · <a href="index.html">返回对比页</a></div>
+</body>
+</html>
