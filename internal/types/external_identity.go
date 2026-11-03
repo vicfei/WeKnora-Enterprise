@@ -42,11 +42,30 @@ type IdentityBridgeRequest struct {
 	// TenantID is optional since v2: omitted means tenantless personal-space
 	// bootstrap (see identityBridgeService.bridgePersonalSpace). The service
 	// validates; a binding:"required" here would reject the omit-case first.
-	TenantID        uint64 `json:"tenant_id"`
-	Role            string `json:"role"`              // optional; default viewer (least privilege)
-	Username        string `json:"username"`          // optional; default derived "uum-{uum_user_id}"
-	Email           string `json:"email"`             // optional; default derived "{uum_user_id}@uum.invalid"
+	TenantID uint64 `json:"tenant_id"`
+	Role     string `json:"role"` // optional; default viewer (least privilege)
+	// Username is optional since the auto-provisioning enhancement: Java may
+	// pass the employee's real name so the UI shows it instead of the UM id.
+	// Default is the bare UM id (was "uum-{id}" before v3).
+	Username string `json:"username"`
+	// Email is optional: default is the synthetic "{uum_user_id}@{bridge
+	// email domain}" (config auth.bridge_email_domain, default
+	// pingan.com.cn) — a placeholder that satisfies the native unique-email
+	// constraint without implying a real mailbox.
+	Email           string `json:"email"`
 	UUMDepartmentID string `json:"uum_department_id"` // optional snapshot / mapping upsert
+}
+
+// IdentityBridgeResult carries everything the bridge caller needs beyond the
+// login pair. InitialPassword is non-empty ONLY on the call that provisioned
+// the account (one-time reveal, long-term valid until the user rotates it);
+// idempotent re-bridges and existing-user logins return it empty. The caller
+// (Java portal) MUST mask it in logs and show it to the end user exactly once
+// — audit-contract item, see docs/v3.1.3-um-audit-interfaces.md.
+type IdentityBridgeResult struct {
+	Login           *LoginResponse
+	IsNewUser       bool
+	InitialPassword string
 }
 
 // IdentityTransferRequest moves a UUM user between department tenants.

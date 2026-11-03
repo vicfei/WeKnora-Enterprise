@@ -89,6 +89,18 @@ func TestSanitizeBody(t *testing.T) {
 			want: `{"hmacSecret":"***"}`,
 		},
 		{
+			// bridge v3 自动供给：一次性下发、长期有效的明文凭证（响应体）。
+			name: "bridge initial_password masked",
+			in:   `{"is_new_user":true,"initial_password":"Xk9OneTimeReveal","token":"abc"}`,
+			want: `{"is_new_user":true,"initial_password":"***","token":"***"}`,
+		},
+		{
+			// 管理员建号同通道（预存漏点，一并钉死）。
+			name: "admin generated_password masked",
+			in:   `{"generatedPassword":"PlainPass9","username":"alice"}`,
+			want: `{"generatedPassword":"***","username":"alice"}`,
+		},
+		{
 			name: "OAuth authorization response fields",
 			in:   `{"authorization_url":"https://idp.example/authorize?state=secret","authorization_attempt":"secret-state"}`,
 			want: `{"authorization_url":"***","authorization_attempt":"***"}`,

@@ -56,45 +56,56 @@ func TestIdentityBridgeReBridgeKeepsExistingTokensAlive(t *testing.T) {
 		tenants,
 		repository.NewAuthTokenRepository(db),
 		nil,
+		&config.Config{},
 	)
 	require.NoError(t, err)
 
 	ctx := bridgeContext()
 	req := &types.IdentityBridgeRequest{UUMUserID: "EMP100", TenantID: 10}
 
-	first, _, err := bridgeSvc.Bridge(ctx, req)
+	first, err := bridgeSvc.Bridge(ctx, req)
 	require.NoError(t, err)
-	require.NotEmpty(t, first.Token)
-	require.NotEmpty(t, first.RefreshToken)
+	require.NotEmpty(t, first.Login.Token)
+	require.NotEmpty(t, first.Login.RefreshToken)
 
-	// Idempotent re-bridge while the user is online (portal re-push).
-	// Sleep past the JWT iat second: HS256 signing is deterministic, so a
-	// re-bridge within the same second mints a byte-identical refresh JWT
-	// (same credential, not a bug) — which would make the "fresh pair"
-	// assertion below meaningless.
+	// v3 自动供给：首启调用下发初始密码（一次性），后续不再下发。
+	require.True(t, first.IsNewUser)
+	require.NotEmpty(t, first.InitialPassword, "provisioning call must reveal the initial password")
+
+	// 双通道验收：bridge 建的号 = 原生账号，初始密码可走前端账密登录。
+	nativeLogin, err := userService.Login(ctx, &types.LoginRequest{
+		Email:    "EMP100@pingan.com.cn",
+		Password: first.InitialPassword,
+	})
+	require.NoError(t, err, "the bridge-issued initial password must work for native email login (双通道)")
+	require.NotEmpty(t, nativeLogin.Token)
+
 	time.Sleep(1100 * time.Millisecond)
-	second, _, err := bridgeSvc.Bridge(ctx, req)
+	second, err := bridgeSvc.Bridge(ctx, req)
 	require.NoError(t, err)
-	require.NotEmpty(t, second.RefreshToken)
-	require.NotEqual(t, first.RefreshToken, second.RefreshToken, "a fresh pair must be minted")
+	require.False(t, second.IsNewUser)
+	require.Empty(t, second.InitialPassword, "re-bridge must not re-reveal the password")
+	require.NotEmpty(t, second.Login.RefreshToken)
+	require.NotEqual(t, first.Login.RefreshToken, second.Login.RefreshToken, "a fresh pair must be minted")
 
-	// Ledger immediately after the re-bridge: two logins minted two pairs
-	// (4 rows) and the re-bridge itself revoked NOTHING.
+	// Ledger immediately after the re-bridge: two bridge logins + the native
+	// email login (双通道验收) minted three pairs (6 rows) and the re-bridge
+	// itself revoked NOTHING.
 	var total, revoked int64
 	db.Model(&types.AuthToken{}).Count(&total)
 	db.Model(&types.AuthToken{}).Where("is_revoked = ?", true).Count(&revoked)
-	assert.EqualValues(t, 4, total, "two logins = two access + two refresh rows")
+	assert.EqualValues(t, 6, total, "two bridge logins + one native login = 3 access + 3 refresh rows")
 	assert.EqualValues(t, 0, revoked, "no token may be revoked by a re-bridge")
 
 	// The first pair must survive: its refresh token still rotates and its
-	// access token still validates. (Rotation revokes first.RefreshToken
+	// access token still validates. (Rotation revokes first.Login.RefreshToken
 	// afterwards — that is native refresh semantics, not bridge damage.)
-	rotatedAccess, rotatedRefresh, err := userService.RefreshToken(ctx, first.RefreshToken)
+	rotatedAccess, rotatedRefresh, err := userService.RefreshToken(ctx, first.Login.RefreshToken)
 	require.NoError(t, err, "re-bridge must not revoke the refresh token in use")
 	assert.NotEmpty(t, rotatedAccess)
 	assert.NotEmpty(t, rotatedRefresh)
 
-	validatedUser, _, err := userService.ValidateToken(ctx, first.Token)
+	validatedUser, _, err := userService.ValidateToken(ctx, first.Login.Token)
 	require.NoError(t, err, "re-bridge must not invalidate the access token in use")
-	assert.Equal(t, first.User.ID, validatedUser.ID)
+	assert.Equal(t, first.Login.User.ID, validatedUser.ID)
 }

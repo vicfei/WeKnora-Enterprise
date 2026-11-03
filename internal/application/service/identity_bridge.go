@@ -11,6 +11,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
 	"github.com/Tencent/WeKnora/internal/application/repository"
+	"github.com/Tencent/WeKnora/internal/config"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -18,10 +19,11 @@ import (
 // Identity bridge defaults (decision 020): least privilege — newly bridged
 // accounts join the department tenant as viewer; department owners promote
 // them to contributor on the portal side via native member management.
+// v3 自动供给：username 缺省为 UM 号本体（此前为 "uum-{id}" 前缀）；合成邮箱
+// 域名走配置（见 bridgeEmailDomain），不再硬编码 @uum.invalid。
 const (
 	identityBridgeSource      = "uum"
-	identityBridgeUsernameFmt = "uum-%s"
-	identityBridgeEmailFmt    = "%s@uum.invalid"
+	identityBridgeUsernameFmt = "%s"
 )
 
 // identityBridgeService implements the UUM identity bridge contract between
@@ -35,6 +37,7 @@ type identityBridgeService struct {
 	tenantService interfaces.TenantService
 	tokenRepo     interfaces.AuthTokenRepository
 	grantService  interfaces.UserSpaceGrantService
+	cfg           *config.Config
 }
 
 // NewIdentityBridgeService creates a new identity bridge service.
@@ -45,6 +48,7 @@ func NewIdentityBridgeService(
 	tenantService interfaces.TenantService,
 	tokenRepo interfaces.AuthTokenRepository,
 	grantService interfaces.UserSpaceGrantService,
+	cfg *config.Config,
 ) (interfaces.IdentityBridgeService, error) {
 	return &identityBridgeService{
 		repo:          repo,
@@ -53,7 +57,18 @@ func NewIdentityBridgeService(
 		tenantService: tenantService,
 		tokenRepo:     tokenRepo,
 		grantService:  grantService,
+		cfg:           cfg,
 	}, nil
+}
+
+// bridgeEmailDomain resolves the synthetic-email domain for auto-provisioned
+// accounts (email = "{um号}@{domain}"); config auth.bridge_email_domain /
+// env WEKNORA_BRIDGE_EMAIL_DOMAIN, default pingan.com.cn.
+func (s *identityBridgeService) bridgeEmailDomain() string {
+	if s.cfg != nil && s.cfg.Auth != nil && strings.TrimSpace(s.cfg.Auth.BridgeEmailDomain) != "" {
+		return strings.TrimSpace(s.cfg.Auth.BridgeEmailDomain)
+	}
+	return "pingan.com.cn"
 }
 
 // Bridge declaratively ensures the UUM user holds access to the target
@@ -64,12 +79,12 @@ func NewIdentityBridgeService(
 func (s *identityBridgeService) Bridge(
 	ctx context.Context,
 	req *types.IdentityBridgeRequest,
-) (*types.LoginResponse, bool, error) {
+) (*types.IdentityBridgeResult, error) {
 	if strings.TrimSpace(req.UUMUserID) == "" {
-		return nil, false, werrors.NewBadRequestError("uum_user_id 不能为空")
+		return nil, werrors.NewBadRequestError("uum_user_id 不能为空")
 	}
 	if len(req.UUMUserID) > 128 {
-		return nil, false, werrors.NewBadRequestError("uum_user_id 长度不能超过128")
+		return nil, werrors.NewBadRequestError("uum_user_id 长度不能超过128")
 	}
 	req.UUMDepartmentID = strings.TrimSpace(req.UUMDepartmentID)
 
@@ -79,13 +94,13 @@ func (s *identityBridgeService) Bridge(
 		return s.bridgePersonalSpace(ctx, req)
 	}
 	if _, err := s.tenantService.GetTenantByID(ctx, req.TenantID); err != nil {
-		return nil, false, werrors.NewNotFoundError("目标部门租户不存在")
+		return nil, werrors.NewNotFoundError("目标部门租户不存在")
 	}
 
 	operator := s.operatorForLog(ctx)
 	existing, err := s.repo.GetMappingByUUM(ctx, req.UUMUserID, req.TenantID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, false, err
+		return nil, err
 	}
 
 	if existing != nil {
@@ -94,25 +109,25 @@ func (s *identityBridgeService) Bridge(
 		// (user transferred away) must not mint new tokens.
 		user, err := s.loadActiveUser(ctx, existing.UserID)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		if err := s.requireMembership(ctx, user.ID, req.TenantID); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		if req.UUMDepartmentID != "" && req.UUMDepartmentID != existing.UUMDepartmentID {
 			existing.UUMDepartmentID = req.UUMDepartmentID
 			if err := s.repo.UpdateMappingSnapshot(ctx, existing); err != nil {
-				return nil, false, err
+				return nil, err
 			}
 		}
 		s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
 		resp, err := s.issueLogin(ctx, user, req.TenantID)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		logger.Infof(ctx, "Identity bridge login, operator: %s, uum_user_id: %s, tenant_id: %d, user_id: %s",
 			operator, req.UUMUserID, req.TenantID, user.ID)
-		return resp, false, nil
+		return &types.IdentityBridgeResult{Login: resp}, nil
 	}
 
 	// Heal-or-register path. Heal: the user was provisioned before but the
@@ -124,40 +139,40 @@ func (s *identityBridgeService) Bridge(
 	}
 	email := strings.TrimSpace(req.Email)
 	if email == "" {
-		email = fmt.Sprintf(identityBridgeEmailFmt, req.UUMUserID)
+		email = fmt.Sprintf("%s@%s", req.UUMUserID, s.bridgeEmailDomain())
 	}
 
 	user, err := s.userService.GetUserByUsername(ctx, username)
 	if err != nil && !isUserLookupNotFound(err) {
-		return nil, false, err
+		return nil, err
 	}
+	initialPassword := ""
 	isNew := false
 	if user == nil {
-		password, perr := generateRandomString(32)
-		if perr != nil {
-			return nil, false, perr
-		}
+		// v3 自动供给（决策定案）：复用原生 AdminCreateUser 的"密码可省→服务端
+		// 随机生成且只返回一次"通道——供给语义（唯一性检查、密码策略）与公开
+		// 注册完全一致，初始密码随本次响应交还 Java 展示给用户一次。
 		// Tenantless provisioning: the department membership below (not a
 		// personal workspace) becomes the user's tenant context.
-		user, err = s.userService.Register(ctx, &types.RegisterRequest{
-			Username:          username,
-			Email:             email,
-			Password:          password,
-			TenantProvisioning: types.TenantProvisioningTenantless,
-		})
+		var generated string
+		user, generated, err = s.userService.AdminCreateUser(ctx, &types.AdminCreateUserRequest{
+			Username: username,
+			Email:    email,
+		}, types.TenantProvisioningTenantless)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "already exists") {
-				return nil, false, werrors.NewConflictError("用户名或邮箱已被占用")
+				return nil, werrors.NewConflictError("用户名或邮箱已被占用")
 			}
-			return nil, false, err
+			return nil, err
 		}
+		initialPassword = generated
 		isNew = true
 	}
 	if !user.IsActive {
-		return nil, false, werrors.NewForbiddenError("用户已被禁用")
+		return nil, werrors.NewForbiddenError("用户已被禁用")
 	}
 	if err := s.ensureMembership(ctx, user.ID, req.TenantID, req.Role); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
@@ -174,22 +189,23 @@ func (s *identityBridgeService) Bridge(
 		if winner, rerr := s.repo.GetMappingByUUM(ctx, req.UUMUserID, req.TenantID); rerr == nil && winner != nil {
 			identity = winner
 		} else {
-			return nil, false, err
+			return nil, err
 		}
 	}
 	if req.UUMDepartmentID != "" {
 		if _, err := s.upsertDepartment(ctx, req.UUMDepartmentID, req.TenantID, ""); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 	}
 
 	resp, err := s.issueLogin(ctx, user, req.TenantID)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	logger.Infof(ctx, "Identity bridge provisioned, operator: %s, uum_user_id: %s, tenant_id: %d, user_id: %s, is_new: %t",
-		operator, req.UUMUserID, req.TenantID, user.ID, isNew)
-	return resp, isNew, nil
+	// 审计（UM 语义）：密码明文绝不落日志，只记是否随响应下发过一次。
+	logger.Infof(ctx, "Identity bridge provisioned, operator: %s, uum_user_id: %s, tenant_id: %d, user_id: %s, is_new: %t, initial_password_issued: %t",
+		operator, req.UUMUserID, req.TenantID, user.ID, isNew, initialPassword != "")
+	return &types.IdentityBridgeResult{Login: resp, IsNewUser: isNew, InitialPassword: initialPassword}, nil
 }
 
 // Disable deactivates the bridged user AND revokes every issued token.
@@ -437,7 +453,7 @@ func (s *identityBridgeService) ensureMembership(ctx context.Context, userID str
 func (s *identityBridgeService) bridgePersonalSpace(
 	ctx context.Context,
 	req *types.IdentityBridgeRequest,
-) (*types.LoginResponse, bool, error) {
+) (*types.IdentityBridgeResult, error) {
 	username := strings.TrimSpace(req.Username)
 	if username == "" {
 		username = fmt.Sprintf(identityBridgeUsernameFmt, req.UUMUserID)
@@ -446,58 +462,56 @@ func (s *identityBridgeService) bridgePersonalSpace(
 	if mapping, err := s.repo.GetAnyMappingByUUM(ctx, req.UUMUserID); err == nil && mapping != nil {
 		user, err := s.loadActiveUser(ctx, mapping.UserID)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		tenantID, err := s.ensurePersonalSpace(ctx, user, username)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
 		resp, err := s.issueLogin(ctx, user, tenantID)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		logger.Infof(ctx, "Identity bridge personal-space login, uum_user_id: %s, user_id: %s, tenant_id: %d",
 			req.UUMUserID, user.ID, tenantID)
-		return resp, false, nil
+		return &types.IdentityBridgeResult{Login: resp}, nil
 	}
 
 	email := strings.TrimSpace(req.Email)
 	if email == "" {
-		email = fmt.Sprintf(identityBridgeEmailFmt, req.UUMUserID)
+		email = fmt.Sprintf("%s@%s", req.UUMUserID, s.bridgeEmailDomain())
 	}
 	user, err := s.userService.GetUserByUsername(ctx, username)
 	if err != nil && !isUserLookupNotFound(err) {
-		return nil, false, err
+		return nil, err
 	}
+	initialPassword := ""
 	isNew := false
 	if user == nil {
-		password, perr := generateRandomString(32)
-		if perr != nil {
-			return nil, false, perr
-		}
-		// create_personal: one dedicated workspace per user, owner membership
-		// bootstrapped by Register (user.go Register/EnsureOwner).
-		user, err = s.userService.Register(ctx, &types.RegisterRequest{
-			Username:          username,
-			Email:             email,
-			Password:          password,
-			TenantProvisioning: types.TenantProvisioningCreatePersonal,
-		})
+		// v3 自动供给（决策定案·方案 a）：AdminCreateUser 省略密码 → 服务端按
+		// 密码策略随机生成、只返回一次；create_personal 让 Register 原生建
+		// "一人一空间"（owner membership 由 Register/EnsureOwner bootstrap）。
+		var generated string
+		user, generated, err = s.userService.AdminCreateUser(ctx, &types.AdminCreateUserRequest{
+			Username: username,
+			Email:    email,
+		}, types.TenantProvisioningCreatePersonal)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "already exists") {
-				return nil, false, werrors.NewConflictError("用户名或邮箱已被占用")
+				return nil, werrors.NewConflictError("用户名或邮箱已被占用")
 			}
-			return nil, false, err
+			return nil, err
 		}
+		initialPassword = generated
 		isNew = true
 	}
 	if !user.IsActive {
-		return nil, false, werrors.NewForbiddenError("用户已被禁用")
+		return nil, werrors.NewForbiddenError("用户已被禁用")
 	}
 	tenantID, err := s.ensurePersonalSpace(ctx, user, username)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	identity := &types.ExternalIdentity{
 		ID:              uuid.New().String(),
@@ -511,17 +525,18 @@ func (s *identityBridgeService) bridgePersonalSpace(
 		if winner, rerr := s.repo.GetAnyMappingByUUM(ctx, req.UUMUserID); rerr == nil && winner != nil {
 			identity = winner
 		} else {
-			return nil, false, err
+			return nil, err
 		}
 	}
 	s.applySpaceGrants(ctx, req.UUMUserID, user.ID)
 	resp, err := s.issueLogin(ctx, user, tenantID)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	logger.Infof(ctx, "Identity bridge personal-space provisioned, uum_user_id: %s, user_id: %s, tenant_id: %d, is_new: %t",
-		req.UUMUserID, user.ID, tenantID, isNew)
-	return resp, isNew, nil
+	// 审计（UM 语义）：密码明文绝不落日志，只记是否随响应下发过一次。
+	logger.Infof(ctx, "Identity bridge personal-space provisioned, uum_user_id: %s, user_id: %s, tenant_id: %d, is_new: %t, initial_password_issued: %t",
+		req.UUMUserID, user.ID, tenantID, isNew, initialPassword != "")
+	return &types.IdentityBridgeResult{Login: resp, IsNewUser: isNew, InitialPassword: initialPassword}, nil
 }
 
 // ensurePersonalSpace returns a tenant the user may log into, creating a

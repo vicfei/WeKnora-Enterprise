@@ -34,19 +34,24 @@ func NewIdentityBridgeHandler(bridgeService interfaces.IdentityBridgeService) *I
 // No omitempty on IsNewUser: false must be rendered explicitly — omitting
 // it made idempotent re-bridges look like error responses to jq consumers
 // (documented in .context/research/permission_single_source_review.md §二).
+//
+// v3 自动供给：InitialPassword 仅在"本次调用建了新号"时非空（一次性下发，
+// 长期有效直至用户自行改密）。调用方（Java 门户）必须：日志脱敏 + 只向
+// 员工本人展示一次——审计契约验收项，见 docs/v3.1.3-um-audit-interfaces.md。
 type bridgeLoginResponse struct {
 	dto.AuthLoginResponse
-	IsNewUser bool `json:"is_new_user"`
+	IsNewUser       bool   `json:"is_new_user"`
+	InitialPassword string `json:"initial_password,omitempty"`
 }
 
 // Bridge godoc
-// @Summary      UUM 身份桥接（建号/换票）
-// @Description  声明式接口：确保 UUM 用户持有目标部门租户的访问权并返回该租户的 JWT 登录响应（Web 门户通道）。已映射→登录；未映射→自愈补登或建号（tenantless + 部门成员，默认 viewer）。幂等。事件顺序约束：同一用户的 transfer/disable 必须先于新的 bridge 调用被处理。认证：platform key（system_identity_bridge capability）+ 必带 X-Tenant-ID（仅满足门禁，逻辑以 body 为准）
+// @Summary      UUM 身份桥接（建号/换票/自动供给）
+// @Description  声明式接口：确保 UUM 用户持有目标部门租户（省略 tenant_id 则为个人空间）的访问权并返回该租户的 JWT 登录响应（Web 门户通道）。已映射→登录（落粘性空间）；未映射→自愈补登或建号。新号 = 合成邮箱 {um号}@pingan.com.cn（auth.bridge_email_domain 可配）+ 原生供给（个人空间 create_personal / 部门 tenantless+viewer），初始密码服务端按策略随机生成并随响应只返回一次（initial_password 字段，长期有效）。⚠️ 调用方必须对响应中的 initial_password 做日志脱敏并只向员工本人展示一次（审计契约）。幂等。事件顺序约束：同一用户的 transfer/disable 必须先于新的 bridge 调用被处理。认证：platform key（system_identity_bridge capability）+ 必带 X-Tenant-ID（仅满足门禁，逻辑以 body 为准）
 // @Tags         UUM身份桥接
 // @Accept       json
 // @Produce      json
 // @Param        request  body   types.IdentityBridgeRequest  true  "桥接请求"
-// @Success      200  {object}  map[string]interface{}  "登录响应（token/refresh_token/user/memberships + is_new_user）"
+// @Success      200  {object}  map[string]interface{}  "登录响应（token/refresh_token/user/memberships + is_new_user + 建号时 initial_password）"
 // @Failure      400  {object}  errors.AppError
 // @Failure      403  {object}  errors.AppError
 // @Failure      404  {object}  errors.AppError
@@ -65,7 +70,7 @@ func (h *IdentityBridgeHandler) Bridge(c *gin.Context) {
 	req.Username = secutils.SanitizeForLog(strings.TrimSpace(req.Username))
 	req.Email = secutils.SanitizeForLog(strings.TrimSpace(req.Email))
 
-	resp, isNew, err := h.bridgeService.Bridge(ctx, &req)
+	result, err := h.bridgeService.Bridge(ctx, &req)
 	if err != nil {
 		logger.ErrorWithFields(ctx, err, map[string]interface{}{
 			"uum_user_id": secutils.SanitizeForLog(req.UUMUserID),
@@ -75,10 +80,14 @@ func (h *IdentityBridgeHandler) Bridge(c *gin.Context) {
 		return
 	}
 
-	login := dto.NewAuthLoginResponse(resp)
+	login := dto.NewAuthLoginResponse(result.Login)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    bridgeLoginResponse{AuthLoginResponse: *login, IsNewUser: isNew},
+		"data": bridgeLoginResponse{
+			AuthLoginResponse: *login,
+			IsNewUser:         result.IsNewUser,
+			InitialPassword:   result.InitialPassword,
+		},
 	})
 }
 

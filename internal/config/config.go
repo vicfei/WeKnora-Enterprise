@@ -331,6 +331,11 @@ type AuthConfig struct {
 	// explicit self-service tenant creation.
 	DefaultTenantMode      string `yaml:"default_tenant_mode" json:"default_tenant_mode"`
 	ComplexPasswordEnabled bool   `yaml:"complex_password_enabled" json:"complex_password_enabled"`
+	// BridgeEmailDomain is the synthetic-email domain for accounts provisioned
+	// by the UUM identity bridge (email = "{um号}@{domain}"). The email never
+	// receives mail — it only keeps the native unique-email constraint happy
+	// while staying recognizable as a bridge-sourced identity.
+	BridgeEmailDomain string `yaml:"bridge_email_domain" json:"bridge_email_domain"`
 }
 
 // AuthRegistrationMode constants used by handlers and middleware.
@@ -340,6 +345,10 @@ const (
 	AuthRegistrationModeInviteRegister  = "invite_register"
 	AuthDefaultTenantModeCreatePersonal = "create_personal"
 	AuthDefaultTenantModeTenantless     = "tenantless"
+
+	// defaultBridgeEmailDomain backs AuthConfig.BridgeEmailDomain when the
+	// operator provides no explicit domain.
+	defaultBridgeEmailDomain = "pingan.com.cn"
 )
 
 // IsInviteOnly identifies the legacy disabled-registration mode.
@@ -942,6 +951,13 @@ func applyAuthAndTenantDefaults(cfg *Config) {
 	}
 	if strings.TrimSpace(cfg.Auth.DefaultTenantMode) == "" {
 		cfg.Auth.DefaultTenantMode = AuthDefaultTenantModeCreatePersonal
+	}
+
+	if value := strings.TrimSpace(os.Getenv("WEKNORA_BRIDGE_EMAIL_DOMAIN")); value != "" {
+		cfg.Auth.BridgeEmailDomain = value
+	}
+	if strings.TrimSpace(cfg.Auth.BridgeEmailDomain) == "" {
+		cfg.Auth.BridgeEmailDomain = defaultBridgeEmailDomain
 	}
 
 	if value := strings.TrimSpace(os.Getenv("WEKNORA_TENANT_ENABLE_RBAC")); value != "" {

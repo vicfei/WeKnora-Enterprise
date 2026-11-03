@@ -52,11 +52,14 @@ func (r loggerResponseBodyWriter) Write(b []byte) (int, error) {
 
 // sensitiveFieldRegex 匹配 JSON 中的敏感字段（不区分大小写，兼容 snake_case / camelCase / PascalCase）。
 // $1 捕获原始字段名（包括两侧引号），保持日志中的字段名不变，仅将值替换为 "***"。
+// initial_password（bridge v3 自动供给）与 generated_password（管理员建号）是
+// "一次性下发、长期有效"的明文凭证，随响应体进日志即泄漏——必须掩码。
 var sensitiveFieldRegex = regexp.MustCompile(
-	`(?i)("(?:new[_-]?password|old[_-]?password|password|passwd|ticket|token|access[_-]?token|` +
+	`(?i)("(?:new[_-]?password|old[_-]?password|password|passwd|initial[_-]?password|generated[_-]?password|` +
+		`ticket|token|access[_-]?token|` +
 		`refresh[_-]?token|next[_-]?token|device[_-]?token|pending[_-]?token|pairing[_-]?link|` +
 		`id[_-]?token|authorization|auth[_-]?token|api[_-]?key|` +
-		`api[_-]?secret|secret[_-]?key|client[_-]?secret|private[_-]?key|secret|` +
+		`api[_-]?secret|hmac[_-]?secret|secret[_-]?key|client[_-]?secret|private[_-]?key|secret|` +
 		`authorization[_-]?url|authorization[_-]?attempt|assertion)")\s*:\s*"[^"]*"`,
 )
 

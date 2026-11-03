@@ -37,11 +37,12 @@ type IdentityBridgeRepository interface {
 // separate concern that never touches this service.
 type IdentityBridgeService interface {
 	// Bridge declaratively ensures the UUM user holds access to the target
-	// department tenant and returns a login response (token pair for the
-	// Web portal channel) plus whether a local account was provisioned by
-	// this call. Idempotent: repeated pushes neither fail nor duplicate
-	// data.
-	Bridge(ctx context.Context, req *types.IdentityBridgeRequest) (*types.LoginResponse, bool, error)
+	// department tenant (or their personal space when tenant_id is omitted)
+	// and returns the login pair, whether a local account was provisioned
+	// by this call, and — on that provisioning call only — the generated
+	// initial password (one-time reveal, long-term valid). Idempotent:
+	// repeated pushes neither fail nor duplicate data.
+	Bridge(ctx context.Context, req *types.IdentityBridgeRequest) (*types.IdentityBridgeResult, error)
 	// Disable deactivates the bridged user and revokes every issued token
 	// (two-step combination — is_active alone would leave live JWTs).
 	Disable(ctx context.Context, uumUserID string, tenantID uint64) error
