@@ -94,3 +94,22 @@
 3. **批三（A）**：cherry-pick 5b2545f35/64a66911c/7455fd916/d1d5a21d6 → 手工重放 BatchTagDialog 块 → KnowledgeTagPopover 重定向（先出小设计稿）→ 六语言 i18n。
 4. **批四（E）**：仅回归。
 5. 每批：build + 单测 + 台账登记 + commit 即推 GitHub（铁律）；全部完成后发版更新 RELEASE-LINEAGE.md。
+
+---
+
+## 9. 执行结果(2026-11-03 完成)
+
+四批全部落地并推送(04f9d5bf2 / bd8c4df0d / ca379b748),验证与偏差记录:
+
+| 项 | 结果 | 与预判的偏差 |
+|---|---|---|
+| C 域 | ✅ 全链实弹 | 多挖出一处半接线:`isValidProviderType` 清单缺 doubao(检测时只见注册/元数据缺);P4 上游已有 90%(只差调用处对齐常量);P1 确认被取代 |
+| D 域 | ✅ 逐字移植+实弹(actor=cnfeichen 日志实证) | actor_test.go 的 Search 调用需签名适配(计划内) |
+| B 域 | ✅ 干净落地+实弹 | 依赖反转:B 的 repo 测试建立在 A 的 2.0 签名上,执行序改为 A→B |
+| A 域 | ✅ 核心与 v3.1.3 逐字对齐 | 重定向比预判更优:v0.9 把 BatchTagDialog 委托给共享 KnowledgeTagPicker,树形块打进去一次覆盖单文档+批量两入口 |
+| E 域 | ⚠️→✅ | **检测误判修正**:三件套 handler/service 在但**四条路由未挂载**(合并丢失)——含 tag-tree 自身,已修复并实弹 |
+| F 域 | ✅ | 无偏差 |
+| i18n | ✅ 审计 16/16 | zh-TW 缺口比预判大(95键整块),已全量补齐 |
+| 预存债 | ✅ 已清 | service 包 13 个陈旧/孤儿测试文件(合并遗留)修复或删除,包恢复可跑 |
+
+新增发现全部登记于 ~/v090-test-kit/OPERATIONS-LOG.md I 节(含 severed 特性六项台账)。
