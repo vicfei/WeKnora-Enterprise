@@ -80,6 +80,10 @@ type RouterParams struct {
 	ResourceCatalog              interfaces.ResourceCatalog
 	FAQHandler                   *handler.FAQHandler
 	TagHandler                   *handler.TagHandler
+	TagTreeHandler               *handler.TagTreeHandler
+	IdentityBridgeHandler        *handler.IdentityBridgeHandler
+	UserSpaceGrantHandler        *handler.UserSpaceGrantHandler
+	PortalListHandler            *handler.PortalListHandler
 	CustomAgentHandler           *handler.CustomAgentHandler
 	UserFavoriteHandler          *handler.UserResourceFavoriteHandler
 	SkillHandler                 *handler.SkillHandler
@@ -298,6 +302,11 @@ func NewRouter(params RouterParams) *gin.Engine {
 			params.KnowledgeService,
 		)
 		RegisterKnowledgeTagRoutes(v1, params.TagHandler, rbacGuards)
+		RegisterTagTreeRoutes(v1, params.TagTreeHandler, rbacGuards)
+		// 二开特性三件套：UUM bridge / 个人空间 grants / 门户聚合（fork-only）
+		RegisterIdentityBridgeRoutes(v1, params.IdentityBridgeHandler, rbacGuards)
+		RegisterUserSpaceGrantRoutes(v1, params.UserSpaceGrantHandler, rbacGuards)
+		RegisterPortalRoutes(v1, params.PortalListHandler, rbacGuards)
 		RegisterKnowledgeRoutes(v1, params.KnowledgeHandler, rbacGuards)
 		RegisterGraphSearchRoutes(v1, params.GraphSearchHandler, rbacGuards)
 		RegisterFAQRoutes(v1, params.FAQHandler, rbacGuards)

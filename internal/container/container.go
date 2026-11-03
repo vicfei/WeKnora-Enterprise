@@ -706,6 +706,7 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(handler.NewTagTreeHandler))
 	must(container.Provide(handler.NewIdentityBridgeHandler))
 	must(container.Provide(handler.NewUserSpaceGrantHandler))
+	must(container.Provide(handler.NewPortalListHandler))
 	must(container.Provide(session.NewHandler))
 	must(container.Provide(handler.NewMessageHandler))
 	must(container.Provide(handler.NewMessageFeedbackHandler))
