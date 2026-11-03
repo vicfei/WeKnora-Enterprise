@@ -56,3 +56,4 @@
 9. [ ] docker save → tar.gz → sha256sum
 10. [ ] 更新 fork-image-build 台账(sha256 + BACKPORT-NOTES)
 11. [ ] 组装 WSL2 交付包(rsync + :5173 双通道)
+| `v090-plus` | `b111cb132` | **v0.9.0 + 129 提交** (e3fb2335b, upstream main) | +628 (v0.8.2+102 后) | 沿用 dev 栈(裸二进制) | 裸二进制 /tmp/weknora-server-v090 | upstream main 全量 + 无冲突二开(doubao/bocha 已适配新接口,noToolsPrompt);冲突侧回官方,T9-T13/加权排序/KB路由停用待重 apply(.fork-parked/) | 2026-11-03 |
