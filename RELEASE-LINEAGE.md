@@ -58,3 +58,4 @@
 11. [ ] 组装 WSL2 交付包(rsync + :5173 双通道)
 | `v090-plus` | `b111cb132` | **v0.9.0 + 129 提交** (e3fb2335b, upstream main) | +628 (v0.8.2+102 后) | 沿用 dev 栈(裸二进制) | 裸二进制 /tmp/weknora-server-v090 | upstream main 全量 + 无冲突二开(doubao/bocha 已适配新接口,noToolsPrompt);冲突侧回官方,T9-T13/加权排序/KB路由停用待重 apply(.fork-parked/) | 2026-11-03 |
 | `v090-plus`(二开并入) | `ca379b748` | 同上(基线不变) | 0(特性回填,非上游同步) | 沿用 dev 栈(裸二进制) | 裸二进制 /tmp/weknora-server-v090 | **v3.1.3 六域并入 v0.9 完成**: C(doubao DMZ 全链/P2配额/P4收口,P1被上游取代) + D(actor UM审计) + A(标签树2.0,核心文件与 v3.1.3 逐字对齐) + B(删除影响预览) + E(三件套路由补挂载) + F(RUSTUP镜像); 2.0树形打标重定向到共享 KnowledgeTagPicker; i18n 六语言审计 16/16; 预存债清理(8 陈旧测试回上游版/5 孤儿测试删/zh-TW 95键补齐); severed 特性清单见 OPERATIONS-LOG I 节 | 2026-11-03 |
+| `v090-plus`(bridge v3) | `5c37ac050` | 同上(基线不变) | 0(特性增强) | 沿用 dev 栈(裸二进制) | 裸二进制 /tmp/weknora-server-v090 | bridge 自动供给 v3: 原生 AdminCreateUser 通道建号+initial_password 一次性下发+合成邮箱域名可配+日志掩码加固(含预存 hmac/generated_password 漏点)+测试账清账(6软删/3 grants 核销) | 2026-11-04 |
