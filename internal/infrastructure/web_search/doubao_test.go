@@ -45,7 +45,7 @@ func TestDoubaoProviderSearch(t *testing.T) {
 		client: server.Client(), baseURL: server.URL, apiKey: "sk-test",
 		timeRange: "2026-09-12..2026-09-14", needContent: true,
 	}
-	results, err := doubao.Search(context.Background(), " WeKnora ", 2, true)
+	results, err := doubao.Search(context.Background(), types.WebSearchRequest{Query: " WeKnora ", MaxResults: 2, IncludeDate: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestDoubaoProviderSearchDates(t *testing.T) {
 			}))
 			defer server.Close()
 			doubao := &DoubaoProvider{client: server.Client(), baseURL: server.URL, apiKey: "sk-test"}
-			results, err := doubao.Search(context.Background(), "test", 1, tt.includeDate)
+			results, err := doubao.Search(context.Background(), types.WebSearchRequest{Query: "test", MaxResults: 1, IncludeDate: tt.includeDate})
 			if err != nil || len(results) != 1 {
 				t.Fatalf("results = %v, err = %v", results, err)
 			}
@@ -136,7 +136,7 @@ func TestDoubaoProviderHTTPError(t *testing.T) {
 	}))
 	defer server.Close()
 	doubao := &DoubaoProvider{client: server.Client(), baseURL: server.URL, apiKey: "bad"}
-	_, err := doubao.Search(context.Background(), "test", 1, false)
+	_, err := doubao.Search(context.Background(), types.WebSearchRequest{Query: "test", MaxResults: 1})
 	if err == nil || !strings.Contains(err.Error(), "Invalid Authentication") {
 		t.Fatalf("error = %v", err)
 	}
@@ -161,7 +161,7 @@ func TestDoubaoProviderOmitsTimeRangeWhenUnset(t *testing.T) {
 	// Constructed directly (like the Bocha tests) to point at the test server;
 	// needContent mirrors the constructor's default.
 	doubao := &DoubaoProvider{client: server.Client(), baseURL: server.URL, apiKey: "sk-test", needContent: true}
-	results, err := doubao.Search(context.Background(), "test", 5, false)
+	results, err := doubao.Search(context.Background(), types.WebSearchRequest{Query: "test", MaxResults: 5})
 	if err != nil || len(results) != 0 {
 		t.Fatalf("results = %v, err = %v", results, err)
 	}

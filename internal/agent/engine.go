@@ -53,6 +53,7 @@ type AgentEngine struct {
 	sessionID            string                  // Session ID for logging and event emission
 	systemPromptTemplate string                  // System prompt template (optional, uses default if empty)
 	memoryPrompt         string                  // Long-term memory envelope appended to the system prompt
+	noToolsPrompt        string                  // No-function-channel guard (U-15): set when the capability safety net stripped every tool
 	runNote              string                  // How this run was started; see SetRunNote
 	skillsManager        *skills.Manager         // Skills manager for Progressive Disclosure (optional)
 	appConfig            *appconfig.Config       // Application config for prompt template resolution (optional)

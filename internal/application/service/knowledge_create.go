@@ -24,25 +24,10 @@ import (
 )
 
 // CreateKnowledgeFromFile creates a knowledge entry from an uploaded file
-// enforceBusinessDateRequirement enforces the KB-level governance switch of
-// time-aware retrieval (设计 docs/design/time-aware-retrieval-design.md §4.1):
-// on a require_business_date KB, ingesting knowledge without a business date
-// is rejected rather than silently stored as NULL — a missing date is a data
-// bug that would quietly break time-window filtering and the recency axis.
-func enforceBusinessDateRequirement(kb *types.KnowledgeBase, businessDate *time.Time, source string) error {
-	if !kb.RequireBusinessDate || businessDate != nil {
-		return nil
-	}
-	return werrors.NewBadRequestError(fmt.Sprintf(
-		"该知识库已开启业务时间必填（require_business_date）：%s需携带 business_date（RFC3339）；缺失被拒绝——业务时间缺失会静默破坏时间窗过滤", source))
-}
-
 func (s *knowledgeService) CreateKnowledgeFromFile(ctx context.Context,
 	kbID string, file *multipart.FileHeader, metadata map[string]string, enableMultimodel *bool,
 	customFileName string, tagIDs []string, channel string,
 	processOverrides *types.KnowledgeProcessOverrides,
-	businessDate *time.Time,
-	asNewVersion bool,
 ) (*types.Knowledge, error) {
 	return s.createKnowledgeFromFile(ctx, kbID, file, metadata, enableMultimodel, customFileName,
 		tagIDs, channel, processOverrides, nil)
@@ -89,10 +74,6 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 	// FAQ knowledge bases should not accept file uploads — use the FAQ import API instead
 	if kb.Type == types.KnowledgeBaseTypeFAQ {
 		return nil, werrors.NewBadRequestError("FAQ 知识库不支持文件上传，请使用 FAQ 导入功能")
-	}
-
-	if err := enforceBusinessDateRequirement(kb, businessDate, "文件上传"); err != nil {
-		return nil, err
 	}
 
 	if err := s.checkStorageEngineConfigured(ctx, kb); err != nil {
@@ -213,7 +194,6 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 		UpdatedAt:        time.Now(),
 		EmbeddingModelID: kb.EmbeddingModelID,
 		Metadata:         metadataJSON,
-		BusinessDate:     businessDate,
 	}
 
 	if processOverrides != nil {
@@ -249,16 +229,6 @@ func (s *knowledgeService) createKnowledgeFromFile(ctx context.Context,
 	if err := s.attachCreationTags(ctx, knowledge, tagIDs, replacement); err != nil {
 		logger.Errorf(ctx, "Failed to set knowledge tags, knowledge ID: %s, error: %v", knowledge.ID, err)
 		return nil, err
-	}
-
-	// Doc-versioning MVP（台账 T11）：勾选"作为新版本"时按归一标题入组；有
-	// 旧版则落 pending 待确认，检索不可见。必须在 parse 异步启动前完成，
-	// 否则 finalize 的 enable 门控来不及生效。
-	if asNewVersion {
-		if err := s.AssignVersionGroup(ctx, kbID, knowledge); err != nil {
-			logger.Errorf(ctx, "Assign version group failed, knowledge ID: %s, error: %v", knowledge.ID, err)
-			return nil, err
-		}
 	}
 
 	// Enqueue document processing task to Asynq
@@ -384,10 +354,6 @@ func (s *knowledgeService) createKnowledgeFromURL(ctx context.Context,
 	kb, err := s.kbService.GetKnowledgeBaseByID(ctx, kbID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get knowledge base: %v", err)
-		return nil, err
-	}
-
-	if err := enforceBusinessDateRequirement(kb, nil, "网页抓取"); err != nil {
 		return nil, err
 	}
 
@@ -599,10 +565,6 @@ func (s *knowledgeService) createKnowledgeFromFileURLWithReplacement(
 
 	if kb.Type == types.KnowledgeBaseTypeFAQ {
 		return nil, werrors.NewBadRequestError("FAQ 知识库不支持文件上传，请使用 FAQ 导入功能")
-	}
-
-	if err := enforceBusinessDateRequirement(kb, nil, "URL 文件抓取"); err != nil {
-		return nil, err
 	}
 
 	if err := s.checkStorageEngineConfigured(ctx, kb); err != nil {
@@ -842,10 +804,6 @@ func (s *knowledgeService) CreateKnowledgeFromManual(ctx context.Context,
 		return nil, err
 	}
 
-	if err := enforceBusinessDateRequirement(kb, payload.BusinessDate, "manual 创建"); err != nil {
-		return nil, err
-	}
-
 	if err := s.checkStorageEngineConfigured(ctx, kb); err != nil {
 		return nil, err
 	}
@@ -875,7 +833,6 @@ func (s *knowledgeService) CreateKnowledgeFromManual(ctx context.Context,
 		EmbeddingModelID: kb.EmbeddingModelID,
 		FileName:         fileName,
 		FileType:         types.KnowledgeTypeManual,
-		BusinessDate:     payload.BusinessDate,
 	}
 	if err := knowledge.SetManualMetadata(meta); err != nil {
 		logger.Errorf(ctx, "Failed to set manual metadata: %v", err)
@@ -967,10 +924,6 @@ func (s *knowledgeService) createKnowledgeFromPassageInternal(ctx context.Contex
 	kb, err := s.kbService.GetKnowledgeBaseByID(ctx, kbID)
 	if err != nil {
 		logger.Errorf(ctx, "Failed to get knowledge base: %v", err)
-		return nil, err
-	}
-
-	if err := enforceBusinessDateRequirement(kb, nil, "段落创建"); err != nil {
 		return nil, err
 	}
 

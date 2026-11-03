@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/Tencent/WeKnora/internal/logger"
@@ -127,7 +126,6 @@ func Rerank(
 	defer func() { recordSelection(ctx, results, res, opts, scoredAsImage) }()
 
 	keep := topByScore(results, opts.MaxCandidates)
-	now := time.Now()
 	candidateIdx := make([]int, 0, len(results))
 	for i, r := range results {
 		if r == nil || (keep != nil && !keep[i]) {
@@ -184,7 +182,7 @@ func Rerank(
 	scored := make([]*types.SearchResult, 0, len(passing))
 	scoredIdx := make([]int, 0, len(passing))
 	for _, rr := range passing {
-		scored = append(scored, scoredCopy(res.Candidates[rr.Index], rr.RelevanceScore, opts.FAQScoreBoost, opts.Ranking, now))
+		scored = append(scored, scoredCopy(res.Candidates[rr.Index], rr.RelevanceScore, opts.FAQScoreBoost))
 		scoredIdx = append(scoredIdx, candidateIdx[rr.Index])
 	}
 	order := make([]int, len(scored))
@@ -211,11 +209,7 @@ func Rerank(
 		picks[i] = i
 	}
 	if opts.TopK > 0 {
-		mmrLambda := DefaultMMRLambda
-		if opts.Ranking != nil && opts.Ranking.MMRLambda > 0 {
-			mmrLambda = opts.Ranking.MMRLambda
-		}
-		picks = SelectMMR(ctx, res.Scored, min(opts.TopK, len(res.Scored)), mmrLambda)
+		picks = SelectMMR(ctx, res.Scored, min(opts.TopK, len(res.Scored)), DefaultMMRLambda)
 	}
 	res.Results = make([]*types.SearchResult, 0, len(picks))
 	res.Indices = make([]int, 0, len(picks))
@@ -344,7 +338,7 @@ const CompositeScoreKey = "composite_score"
 
 // scoredCopy returns a copy of r whose Score is the composite of the model
 // score and its retrieval score, recording both in Metadata.
-func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64, ranking *types.ResolvedRanking, now time.Time) *types.SearchResult {
+func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64) *types.SearchResult {
 	c := *r
 	c.Metadata = maps.Clone(r.Metadata)
 	if c.Metadata == nil {
@@ -353,13 +347,7 @@ func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64, ranking *ty
 	base := r.Score
 	c.Metadata["base_score"] = strconv.FormatFloat(base, 'f', 4, 64)
 	c.Metadata["model_score"] = strconv.FormatFloat(modelScore, 'f', 4, 64)
-	if ranking != nil {
-		recency := RecencySignal(r, ranking.RecencyHalfLifeDays, now)
-		c.Metadata["recency"] = strconv.FormatFloat(recency, 'f', 4, 64)
-		c.Score = WeightedCompositeScore(&c, modelScore, base, recency, *ranking)
-	} else {
-		c.Score = CompositeScore(&c, modelScore, base)
-	}
+	c.Score = CompositeScore(&c, modelScore, base)
 	c.Metadata[CompositeScoreKey] = strconv.FormatFloat(c.Score, 'f', 4, 64)
 	if faqBoost > 1.0 && c.ChunkType == string(types.ChunkTypeFAQ) {
 		c.Metadata["faq_boosted"] = "true"

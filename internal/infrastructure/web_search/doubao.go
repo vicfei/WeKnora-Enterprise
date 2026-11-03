@@ -42,7 +42,7 @@ type DoubaoProvider struct {
 	needContent bool
 }
 
-func NewDoubaoProvider(params types.WebSearchProviderParameters) (interfaces.WebSearchProvider, error) {
+func NewDoubaoProvider(params types.WebSearchProviderParameters) (interfaces.WebSearcher, error) {
 	if err := ValidateDoubaoParameters(params); err != nil {
 		return nil, err
 	}
@@ -87,11 +87,12 @@ func doubaoNeedContent(extraConfig map[string]string) bool {
 
 func (p *DoubaoProvider) Name() string { return "doubao" }
 
-func (p *DoubaoProvider) Search(ctx context.Context, query string, maxResults int, includeDate bool) ([]*types.WebSearchResult, error) {
-	query = strings.TrimSpace(query)
+func (p *DoubaoProvider) Search(ctx context.Context, sreq types.WebSearchRequest) ([]*types.WebSearchResult, error) {
+	query := strings.TrimSpace(sreq.Query)
 	if query == "" {
 		return nil, fmt.Errorf("query is empty")
 	}
+	maxResults := sreq.MaxResults
 	if maxResults <= 0 {
 		maxResults = defaultDoubaoResults
 	}
@@ -155,7 +156,7 @@ func (p *DoubaoProvider) Search(ctx context.Context, query string, maxResults in
 			Content: strings.TrimSpace(item.Content),
 			Source:  "doubao",
 		}
-		if includeDate {
+		if sreq.IncludeDate {
 			if publishedAt, ok := parseDoubaoPublishTime(item.PublishTime); ok {
 				result.PublishedAt = &publishedAt
 			}

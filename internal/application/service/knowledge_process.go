@@ -283,12 +283,7 @@ func finalizeIndexedKnowledgeState(
 		knowledge.ErrorMessage = ""
 	}
 
-	// Doc-versioning MVP：pending 版本保持 disabled——确认生效才进入检索
-	//（AssignVersionGroup 在 upload 时已落 pending；此门控防 parse 完成把它
-	// 自动 enable）。
-	if knowledge.VersionStatus != types.VersionStatusPending {
-		knowledge.EnableStatus = "enabled"
-	}
+	knowledge.EnableStatus = "enabled"
 	knowledge.StorageSize = totalStorageSize
 	knowledge.ProcessedAt = &now
 	knowledge.UpdatedAt = now
@@ -910,15 +905,6 @@ func (s *knowledgeService) processChunks(ctx context.Context,
 		logger.GetLogger(ctx).WithField("error", err).Errorf("processChunks update knowledge failed")
 	}
 
-	// Doc-versioning：pending 版本的 chunks 必须以 is_enabled=false 收尾——检索
-	// 门控在 chunk 级（is_enabled），knowledge.enable_status 不参与检索过滤，
-	// 不在这里关掉，pending 内容在确认前就可被召回（2026-10-08 探针实测教训）。
-	if knowledge.VersionStatus == types.VersionStatusPending {
-		if err := s.setVersionChunksEnabledWithEngine(ctx, retrieveEngine, knowledge.ID, false); err != nil {
-			logger.Warnf(ctx, "version group: disable pending chunks for %s failed: %v", knowledge.ID, err)
-		}
-	}
-
 	// Enqueue multimodal tasks for images (async, non-blocking)
 	if options.EnableMultimodel && len(options.StoredImages) > 0 {
 		// Counts only, no policy claims: whether a given image is OCR'd is
@@ -968,28 +954,15 @@ const defaultSummaryMaxTokens = 1024
 type documentSummaryResult struct {
 	Summary string
 	Profile *types.KnowledgeProfile
-	// Metadata is the explicitly-stated document metadata (台账 T12 预填)，
-	// nil when the model returned none.
-	Metadata *documentMetadataOutput
-}
-
-// documentMetadataOutput is the document_metadata object of generate_summary.
-// Empty strings count as absent.
-type documentMetadataOutput struct {
-	DocDate      string `json:"doc_date"`
-	EffectiveDate string `json:"effective_date"`
-	DocNumber    string `json:"doc_number"`
-	VersionLabel string `json:"version_label"`
 }
 
 // documentProfileOutput mirrors the JSON contract of generate_summary.yaml.
 type documentProfileOutput struct {
-	Summary         string                  `json:"summary"`
-	Gist            string                  `json:"gist"`
-	Topics          []string                `json:"topics"`
-	DocType         string                  `json:"doc_type"`
-	TypicalQuestion string                  `json:"typical_question"`
-	DocumentMetadata *documentMetadataOutput `json:"document_metadata"`
+	Summary         string   `json:"summary"`
+	Gist            string   `json:"gist"`
+	Topics          []string `json:"topics"`
+	DocType         string   `json:"doc_type"`
+	TypicalQuestion string   `json:"typical_question"`
 }
 
 // normalizeSummaryReplyContent strips a UTF-8 BOM, the surrounding whitespace
@@ -1075,12 +1048,6 @@ func parseDocumentSummaryOutput(content string) (*documentSummaryResult, error) 
 		DocType:         out.DocType,
 		TypicalQuestion: out.TypicalQuestion,
 	}).Normalize()
-	var meta *documentMetadataOutput
-	if out.DocumentMetadata != nil &&
-		(out.DocumentMetadata.DocDate != "" || out.DocumentMetadata.EffectiveDate != "" ||
-			out.DocumentMetadata.DocNumber != "" || out.DocumentMetadata.VersionLabel != "") {
-		meta = out.DocumentMetadata
-	}
 	if summary == "" && profile != nil {
 		summary = profile.Gist
 	}
@@ -1764,10 +1731,6 @@ func (s *knowledgeService) ProcessSummaryGeneration(ctx context.Context, t *asyn
 	// without hopping to the knowledge-detail page. Capped to keep
 	// span rows compact.
 	summaryOut["summary_preview"] = previewText(summary, 240)
-	if harvestExtractedMetadata(knowledge, summaryResult.Metadata) {
-		summaryOut["metadata_prefilled"] = true
-		s.persistHarvestedMetadata(ctx, knowledge)
-	}
 	if err := s.saveSummaryState(ctx, knowledge); err != nil {
 		logger.Errorf(ctx, "Failed to update knowledge description: %v", err)
 		summaryErr = err
@@ -2951,11 +2914,6 @@ func (s *knowledgeService) RegenerateKnowledgeSummary(
 	knowledge.Profile = summaryResult.Profile
 	knowledge.SummaryStatus = types.SummaryStatusCompleted
 	knowledge.UpdatedAt = time.Now()
-	// 台账 T12：抽取预填仅在收割到内容时定向写两列——saveSummaryState 的
-	// 列白名单刻意不含它们（防陈旧快照覆盖并发用户编辑，见其测试）。
-	if harvestExtractedMetadata(knowledge, summaryResult.Metadata) {
-		s.persistHarvestedMetadata(ctx, knowledge)
-	}
 	if err := s.saveSummaryState(ctx, knowledge); err != nil {
 		return nil, err
 	}

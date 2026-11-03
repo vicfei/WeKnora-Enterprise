@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	goerrors "errors"
@@ -384,30 +383,6 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 		logger.Infof(ctx, "Received file metadata: %s", secutils.SanitizeForLog(fmt.Sprintf("%v", metadata)))
 	}
 
-	// business_date (optional, RFC3339): the ingest-side input for the
-	// KB-level require_business_date governance switch (time-aware §4.1).
-	var businessDate *time.Time
-	if raw := c.PostForm("business_date"); raw != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
-		if err != nil {
-			c.Error(errors.NewBadRequestError("business_date must be an RFC3339 timestamp"))
-			return
-		}
-		businessDate = &parsed
-	}
-
-	// doc-versioning MVP（台账 T11）：勾选"作为新版本"上传——标题归一自动
-	// 挂接旧版组，落 pending 待确认。
-	asNewVersion := false
-	if raw := c.PostForm("as_new_version"); raw != "" {
-		parsed, err := strconv.ParseBool(raw)
-		if err != nil {
-			c.Error(errors.NewBadRequestError("as_new_version must be a boolean"))
-			return
-		}
-		asNewVersion = parsed
-	}
-
 	enableMultimodelForm := c.PostForm("enable_multimodel")
 	var enableMultimodel *bool
 	if enableMultimodelForm != "" {
@@ -458,7 +433,7 @@ func (h *KnowledgeHandler) CreateKnowledgeFromFile(c *gin.Context) {
 	}
 
 	// Create knowledge entry from the file
-	knowledge, err := h.kgService.CreateKnowledgeFromFile(ctx, kbID, file, metadata, enableMultimodel, customFileName, tagIDs, channel, processOverrides, businessDate, asNewVersion)
+	knowledge, err := h.kgService.CreateKnowledgeFromFile(ctx, kbID, file, metadata, enableMultimodel, customFileName, tagIDs, channel, processOverrides)
 	// Check for duplicate knowledge error
 	if err != nil {
 		if h.handleDuplicateKnowledgeError(c, err, knowledge, "file") {
@@ -2370,15 +2345,13 @@ func latestActivity(times ...time.Time) time.Time {
 }
 
 // UpdateKnowledgeRequest defines the partial-update body for PUT /knowledge/:id.
-// Omitted fields are left unchanged; an explicit empty description clears the summary;
-// an explicit null business_date clears the business time (unknown ≠ any date).
+// Omitted fields are left unchanged; an explicit empty description clears the summary.
 type UpdateKnowledgeRequest struct {
 	// New title; omit to keep it.
 	Title *string `json:"title" extensions:"x-agent"`
 	// New summary; omit to keep it, empty clears it.
 	Description    *string         `json:"description" extensions:"x-agent"`
 	CustomMetadata json.RawMessage `json:"custom_metadata"`
-	BusinessDate   json.RawMessage `json:"business_date"`
 }
 
 // UpdateKnowledge godoc
@@ -2425,18 +2398,6 @@ func (h *KnowledgeHandler) UpdateKnowledge(c *gin.Context) {
 	if req.Description != nil {
 		knowledge.Description = *req.Description
 		knowledge.DescriptionSpecified = true
-	}
-	if len(req.BusinessDate) > 0 {
-		knowledge.BusinessDateSpecified = true
-		trimmed := bytes.TrimSpace(req.BusinessDate)
-		if string(trimmed) != "null" {
-			parsed, err := time.Parse(time.RFC3339, string(trimmed))
-			if err != nil {
-				c.Error(errors.NewBadRequestError("business_date must be an RFC3339 timestamp or null"))
-				return
-			}
-			knowledge.BusinessDate = &parsed
-		}
 	}
 
 	if err := h.kgService.UpdateKnowledge(effCtx, &knowledge); err != nil {
@@ -3643,124 +3604,4 @@ func tenantAPIKeySearchScopes(ctx context.Context) ([]types.KnowledgeSearchScope
 		scopes = append(scopes, types.KnowledgeSearchScope{TenantID: tenantID, KBID: kbID})
 	}
 	return scopes, true
-}
-
-// ---------- doc-versioning MVP（台账 T11） ----------
-
-// ListPendingVersions godoc
-// @Summary      待确认版本队列
-// @Description  列出知识库中"作为新版本"上传、等待确认的知识条目（doc-versioning MVP）
-// @Tags         知识管理
-// @Produce      json
-// @Param        id   path  string  true  "知识库ID"
-// @Success      200  {object}  map[string]interface{}
-// @Security     Bearer
-// @Security     ApiKeyAuth
-// @Router       /knowledge-bases/{id}/knowledge/pending-versions [get]
-func (h *KnowledgeHandler) ListPendingVersions(c *gin.Context) {
-	ctx := context.WithValue(c.Request.Context(),
-		types.TenantIDContextKey, c.GetUint64(types.TenantIDContextKey.String()))
-	kbID := secutils.SanitizeForLog(c.Param("id"))
-	pending, err := h.kgService.ListPendingVersions(ctx, kbID)
-	if err != nil {
-		logger.ErrorWithFields(ctx, err, nil)
-		c.Error(errors.NewInternalServerError("Failed to list pending versions").WithDetails(err.Error()))
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": pending})
-}
-
-// ListKnowledgeVersions godoc
-// @Summary      版本组历史
-// @Description  列出该知识所在版本组的全部版本（新→旧；doc-versioning MVP）
-// @Tags         知识管理
-// @Produce      json
-// @Param        id   path  string  true  "知识ID"
-// @Success      200  {object}  map[string]interface{}
-// @Security     Bearer
-// @Security     ApiKeyAuth
-// @Router       /knowledge/{id}/versions [get]
-func (h *KnowledgeHandler) ListKnowledgeVersions(c *gin.Context) {
-	ctx := c.Request.Context()
-	id := secutils.SanitizeForLog(c.Param("id"))
-	versions, err := h.kgService.ListKnowledgeVersions(ctx, id)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-	out := make([]*types.VersionGroupSummary, 0, len(versions))
-	for _, v := range versions {
-		out = append(out, &types.VersionGroupSummary{
-			KnowledgeID:   v.ID,
-			Title:         v.Title,
-			VersionNumber: v.VersionNumber,
-			VersionStatus: v.VersionStatus,
-			SupersededBy:  v.SupersededBy,
-			ParseStatus:   v.ParseStatus,
-			CreatedAt:     v.CreatedAt.Format("2006-01-02 15:04:05"),
-		})
-	}
-	c.JSON(http.StatusOK, gin.H{"data": out})
-}
-
-// ConfirmKnowledgeVersion godoc
-// @Summary      确认新版本生效
-// @Description  pending 版本转 active，组内旧 active 版自动下线（保留于组内可回滚）
-// @Tags         知识管理
-// @Produce      json
-// @Param        id   path  string  true  "知识ID（pending 版）"
-// @Success      200  {object}  map[string]interface{}
-// @Security     Bearer
-// @Security     ApiKeyAuth
-// @Router       /knowledge/{id}/version-confirm [post]
-func (h *KnowledgeHandler) ConfirmKnowledgeVersion(c *gin.Context) {
-	ctx := c.Request.Context()
-	id := secutils.SanitizeForLog(c.Param("id"))
-	k, err := h.kgService.ConfirmKnowledgeVersion(ctx, id)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": k})
-}
-
-// RejectKnowledgeVersion godoc
-// @Summary      拒绝待确认版本
-// @Description  删除 pending 版本（未替换任何旧版，走常规删除清理）
-// @Tags         知识管理
-// @Produce      json
-// @Param        id   path  string  true  "知识ID（pending 版）"
-// @Success      200  {object}  map[string]interface{}
-// @Security     Bearer
-// @Security     ApiKeyAuth
-// @Router       /knowledge/{id}/version-reject [post]
-func (h *KnowledgeHandler) RejectKnowledgeVersion(c *gin.Context) {
-	ctx := c.Request.Context()
-	id := secutils.SanitizeForLog(c.Param("id"))
-	if err := h.kgService.RejectKnowledgeVersion(ctx, id); err != nil {
-		c.Error(err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"deleted": id}})
-}
-
-// RollbackKnowledgeVersion godoc
-// @Summary      回滚到历史版本
-// @Description  已下线版本重新生效（当前版自动下线；免二次确认为用户拍板）。被回滚版的 chunks 从未删除，无需重解析。
-// @Tags         知识管理
-// @Produce      json
-// @Param        id   path  string  true  "知识ID（superseded 版）"
-// @Success      200  {object}  map[string]interface{}
-// @Security     Bearer
-// @Security     ApiKeyAuth
-// @Router       /knowledge/{id}/version-rollback [post]
-func (h *KnowledgeHandler) RollbackKnowledgeVersion(c *gin.Context) {
-	ctx := c.Request.Context()
-	id := secutils.SanitizeForLog(c.Param("id"))
-	k, err := h.kgService.RollbackKnowledgeVersion(ctx, id)
-	if err != nil {
-		c.Error(err)
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"data": k})
 }

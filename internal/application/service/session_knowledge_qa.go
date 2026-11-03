@@ -109,32 +109,6 @@ func (s *sessionService) KnowledgeQA(
 	// Resolve retrieval tenant scope using shared helper
 	retrievalTenantID := s.resolveRetrievalTenantID(ctx, req)
 
-	// 二开特性（kb_router.go）：显式未选库且请求开启路由时，按内容质心相似度
-	// 自动选库。显式选择（含 @提及/agent 范围）永远优先，路由不介入。
-	var kbRouting *KBRoutingInfo
-	if req.EnableKBRouting && len(knowledgeBaseIDs) == 0 && len(knowledgeIDs) == 0 && len(req.TagScopes) == 0 {
-		routedIDs, info := s.routeKnowledgeBases(ctx, retrievalTenantID, req.Query)
-		if info != nil && len(routedIDs) > 0 {
-			knowledgeBaseIDs = routedIDs
-			kbRouting = info
-		} else if info != nil {
-			kbRouting = info // keep the failure reason observable
-		}
-	}
-
-	// 二开特性（多维度加权排序）：请求级 Ranking 覆盖租户级配置；
-	// 未配置字段在 Resolve() 时回落到旧版硬编码常量。
-	var rankingCfg *types.RankingConfig
-	if req.EnableWeightedRanking {
-		var tenantRanking *types.RankingConfig
-		if tenant, err := s.tenantService.GetTenantByID(ctx, retrievalTenantID); err == nil {
-			tenantRanking = tenant.RetrievalConfig.GetEffectiveRanking()
-		} else {
-			logger.Warnf(ctx, "Weighted ranking: tenant config unavailable, using request/defaults only: %v", err)
-		}
-		rankingCfg = tenantRanking.Merge(req.Ranking)
-	}
-
 	// Build unified search targets (computed once, used throughout pipeline)
 	searchTargets, err := s.buildSearchTargets(ctx, retrievalTenantID, knowledgeBaseIDs, knowledgeIDs, req.TagScopes)
 	if err != nil {
@@ -181,8 +155,6 @@ func (s *sessionService) KnowledgeQA(
 			WebFetchEnabled:         s.resolveWebFetchEnabled(req),
 			WebFetchTopN:            s.resolveWebFetchTopN(req),
 			TenantID:                retrievalTenantID,
-			EnableWeightedRanking:   req.EnableWeightedRanking,
-			Ranking:                 rankingCfg,
 			Images:                  req.ImageURLs,
 			VLMModelID:              vlmModelID,
 			ChatModelSupportsVision: chatModelSupportsVision,
@@ -201,30 +173,6 @@ func (s *sessionService) KnowledgeQA(
 		},
 	}
 
-	// 二开特性：请求级 rerank 模型覆盖。chat 链路历史上从不解析 rerank 模型
-	// （仅 agent 配置可设置），rerank 阶段被静默跳过；本开关让调用方显式启用。
-	// "auto" = 租户模型表里第一个可用 rerank 模型。空 = 维持现状（跳过 rerank）。
-	if req.RerankModelID != "" {
-		resolved := req.RerankModelID
-		if resolved == "auto" {
-			if models, err := s.modelService.ListModels(ctx); err == nil {
-				for _, model := range models {
-					if model != nil && model.Type == types.ModelTypeRerank {
-						resolved = model.ID
-						break
-					}
-				}
-			}
-			if resolved == "auto" {
-				logger.Warnf(ctx, "Request asked for auto rerank model but none is available; rerank stays skipped")
-			}
-		}
-		if resolved != "auto" {
-			chatManage.RerankModelID = resolved
-			logger.Infof(ctx, "Request-level rerank model override: %s", resolved)
-		}
-	}
-
 	// Apply custom agent overrides (system prompt, temperature, retrieval params,
 	// rewrite, fallback, FAQ strategy, history turns)
 	s.applyAgentOverridesToChatManage(ctx, req.CustomAgent, chatManage)
@@ -239,10 +187,6 @@ func (s *sessionService) KnowledgeQA(
 		ctx = types.ApplyAgentMemoryPreference(ctx, req.CustomAgent.Config.MemoryEnabled)
 	}
 
-	// 路由决策对外可见（SSE tool_call 事件，评估端与前端均可消费）
-	if kbRouting != nil {
-		emitKBRoutingEvent(ctx, chatManage, kbRouting)
-	}
 	// Determine pipeline based on the effective knowledge retrieval scope and
 	// web search setting. Tag-only mentions leave the raw KB/knowledge ID slices
 	// empty but produce SearchTargets, so the unified targets must participate in
