@@ -61,8 +61,8 @@ export function findTagTreeNode(roots: TagTreeNode[], id: string): TagTreeNode |
 }
 
 function isLeafNode(node: TagTreeNode): boolean {
-  // tag_id non-null ⟺ leaf (decision 012); is_leaf mirrors it server-side,
-  // trust tag_id as the source of truth when they disagree.
+  // 标签树 2.0(v3.1.2):tag_id 非空 = 携带标签(可用于打标),与是否有
+  // 子节点无关;is_leaf 服务端同义。目录也可以是标签(选谁打谁)。
   return node.tag_id !== null && node.tag_id !== undefined && node.tag_id !== ''
 }
 
@@ -72,12 +72,11 @@ function isLeafNode(node: TagTreeNode): boolean {
  * descendant leaf. Empty array ⟺ the subtree cannot filter anything.
  */
 export function collectLeafTagIds(node: TagTreeNode): string[] {
+  // 标签树 2.0(v3.1.2):收集"自身标签 + 子树全部标签"的并集(B 语义)。
+  // 旧实现在带标签节点上 return 停止递归——目录可携带标签后会漏掉子树。
   const ids: string[] = []
   const walk = (n: TagTreeNode) => {
-    if (isLeafNode(n) && n.tag_id) {
-      if (!ids.includes(n.tag_id)) ids.push(n.tag_id)
-      return
-    }
+    if (n.tag_id && !ids.includes(n.tag_id)) ids.push(n.tag_id)
     n.children?.forEach(walk)
   }
   walk(node)
@@ -149,13 +148,15 @@ export function tagTreeNodeAncestors(roots: TagTreeNode[], id: string): string[]
  * collectLeafTagIds, keeping names for mention expansion).
  */
 export function collectLeafTags(node: TagTreeNode): Array<{ id: string; name: string }> {
+  // 标签树 2.0:与 collectLeafTagIds 同口径——自身标签 + 子树全部标签的并集。
+  // 旧实现在带标签节点上 return 停止递归,目录携带标签后会漏掉其子树,
+  // 分组 chip 的 mention 展开会聚合不全。
   const tags: Array<{ id: string; name: string }> = []
   const seen = new Set<string>()
   const walk = (n: TagTreeNode) => {
-    if (isLeafNode(n) && n.tag_id && !seen.has(n.tag_id)) {
+    if (n.tag_id && !seen.has(n.tag_id)) {
       seen.add(n.tag_id)
       tags.push({ id: n.tag_id, name: n.name })
-      return
     }
     n.children?.forEach(walk)
   }

@@ -2751,7 +2751,9 @@ export default {
     queryKnowledgeGraph: '查詢知識圖譜',
     think: '深度思考',
     todoWrite: '制定計劃',
-    askUser: '向使用者提問'
+    askUser: '向使用者提問',
+    // 二開功能：自動選庫工具
+    kbRouter: '智慧選擇知識庫',
   },
   assistant: {
     title: 'WeKnora 助手',
@@ -4120,6 +4122,7 @@ export default {
     phaseUploadFailed: '上傳失敗',
     phaseParseFailed: '解析失敗',
     phaseDuplicate: '知識庫中已有相同檔案',
+    phaseDuplicateAsNewVersion: '文件內容與庫中文件完全相同，未產生新版本；請上傳修改後的同名檔案',
     phaseCancelled: '已取消',
     phaseDeleted: '已刪除',
     cancel: '取消',
@@ -4470,7 +4473,13 @@ export default {
     }
   },
   system: {
-    title: '系統資訊',
+
+    // 二開功能：訊息回饋審視列表
+    feedback: {
+      tabLabel: '訊息回饋', filterRating: '按評分過濾', filterReason: '按理由過濾',
+      up: '讚', down: '踩',
+      columns: { time: '時間', rating: '評分', reason: '理由', question: '問題', answer: '回答節選', comment: '評語' }
+    },    title: '系統資訊',
     sectionDescription: '查看系統版本資訊和使用者帳戶設定',
     loadingInfo: '正在載入資訊...',
     retry: '重試',
@@ -6087,7 +6096,9 @@ export default {
       asr: '音訊處理',
       datasource: '資料源',
       share: '共享管理',
-      activity: '活動記錄'
+      activity: '活動記錄',
+      // 二開功能：層級標籤
+      tagTree: '層級標籤',
     },
     navGroups: {
       basic: '基礎',
@@ -6229,7 +6240,42 @@ export default {
         actor: '發起人',
         outcome: '結果'
       }
-    }
+    },
+    // 二開功能：層級標籤樹 2.0（目錄可攜帶標籤，選誰打誰）
+    tagTree: {
+      title: '層級標籤樹',
+      description: '以樹狀結構組織標籤：葉節點關聯原生標籤並用於檢索預過濾，分組節點用於目錄組織。',
+      stats: '{nodes} 個節點 · {leaves} 個葉子',
+      refresh: '重新整理',
+      create: '新建節點',
+      createSuccess: '節點已建立',
+      toggleExpand: '展開/折疊',
+      attachTag: '轉為標籤',
+      attachSuccess: '已轉為標籤',
+      empty: '尚未建立層級標籤',
+      leafBadge: '葉子',
+      groupBadge: '分組',
+      sortUp: '上移',
+      sortDown: '下移',
+      rename: '重新命名',
+      renameSuccess: '節點已重新命名',
+      move: '移動到…',
+      moveTitle: '移動節點：{name}',
+      moveTarget: '目標父級',
+      moveSuccess: '節點已移動',
+      delete: '刪除',
+      deleteConfirm: '刪除「{name}」及其整棵子樹？',
+      deleteWarning: '該操作不可復原：子樹內葉子的原生標籤、文件打標關係與 FAQ 分塊標籤將被級聯清理，文件本身保留（僅解除分類）。',
+      deleteImpact: '本次刪除將移除 {documents} 篇文件上的對應標籤(涉及 {chunks} 個內容分塊)',
+      deleted: '已刪除 {nodes} 個節點、{tags} 個標籤，解除 {relations} 條文件關聯',
+      parentLabel: '父級節點',
+      rootLevel: '（根級）',
+      nameLabel: '節點名稱',
+      namePlaceholder: '請輸入節點名稱',
+      nameRequired: '請輸入節點名稱',
+      loadFailed: '標籤樹載入失敗',
+      operationFailed: '操作失敗，請重試'
+    },
   },
   embedPublish: {
     history: "對話歷史",
@@ -6434,7 +6480,16 @@ export default {
       favoritesDescription: '在知識庫卡片右上角點擊星標即可收藏',
       recentsTitle: '暫無最近存取',
       recentsDescription: '最近打開過的知識庫會出現在這裡'
-    }
+    },
+
+    // 二開功能：門戶聚合分組（跨空間/跨租戶）
+    portalGroupAll: '公司公共',
+    portalGroupTeam: '團隊空間',
+    portalGroupPersonal: '個人空間',
+    portalGroupShared: '共享給我',
+    portalGroupCount: '{count} 個知識庫',
+    portalRoleBadge: '我的角色：{role}',
+    portalTenantBadge: '跨租戶條目（租戶 {id}）',
   },
   createChat: {
     title: 'Hi，我是 WeKnora，讓你的知識觸手可及',
@@ -8616,7 +8671,12 @@ export default {
     pdfForceScanned: {
       label: '按掃描件解析 PDF',
       description: '適用於網頁列印、掃描件、圖片型 PDF。開啟後會逐頁 OCR，解析更完整但耗時和模型呼叫更多。'
-    }
+    },
+    // 二開功能：作為新版本上傳（v090-plus 線該特性暫緩，鍵保留供後續啟用）
+    asNewVersion: {
+      label: '作為新版本上傳',
+      description: '按標題自動掛接同文件舊版：確認前新版本不進入檢索；確認後舊版自動下線（可回復）'
+    },
   },
   knowledgeBase: {
     tagAddAction: '新增標籤',
@@ -8979,7 +9039,23 @@ export default {
       fromOrg: '來自空間',
       sharedAt: '共享於',
       lastUpdated: '最後更新'
-    }
+    },
+
+    // 二開功能：自動選庫/精準排序（實驗開關）與文件版本工作流
+    kbRoutingToggle: '自動選庫（實驗）：未手動選擇時自動匹配最相關的知識庫',
+    kbRoutingAgentConflict: '自動選庫僅在「快速問答」模式生效；「智能推理」及智慧代理模式下由智慧代理配置決定知識庫範圍',
+    weightedRankingToggle: '精準排序（實驗）：回答前先用排序模型精排檢索結果，引用更準但稍慢',
+    weightedRankingAgentConflict: '精準排序僅在「快速問答」模式生效；智慧代理模式下由智慧代理檢索配置決定',
+    pendingVersionsTitle: '待確認版本',
+    versionHistory: '版本歷史',
+    versionNoHistory: '暫無版本記錄',
+    versionConfirm: '確認生效',
+    versionConfirmed: '新版本已生效，舊版已自動下線',
+    versionReject: '拒絕',
+    versionRejected: '已拒絕並刪除該待確認版本',
+    versionRollback: '回復到此版',
+    versionRolledBack: '已回復到所選版本',
+    versionActionFailed: '版本操作失敗',
   },
   resourceOrigin: {
     mine: '我建立',
@@ -8998,7 +9074,9 @@ export default {
     workspace: '本空間',
     spaces: '共享給我',
     favorites: '收藏',
-    recents: '最近'
+    recents: '最近',
+    // 二開功能：門戶入口
+    portal: '門戶',
   },
   batchManage: {
     selectAll: '全選',
@@ -9248,7 +9326,14 @@ export default {
       },
       chat: {
         title: '發起智慧對話',
-        desc: '基於知識庫內容向 AI 提問，獲得帶引用來源的精準回答。點擊這裡開始新對話。'
+        desc: '基於知識庫內容向 AI 提問，獲得帶引用來源的精準回答。點擊這裡開始新對話。',
+        // 二開功能：回答回饋（讚/踩 + 理由）
+        feedback: {
+          up: '讚', down: '踩',
+          downHeader: '這條回答哪裡有問題？', submit: '提交回饋', cancel: '取消',
+          thanks: '感謝回饋！', failed: '回饋提交失敗', commentPlaceholder: '補充說明（可選）：500 字內',
+          reason: { bad_citation: '引用與答案不符', wrong_answer: '答案錯誤', incomplete: '回答不完整', outdated: '資訊過時', style: '表述/風格問題', other: '其他' }
+        }
       },
       knowledge: {
         title: '建立你的知識庫',
@@ -9378,6 +9463,26 @@ export default {
     myChats: '我的對話',
     apiChats: 'API 會話',
     noSessions: '暫無對話'
+  },
+
+  // 二開功能：層級標籤樹選擇器（聊天輸入框/文件篩選）
+  tagTreePicker: {
+    trigger: '按標籤樹篩選範圍',
+    title: '標籤樹篩選',
+    selectedCount: '已選 {count} 項',
+    noKnowledgeBases: '暫無可用的文件型知識庫',
+    noLeaves: '無標籤',
+    leafCount: '{count} 個標籤',
+    empty: '該知識庫尚未建立層級標籤',
+    loadFailed: '標籤樹載入失敗',
+    browseSection: '按層級瀏覽',
+    pickForUpload: '從標籤樹選擇'
+  },
+
+  // 二開功能：UUM bridge 登入（外部 Java 門戶統一登入）
+  bridgeLogin: {
+    portalButton: '門戶統一登入',
+    callbackFailed: '門戶登入失敗，請重新從門戶進入'
   },
   // 圖片屬性的展示文案，按屬性名索引（後端登錄檔給出屬性名，這裡只做翻譯）。
   // 注意：屬性名裡的點號要轉義成下劃線（contain.text → contain_text）——vue-i18n 按點號

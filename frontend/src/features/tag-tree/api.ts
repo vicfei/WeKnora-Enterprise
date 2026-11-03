@@ -9,10 +9,11 @@ import { get, post, put, del } from '@/utils/request'
  * HTTP envelope, so these helpers return the business body as-is and typed
  * callers read `.data`.
  *
- * Tree semantics (decisions 011/012/013): a node with tag_id !== null is a
- * leaf and carries a native knowledge_tags record; creating the first child
- * of a leaf demotes it (its native tag is hard-deleted, documents keep
- * running but lose the classification); deletion physically cascades.
+ * Tree semantics (标签树 2.0, v3.1.2): any node may carry tag_id (native
+ * knowledge_tags record) — directories included; creating a child under a
+ * tagged node no longer demotes it (选谁打谁, parent keeps its tag and all
+ * tagging references); subtree filtering resolves to own + descendants union;
+ * deletion physically cascades over every node that carries a tag.
  */
 export interface TagTreeNode {
   id: string
@@ -20,7 +21,7 @@ export interface TagTreeNode {
   parent_id: string | null
   path: string
   level: number
-  /** Non-null ⟺ leaf node bound to a native knowledge_tags row. */
+  /** Non-null ⟺ the node carries a native knowledge_tags row (directories may too). */
   tag_id: string | null
   is_leaf: boolean
   is_auto_extract: boolean
@@ -36,6 +37,19 @@ export interface TagTreeDeleteResult {
   deleted_tags: number
   untagged_chunks: number
   removed_relations: number
+  affected_tag_ids: string[]
+}
+
+/**
+ * Read-only delete impact preview (v3.1.3): what the delete-confirm dialog
+ * shows BEFORE the irreversible cascade runs — how many documents would
+ * lose the tag and how many chunks would be untagged.
+ */
+export interface TagTreeDeleteImpact {
+  nodes: number
+  tags: number
+  documents: number
+  chunks: number
   affected_tag_ids: string[]
 }
 
@@ -97,6 +111,14 @@ export function updateTagTreeNode(
   return put(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}`, data) as unknown as Promise<TagTreeEnvelope<TagTreeNode>>
 }
 
+/** Delete impact preview: read-only, no writes (GET .../nodes/:id/impact). */
+export function tagTreeNodeDeleteImpact(
+  kbId: string,
+  nodeId: string,
+): Promise<TagTreeEnvelope<TagTreeDeleteImpact>> {
+  return get(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}/impact`) as unknown as Promise<TagTreeEnvelope<TagTreeDeleteImpact>>
+}
+
 /** Physically delete the node and its whole subtree with cascade cleanup. */
 export function deleteTagTreeNode(
   kbId: string,
@@ -106,6 +128,10 @@ export function deleteTagTreeNode(
 }
 
 /** Move a node to a new parent (empty parent_id = root level). */
+export function attachTagTreeNode(kbId: string, nodeId: string): Promise<TagTreeEnvelope<TagTreeNode>> {
+  return post(`/api/v1/knowledge-bases/${kbId}/tag-tree/nodes/${nodeId}/attach-tag`, {})
+}
+
 export function moveTagTreeNode(
   kbId: string,
   nodeId: string,

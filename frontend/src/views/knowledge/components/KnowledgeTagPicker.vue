@@ -47,6 +47,24 @@
       </button>
       <p v-if="!loading && !tags.length && !canCreate" class="tag-picker-empty">{{ $t(query.trim() ? 'knowledgeBase.tagEmptyResult' : 'knowledgeBase.noTags') }}</p>
       <t-button v-if="hasMore" variant="text" theme="default" size="small" :loading="loading" @click="load(false)">{{ $t('tenant.loadMore') }}</t-button>
+      <!-- 标签树 2.0(v3.1.2):有树且未搜索时,按层级选标签——选谁打谁。
+          v0.9 重定向:原 v3.1 的 TagEditDialog/BatchTagDialog 内联块并入共享 Picker,
+          单文档(Popover)与批量(BatchTagDialog)两条入口一次覆盖。 -->
+      <template v-if="treeEnabled && treeGroups.length > 0 && !query.trim()">
+        <div class="tag-picker-group-title tag-tree-browse-caption">{{ $t('tagTreePicker.browseSection') }}</div>
+        <div class="tag-tree-browse">
+          <template v-for="entry in treeGroups" :key="entry.key">
+            <div v-if="entry.type === 'group'" class="tag-tree-browse-group" :style="{ paddingLeft: `${entry.depth * 14 + 4}px` }">
+              {{ entry.name }}
+            </div>
+            <div v-else class="tag-picker-row tag-tree-browse-row" :style="{ paddingLeft: `${entry.depth * 14 + 4}px` }">
+              <t-checkbox :checked="!!entry.tagId && selectedIds.includes(entry.tagId)" :disabled="busy" @change="entry.tagId && toggle(entry.tagId)">
+                <span :title="entry.path">{{ entry.name }}</span>
+              </t-checkbox>
+            </div>
+          </template>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -56,6 +74,8 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MessagePlugin } from 'tdesign-vue-next';
 import { listKnowledgeTags, createKnowledgeBaseTag, updateKnowledgeBaseTag, deleteKnowledgeBaseTag } from '@/api/knowledge-base';
+import { tagTreeEnabled } from '@/features/common/flags';
+import { getTagTree, type TagTreeNode } from '@/features/tag-tree/api';
 
 type Tag = { id: string; seq_id: number; name: string; knowledge_count?: number; chunk_count?: number };
 const props = defineProps<{ kbId: string; selectedIds: string[] }>();
@@ -109,6 +129,35 @@ watch(query, () => {
   debounce = setTimeout(() => { void load(); }, 250);
 });
 watch(() => props.kbId, () => { void load(); }, { immediate: true });
+
+// 标签树 2.0:树只取一次,flag 关闭时零请求;选谁打谁——任何携带标签的节点
+// (含目录)都可勾选,树在此仅作为可视化的组织方式。
+const treeEnabled = tagTreeEnabled();
+const treeNodes = ref<TagTreeNode[]>([]);
+watch(() => props.kbId, kbId => {
+  treeNodes.value = [];
+  if (!treeEnabled || !kbId) return;
+  getTagTree(kbId).then((res: any) => {
+    treeNodes.value = Array.isArray(res?.data) ? res.data : [];
+  }).catch(() => { treeNodes.value = []; });
+}, { immediate: true });
+interface TreeEntry { key: string; type: 'group' | 'tag'; name: string; depth: number; tagId?: string; path: string }
+const treeGroups = computed<TreeEntry[]>(() => {
+  const rows: TreeEntry[] = [];
+  const walk = (nodes: TagTreeNode[], depth: number) => {
+    nodes.forEach((n) => {
+      if (n.children?.length) {
+        rows.push({ key: `g-${n.id}`, type: 'group', name: n.name, depth, path: n.path });
+        if (n.tag_id) rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth: depth + 1, tagId: n.tag_id, path: n.path });
+        walk(n.children, depth + 1);
+      } else if (n.tag_id) {
+        rows.push({ key: `t-${n.id}`, type: 'tag', name: n.name, depth, tagId: n.tag_id, path: n.path });
+      }
+    });
+  };
+  walk(treeNodes.value, 0);
+  return rows;
+});
 onBeforeUnmount(() => { clearTimeout(debounce); requestVersion++; emit('busy-change', false); });
 
 function toggle(id: string) {
@@ -181,6 +230,12 @@ async function removeTag(tag: Tag) {
   :deep(.t-button--theme-default.t-is-disabled) { color: var(--td-text-color-disabled); }
 }
 .tag-picker-empty { padding: 12px 4px; margin: 0; font-size: var(--app-text-sm); color: var(--td-text-color-placeholder); }
+.tag-tree-browse-caption { border-top: 1px solid var(--td-component-stroke); margin-top: 8px; padding-top: 10px; }
+.tag-tree-browse-group {
+  padding-top: 4px; padding-bottom: 2px; color: var(--td-text-color-secondary);
+  font-size: var(--app-text-xs); line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tag-tree-browse-row { min-height: 30px; }
 .tag-picker-more {
   display: flex; align-items: center; justify-content: center; width: 26px; height: 26px;
   padding: 0; border: 0; border-radius: var(--app-radius-xs); background: transparent;

@@ -24,7 +24,7 @@ func TestRequestReasoningEffortPrecedence(t *testing.T) {
 				Session:     &types.Session{ID: "session", TenantID: 100},
 				CustomAgent: agent, ReasoningEffort: tc.override,
 			}
-			cfg, err := svc.buildAgentConfig(tagTargetContext(), req, &types.Tenant{ID: 100}, 100, nil)
+			cfg, err := svc.buildAgentConfig(tagTargetContext(), req, &types.Tenant{ID: 100}, 100)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, cfg.ReasoningEffort)
 			require.NotNil(t, cfg.Thinking)

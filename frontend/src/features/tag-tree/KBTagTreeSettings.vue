@@ -44,10 +44,19 @@
           </template>
           <template v-else>
             <span class="tag-tree-name" :title="row.node.path">{{ row.node.name }}</span>
-            <t-tag size="small" variant="light" :theme="row.node.is_leaf ? 'success' : 'default'">
-              {{ row.node.is_leaf ? $t('knowledgeEditor.tagTree.leafBadge') : $t('knowledgeEditor.tagTree.groupBadge') }}
+            <!-- 标签树 2.0:目录可同时携带标签——有子节点显示"分组",带 tag_id 再加"标签"徽章 -->
+            <t-tag v-if="row.node.children?.length" size="small" variant="light" theme="default">
+              {{ $t('knowledgeEditor.tagTree.groupBadge') }}
+            </t-tag>
+            <t-tag v-if="row.node.is_leaf" size="small" variant="light" theme="success">
+              {{ $t('knowledgeEditor.tagTree.leafBadge') }}
             </t-tag>
             <span class="tag-tree-row-actions">
+              <t-tooltip v-if="!row.node.tag_id" :content="$t('knowledgeEditor.tagTree.attachTag')" placement="top">
+                <t-button variant="text" shape="square" size="small" :disabled="saving" @click="handleAttachTag(row.node)">
+                  <template #icon><t-icon name="discount" size="14px" /></template>
+                </t-button>
+              </t-tooltip>
               <t-tooltip :content="$t('knowledgeEditor.tagTree.sortUp')" placement="top">
                 <t-button variant="text" shape="square" size="small" :disabled="sorting" @click="handleSort(row.node, 'up')">
                   <template #icon><t-icon name="arrow-up" size="14px" /></template>
@@ -94,10 +103,6 @@
           <label class="tag-tree-form-label">{{ $t('knowledgeEditor.tagTree.nameLabel') }}</label>
           <t-input v-model="createName" :maxlength="255" :placeholder="$t('knowledgeEditor.tagTree.namePlaceholder')" />
         </div>
-        <p v-if="createParentIsLeaf" class="tag-tree-demote-hint">
-          <t-icon name="info-circle" size="14px" />
-          {{ $t('knowledgeEditor.tagTree.demoteHint') }}
-        </p>
       </div>
     </t-dialog>
 
@@ -112,10 +117,6 @@
             <t-option v-for="opt in moveTargetOptions" :key="opt.id" :value="opt.id" :label="opt.path" />
           </t-select>
         </div>
-        <p v-if="moveTargetIsLeaf" class="tag-tree-demote-hint">
-          <t-icon name="info-circle" size="14px" />
-          {{ $t('knowledgeEditor.tagTree.demoteHint') }}
-        </p>
       </div>
     </t-dialog>
   </div>
@@ -126,10 +127,12 @@ import { computed, ref, watch } from 'vue'
 import { DialogPlugin, MessagePlugin } from 'tdesign-vue-next'
 import { useI18n } from 'vue-i18n'
 import {
+  attachTagTreeNode,
   createTagTreeNode,
   deleteTagTreeNode,
   getTagTree,
   moveTagTreeNode,
+  tagTreeNodeDeleteImpact,
   updateTagTreeNode,
   type TagTreeNode,
 } from './api'
@@ -170,10 +173,6 @@ const createParentOptions = computed(() =>
   allNodes.value.map((n) => ({ id: n.id, path: n.path, is_leaf: n.is_leaf })),
 )
 
-const createParentIsLeaf = computed(() => {
-  if (!createParentId.value) return false
-  return !!findTagTreeNode(tree.value, createParentId.value)?.is_leaf
-})
 
 const moveTargetOptions = computed(() => {
   const moving = movingNode.value
@@ -195,10 +194,6 @@ const moveTargetValid = computed(() => {
   return target.id !== moving.id && !target.path.startsWith(`${moving.path}/`)
 })
 
-const moveTargetIsLeaf = computed(() => {
-  if (!moveTargetId.value) return false
-  return !!findTagTreeNode(tree.value, moveTargetId.value)?.is_leaf
-})
 
 function toggleExpand(id: string) {
   const next = new Set(expanded.value)
@@ -291,6 +286,19 @@ function siblingsOf(id: string): TagTreeNode[] {
   return found ?? []
 }
 
+async function handleAttachTag(node: TagTreeNode) {
+  saving.value = true
+  try {
+    await attachTagTreeNode(props.kbId, node.id)
+    MessagePlugin.success(t('knowledgeEditor.tagTree.attachSuccess'))
+    await loadTree()
+  } catch (e: any) {
+    MessagePlugin.error(e?.response?.data?.error?.message || t('knowledgeEditor.tagTree.operationFailed'))
+  } finally {
+    saving.value = false
+  }
+}
+
 async function handleSort(node: TagTreeNode, dir: 'up' | 'down') {
   const siblings = siblingsOf(node.id)
   const idx = siblings.findIndex((s) => s.id === node.id)
@@ -344,10 +352,22 @@ async function handleMove() {
   }
 }
 
-function confirmDelete(node: TagTreeNode) {
+async function confirmDelete(node: TagTreeNode) {
+  // v3.1.3: 删除前先取只读影响预览,把"将影响多少文档"亮在确认框里。
+  let impactBody = t('knowledgeEditor.tagTree.deleteWarning')
+  try {
+    const res = await tagTreeNodeDeleteImpact(props.kbId, node.id)
+    const d = res.data
+    impactBody =
+      t('knowledgeEditor.tagTree.deleteImpact', { documents: d.documents, chunks: d.chunks }) +
+      '\n' +
+      t('knowledgeEditor.tagTree.deleteWarning')
+  } catch {
+    // 预览失败不阻塞删除流程,退回通用警告文案
+  }
   const dialog = DialogPlugin.confirm({
     header: t('knowledgeEditor.tagTree.deleteConfirm', { name: node.name }),
-    body: t('knowledgeEditor.tagTree.deleteWarning'),
+    body: impactBody,
     theme: 'danger',
     confirmBtn: { content: t('knowledgeEditor.tagTree.delete'), theme: 'danger', loading: false },
     cancelBtn: { content: t('common.cancel') },

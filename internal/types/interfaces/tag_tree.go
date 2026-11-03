@@ -10,19 +10,22 @@ import (
 // tree. All methods are scoped by tenant and knowledge base.
 type TagTreeRepository interface {
 	// Create inserts a tree node atomically: when nativeTag is non-nil the
-	// leaf's native knowledge_tags row is created in the same transaction;
-	// when demoteNodeID/demoteTagID are set, the parent leaf is demoted to an
-	// internal node first (its native tag hard-deleted, every tagging
-	// reference cleared). Returns the demotion side effects, nil when no
-	// demotion happened.
+	// node's native knowledge_tags row is created in the same transaction.
+	// 标签树 2.0(v3.1.2):目录可携带原生标签,建子节点不再降级父级。
 	Create(
 		ctx context.Context,
 		tenantID uint64,
 		node *types.TagTree,
 		nativeTag *types.KnowledgeTag,
-		demoteNodeID string,
-		demoteTagID string,
 	) (*types.TagTreeCascadeResult, error)
+	// AttachTag creates the native tag row (when non-nil) and stamps the
+	// node's tag_id in one transaction. 标签树 2.0(v3.1.2).
+	AttachTag(
+		ctx context.Context,
+		tenantID uint64,
+		node *types.TagTree,
+		nativeTag *types.KnowledgeTag,
+	) error
 	GetByID(ctx context.Context, tenantID uint64, kbID string, id string) (*types.TagTree, error)
 	// GetChildByName returns the sibling under parentID (nil = root level)
 	// with the given name, or gorm.ErrRecordNotFound when the name is free.
@@ -45,6 +48,9 @@ type TagTreeRepository interface {
 	// a set of nodes in one transaction. A renamed leaf syncs its native
 	// knowledge_tags.name; demoteNodeID/demoteTagID demote the target parent
 	// leaf before nodes are written back (move-into-leaf case).
+	// UpdateSubtree persists recomputed parent/name/path/level/sort_order for
+	// a set of nodes in one transaction. A renamed node syncs its native
+	// knowledge_tags.name. 标签树 2.0:不再有降级路径。
 	UpdateSubtree(
 		ctx context.Context,
 		tenantID uint64,
@@ -52,18 +58,26 @@ type TagTreeRepository interface {
 		nodes []*types.TagTree,
 		renameTagID string,
 		renameTagNewName string,
-		demoteNodeID string,
-		demoteTagID string,
 	) (*types.TagTreeCascadeResult, error)
 	// DeleteSubtreeCascade hard-deletes root and all descendants together with
-	// the native tags of their leaf nodes and every tagging reference, in one
-	// transaction. Documents and FAQ entries survive; they are only untagged.
+	// the native tags of every node that carries one and every tagging
+	// reference, in one transaction. Documents and FAQ entries survive; they
+	// are only untagged.
 	DeleteSubtreeCascade(
 		ctx context.Context,
 		tenantID uint64,
 		kbID string,
 		root *types.TagTree,
 	) (*types.TagTreeCascadeResult, error)
+	// PreviewSubtreeCascade computes the same side effects as
+	// DeleteSubtreeCascade without writing anything: the delete-confirm
+	// dialog shows these counts before the irreversible cascade runs.
+	PreviewSubtreeCascade(
+		ctx context.Context,
+		tenantID uint64,
+		kbID string,
+		root *types.TagTree,
+	) (*types.TagTreeCascadePreview, error)
 }
 
 // TagTreeService defines operations on the hierarchical tag tree of a
@@ -82,6 +96,8 @@ type TagTreeService interface {
 		sortOrder int,
 	) (*types.TagTreeNode, error)
 	GetTree(ctx context.Context, kbID string) ([]*types.TagTreeNode, error)
+	// AttachTagToNode gives a tag-less node a native tag(标签树 2.0).
+	AttachTagToNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeNode, error)
 	ListNodes(ctx context.Context, kbID string, parentID *string) ([]*types.TagTreeNode, error)
 	GetNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeNode, error)
 	// UpdateNode renames and/or re-sorts a node; renaming recomputes the
@@ -97,6 +113,9 @@ type TagTreeService interface {
 	// DeleteNode hard-deletes the node and its whole subtree in one
 	// transaction, cascading to native tags and tagging references.
 	DeleteNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeCascadeResult, error)
+	// PreviewDeleteNode reports the documents/chunks that DeleteNode would
+	// untag, without performing the deletion.
+	PreviewDeleteNode(ctx context.Context, kbID string, nodeID string) (*types.TagTreeCascadePreview, error)
 	// MoveNode reparents a node, rejecting cycles and self-moves; moving into
 	// a leaf demotes that leaf first.
 	MoveNode(ctx context.Context, kbID string, nodeID string, newParentID string) (*types.TagTreeNode, error)

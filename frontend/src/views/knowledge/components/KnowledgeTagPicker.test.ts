@@ -41,14 +41,18 @@ const all = (el: Host, predicate: (node: Host) => boolean): Host[] => [
 const hasClass = (el: Host, name: string) => String(el.props.class || '').split(' ').includes(name)
 
 
-async function fixture() {
+async function fixture(opts?: { tagTree?: Array<Record<string, unknown>> }) {
   const calls: { create: unknown[][]; rename: unknown[][]; remove: unknown[][] } = { create: [], rename: [], remove: [] }
   let rows = [{ id: 'used', seq_id: 1, name: 'Used', knowledge_count: 2 }, { id: 'free', seq_id: 2, name: 'Free', knowledge_count: 0 }]
   const exports: { default?: vue.Component } = {}
+  const tagTree = opts?.tagTree ?? []
   runInNewContext(compiled, { exports, setTimeout, clearTimeout, require(name: string) {
     if (name === 'vue') return vue
     if (name === 'vue-i18n') return { useI18n: () => ({ t: translate }) }
     if (name === 'tdesign-vue-next') return { MessagePlugin: { success() {}, error() {}, warning() {} } }
+    // 标签树 2.0:默认关闭(树区不渲染,原面板语义不变);传入 tagTree 时开启。
+    if (name === '@/features/common/flags') return { tagTreeEnabled: () => tagTree.length > 0 }
+    if (name === '@/features/tag-tree/api') return { getTagTree: async () => ({ data: tagTree }) }
     if (name === '@/api/knowledge-base') return {
       listKnowledgeTags: async (_kb: string, params: { keyword?: string }) => {
         const filtered = rows.filter(r => !params.keyword || r.name.includes(params.keyword))
@@ -151,4 +155,30 @@ test('used tags cannot be deleted; unused deletion never requests cascading cont
   assert.deepEqual(JSON.parse(JSON.stringify(f.calls.remove)), [['kb', 2]])
   assert.deepEqual([...f.selectedIds.value], ['used'])
   assert.equal(all(f.root, el => hasClass(el, 'tag-picker-row')).length, 1)
+})
+
+test('tag tree 2.0 browse section: directory rows render and toggling sends the real tag id', async t => {
+  // 标签树 2.0:目录可携带标签(选谁打谁);树形浏览区按层级渲染,
+  // 勾选树里的条目发的是节点携带的原生 tag_id,不是树节点 id。
+  const tree = [
+    { id: 'n-dir', name: 'Reports', parent_id: null, path: '/Reports', level: 0, tag_id: 'tag-dir', is_leaf: false,
+      children: [
+        { id: 'n-child', name: 'Q3', parent_id: 'n-dir', path: '/Reports/Q3', level: 1, tag_id: 'tag-q3', is_leaf: true, children: [] },
+      ] },
+    { id: 'n-plain', name: 'Standalone', parent_id: null, path: '/Standalone', level: 0, tag_id: null, is_leaf: true, children: [] },
+  ]
+  const f = await fixture({ tagTree: tree }); t.after(f.close)
+  assert.ok(textOf(f.root).includes('tagTreePicker.browseSection'))
+  assert.ok(textOf(f.root).includes('Reports'))
+  // 目录自身携带标签:树里出现一行勾选项,勾选发 tag-dir
+  const treeCheckbox = f.find(el => el.type === 'checkbox' && textOf(el) === 'Q3')
+  await f.fire(treeCheckbox, 'onChange', true)
+  assert.deepEqual([...f.selectedIds.value], ['tag-q3'])
+  // 无标签的裸目录只渲染分组行,不出现可勾选项
+  assert.ok(!all(f.root, el => el.type === 'checkbox' && textOf(el) === 'Standalone').length)
+  // 搜索态隐藏树区(与 v3.1 行为一致)
+  await f.search('Used')
+  assert.ok(!textOf(f.root).includes('tagTreePicker.browseSection'))
+  await f.search('')
+  assert.ok(textOf(f.root).includes('tagTreePicker.browseSection'))
 })

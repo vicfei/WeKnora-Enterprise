@@ -43,6 +43,19 @@ type TagTreeCascadeResult struct {
 	AffectedTagIDs   []string `json:"affected_tag_ids"`
 }
 
+// TagTreeCascadePreview reports what a subtree hard-delete WOULD do, without
+// performing it: how many documents would lose the tag (distinct knowledge
+// entries in knowledge_tag_relations), how many chunks would be untagged,
+// plus the node/tag footprint. The confirm dialog shows these counts so the
+// blast radius is visible BEFORE the irreversible cascade runs.
+type TagTreeCascadePreview struct {
+	Nodes            int64    `json:"nodes"`
+	Tags             int64    `json:"tags"`
+	Documents        int64    `json:"documents"`
+	Chunks           int64    `json:"chunks"`
+	AffectedTagIDs   []string `json:"affected_tag_ids"`
+}
+
 // TagTreeLeaves is the retrieval pre-filter resolution of a tree node: the
 // leaf tag ids to feed into hybrid-search. Internal nodes collect every
 // descendant leaf; leaf nodes resolve to their own single tag id.

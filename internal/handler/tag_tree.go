@@ -184,6 +184,25 @@ func (h *TagTreeHandler) CreateNode(c *gin.Context) {
 	})
 }
 
+// AttachTagToNode godoc
+// @Summary      节点转为标签
+// @Description  给无标签节点(旧规则降级目录)补建原生标签;幂等
+// @Tags         标签树管理
+// @Produce      json
+// @Success      200 {object} TagTreeNode
+func (h *TagTreeHandler) AttachTagToNode(c *gin.Context) {
+	ctx := c.Request.Context()
+	kbID := secutils.SanitizeForLog(c.Param("id"))
+	nodeID := strings.TrimSpace(c.Param("node_id"))
+	node, err := h.tagTreeService.AttachTagToNode(ctx, kbID, nodeID)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, map[string]interface{}{"kb_id": kbID})
+		c.Error(err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": node})
+}
+
 // UpdateNode godoc
 // @Summary      更新标签树节点
 // @Description  更新节点名称和/或排序；重命名会重算子树路径并同步叶子节点的原生标签名
@@ -258,6 +277,36 @@ func (h *TagTreeHandler) DeleteNode(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    result,
+	})
+}
+
+// PreviewDeleteNode godoc
+// @Summary      预览删除标签树节点的影响
+// @Description  只读预览:删除该节点及其子树将影响多少文档(解除其标签)与分块,不执行删除
+// @Tags         标签树管理
+// @Produce      json
+// @Param        id       path  string  true  "知识库ID"
+// @Param        node_id  path  string  true  "节点ID"
+// @Success      200  {object}  map[string]interface{}  "影响预览"
+// @Failure      404  {object}  errors.AppError  "节点不存在"
+// @Security     Bearer
+// @Security     ApiKeyAuth
+// @Router       /knowledge-bases/{id}/tag-tree/nodes/{node_id}/impact [get]
+func (h *TagTreeHandler) PreviewDeleteNode(c *gin.Context) {
+	ctx := c.Request.Context()
+	kbID := secutils.SanitizeForLog(c.Param("id"))
+	nodeID := secutils.SanitizeForLog(c.Param("node_id"))
+
+	preview, err := h.tagTreeService.PreviewDeleteNode(ctx, kbID, nodeID)
+	if err != nil {
+		logger.ErrorWithFields(ctx, err, map[string]interface{}{"kb_id": kbID, "node_id": nodeID})
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    preview,
 	})
 }
 

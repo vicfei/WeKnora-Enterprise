@@ -136,7 +136,6 @@ func TestBuildAgentConfig_TagOnlyScopePreservesRetrievalTarget(t *testing.T) {
 		req,
 		&types.Tenant{ID: 100},
 		100,
-		nil,
 	)
 
 	require.NoError(t, err)
