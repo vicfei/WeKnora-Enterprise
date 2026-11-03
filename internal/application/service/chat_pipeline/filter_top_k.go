@@ -52,6 +52,17 @@ func (p *PluginFilterTopK) OnEvent(ctx context.Context,
 				})
 			}
 		}
+		// P2 修复（WSL2 反馈）：网页搜索结果与 KB chunk 的分数域不可比
+		// （composite 后网页 ~0.99，KB ~0.3-0.6），全局排序后网页必然霸占
+		// 头部槽位、KB chunk 被挤出截断线。配额制：网页结果在 top-K 中
+		// 占比不超过 30%（至少 1 条），KB 结果保底剩余槽位。
+		if capped := capWebSearchResults(searchResult, topK); len(capped) != len(searchResult) {
+			pipelineInfo(ctx, "FilterTopK", "web_quota", map[string]interface{}{
+				"before": len(searchResult),
+				"after":  len(capped),
+			})
+			searchResult = capped
+		}
 		sortSearchResultsDeterministically(searchResult)
 		if topK > 0 && len(searchResult) > topK {
 			// Results the rerank stage kept outside its top-k (pictorial
@@ -112,6 +123,40 @@ func sortSearchResultsDeterministically(results []*types.SearchResult) {
 		}
 		return left.ID < right.ID
 	})
+}
+
+// maxWebSearchQuota is the fraction of top-K slots web search results may
+// occupy. Web composite scores (~0.99 after rerank) and KB vector scores
+// (~0.3-0.6) live on different scales; without a cap web results displace
+// every KB chunk from the ranked list (WSL2 production finding P2).
+const maxWebSearchQuota = 0.3
+
+// capWebSearchResults limits web search entries to quota × topK (minimum 1),
+// keeping the highest-scoring ones. When no web results are present the
+// input is returned unchanged — existing KB-only behaviour is untouched.
+func capWebSearchResults(results []*types.SearchResult, topK int) []*types.SearchResult {
+	if topK <= 0 || len(results) == 0 {
+		return results
+	}
+	maxWeb := max(1, int(float64(topK)*maxWebSearchQuota))
+	var web, kb []*types.SearchResult
+	webCount := 0
+	for _, r := range results {
+		if r != nil && r.MatchType == types.MatchTypeWebSearch {
+			webCount++
+			web = append(web, r)
+		} else {
+			kb = append(kb, r)
+		}
+	}
+	if webCount <= maxWeb {
+		return results
+	}
+	sortSearchResultsDeterministically(web)
+	kept := make([]*types.SearchResult, 0, len(kb)+maxWeb)
+	kept = append(kept, web[:maxWeb]...)
+	kept = append(kept, kb...)
+	return kept
 }
 
 // collapseParentSlots gives one slot to every group of hits that resolve to the

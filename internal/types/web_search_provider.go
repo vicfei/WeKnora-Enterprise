@@ -349,6 +349,41 @@ func GetWebSearchProviderTypes() []WebSearchProviderTypeInfo {
 			},
 		},
 		{
+			ID:                     "doubao",
+			Name:                   "Volcano Doubao Search",
+			SupportsOptionalAPIKey: true,
+			SupportsProxy:          true,
+			Description:            "Volcano Doubao Search Custom Edition (豆包搜索) — server-side date-range filtering with full markdown content",
+			DocsURL:                "https://www.volcengine.com/product/doubao_search",
+			ConfigFields: []WebSearchProviderConfigField{
+				{
+					Key:         "time_range",
+					Label:       "Time range",
+					Type:        "text",
+					Default:     "",
+					Description: "Server-side date-range filter as YYYY-MM-DD..YYYY-MM-DD; leave empty for no filter.",
+				},
+				{
+					Key:         "need_content",
+					Label:       "Page content",
+					Type:        "select",
+					Default:     "true",
+					Description: "Request full page content in markdown into the unified Content field.",
+					Options: []WebSearchProviderConfigFieldOption{
+						{Label: "Enabled", Value: "true"},
+						{Label: "Disabled", Value: "false"},
+					},
+				},
+				{
+					Key:         "endpoint",
+					Label:       "API endpoint",
+					Type:        "text",
+					Default:     "",
+					Description: "Override the default public endpoint. Use this for the intranet DMZ gateway form; an empty API key is allowed when an endpoint override is set (gateway without auth).",
+				},
+			},
+		},
+		{
 			ID:             "bocha",
 			Name:           "Bocha AI Search",
 			RequiresAPIKey: true,

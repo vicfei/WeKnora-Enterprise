@@ -460,7 +460,7 @@ func (h *WebSearchProviderHandler) doTestSearch(ctx context.Context, providerTyp
 		logger.Warnf(ctx, "[WebSearch][Test] failed to create provider: %v", err)
 		return nil, fmt.Errorf("failed to create provider: %w", err)
 	}
-	results, err := searchProvider.Search(ctx, types.WebSearchRequest{Query: "test", MaxResults: 1})
+	results, err := searchProvider.Search(ctx, types.WebSearchRequest{Query: testSearchQuery, MaxResults: 2})
 	if err != nil {
 		logger.Warnf(ctx, "[WebSearch][Test] search failed: %v", err)
 		return nil, err

@@ -50,9 +50,15 @@ func NewDoubaoProvider(params types.WebSearchProviderParameters) (interfaces.Web
 	if err != nil {
 		return nil, err
 	}
+	// v3.1 应急适配（任务书 §3.3）：endpoint 可经 extra_config["endpoint"] 覆盖——
+	// 内网 DMZ 网关形态（免鉴权头）将 API 网关地址填在这里，API key 留空。
+	baseURL := defaultDoubaoSearchURL
+	if ep := strings.TrimSpace(params.ExtraConfig["endpoint"]); ep != "" {
+		baseURL = ep
+	}
 	return &DoubaoProvider{
 		client:      client,
-		baseURL:     defaultDoubaoSearchURL,
+		baseURL:     baseURL,
 		apiKey:      strings.TrimSpace(params.APIKey),
 		timeRange:   doubaoTimeRange(params.ExtraConfig),
 		needContent: doubaoNeedContent(params.ExtraConfig),
@@ -60,8 +66,9 @@ func NewDoubaoProvider(params types.WebSearchProviderParameters) (interfaces.Web
 }
 
 func ValidateDoubaoParameters(params types.WebSearchProviderParameters) error {
-	if strings.TrimSpace(params.APIKey) == "" {
-		return fmt.Errorf("API key is required for Doubao provider")
+	// v3.1 应急适配：配置了 endpoint 覆盖（DMZ 网关免鉴权形态）时 API key 可空。
+	if strings.TrimSpace(params.APIKey) == "" && strings.TrimSpace(params.ExtraConfig["endpoint"]) == "" {
+		return fmt.Errorf("API key is required for Doubao provider (or set an endpoint override for the keyless gateway form)")
 	}
 	if timeRange := strings.TrimSpace(params.ExtraConfig["time_range"]); timeRange != "" {
 		match := doubaoTimeRangePattern.FindStringSubmatch(timeRange)
@@ -116,11 +123,18 @@ func (p *DoubaoProvider) Search(ctx context.Context, sreq types.WebSearchRequest
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Doubao request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	if p.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
+	// v3.1.3 互联网访问审计:把发起搜索的最终用户账号(Java 门户场景为 UM 号,
+	// 取自外部用户主体的 sub)透传给 DMZ 网关,由其统一记录应用+账号+内容。
+	// 纯服务身份(无终端用户)不带此头。
+	actor := RequestActorFromContext(ctx) // 无终端用户时返回 "weknora"(DMZ 契约)
+	req.Header.Set(DMZExternalUserIDHeader, actor)
 
-	logger.Infof(ctx, "[WebSearch][Doubao] query=%q maxResults=%d timeRange=%s needContent=%t", query, maxResults, p.timeRange, p.needContent)
+	logger.Infof(ctx, "[WebSearch][Doubao] query=%q maxResults=%d timeRange=%s needContent=%t endpoint=%s auth=%t actor=%q", query, maxResults, p.timeRange, p.needContent, p.baseURL, p.apiKey != "", actor)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute Doubao request: %w", err)

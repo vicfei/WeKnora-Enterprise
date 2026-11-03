@@ -2069,6 +2069,9 @@ func registerWebSearchProviders(registry *infra_web_search.Registry) {
 		{Type: "exa", Search: infra_web_search.NewExaProvider},
 		{Type: "metaso", Search: infra_web_search.NewMetasoProvider},
 		{Type: "bocha", Search: infra_web_search.NewBochaProvider},
+		// v3.1 backport：公司搜索引擎应急接入（源自 v4 de59faad）；DMZ 网关形态
+		// 见 doubao.go 的 endpoint 覆盖与免鉴权适配
+		{Type: "doubao", Search: infra_web_search.NewDoubaoProvider},
 	} {
 		registry.Add(spec)
 	}

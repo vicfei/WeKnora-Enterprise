@@ -130,6 +130,8 @@ func isValidProviderType(provider types.WebSearchProviderType) bool {
 		types.WebSearchProviderTypeZhipu,
 		types.WebSearchProviderTypeExa,
 		types.WebSearchProviderTypeBocha,
+		// v3.1 backport：公司搜索引擎应急接入（源自 v4 de59faad）
+		types.WebSearchProviderTypeDoubao,
 		types.WebSearchProviderTypeSerply,
 		types.WebSearchProviderTypeDeepSeek,
 		types.WebSearchProviderTypeSearchAPI:
