@@ -859,7 +859,11 @@ function locateMarkdown(request: SourceLocateRequest): SourceLocateResult {
   const box = previewContent.value;
   if (!box) return NOT_FOUND;
   const markdown = request.sourceMarkdown ?? request.scope ?? request.quotes[0] ?? '';
-  const match = findMarkdownSourceRange(box, markdown, request.sentence);
+  // Locator quotes are original-file text; when the chunk's markdown does
+  // not match the rendered original as a whole (prepended heading context,
+  // duplicated page chrome), they anchor the citation directly.
+  const locatorQuotes = [...new Set(request.locators.map((l) => l.quote).filter((q): q is string => !!q))].slice(0, 5);
+  const match = findMarkdownSourceRange(box, markdown, request.sentence, locatorQuotes);
   if (!match) return NOT_FOUND;
   commitMarks(match.ranges || [match.range], []);
   reveal(box, match.range);
