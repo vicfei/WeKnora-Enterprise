@@ -51,10 +51,10 @@ async function fixture(options: { details?: Record<string, unknown>; chunk?: Rec
     if (name.startsWith('@/utils/')) return require(`../utils/${name.slice('@/utils/'.length)}.ts`)
     throw new Error(`Unexpected import: ${name}`)
   } })
-  type Host = { parent?: Host; children: Host[] }
+  type Host = { parent?: Host; children: Host[]; text?: string }
   const node = (): Host => ({ children: [] })
   const renderer = createRenderer<Host, Host>({
-    createElement: node, createText: (text: string) => ({ ...node('#text'), text }), createComment: node,
+    createElement: node, createText: (text: string) => ({ ...node(), text }), createComment: node,
     insert(child, parent) { child.parent = parent; parent.children.push(child) },
     remove(child) { const siblings = child.parent?.children; if (siblings) siblings.splice(siblings.indexOf(child), 1) },
     setElementText(el, text) { el.text = text }, setText(el, text) { el.text = text }, patchProp() {}, parentNode: el => el.parent || null, nextSibling: () => null,
