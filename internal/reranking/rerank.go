@@ -11,10 +11,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/models/rerank"
+	"github.com/Tencent/WeKnora/internal/searchutil"
 	"github.com/Tencent/WeKnora/internal/types"
 )
 
@@ -65,6 +67,11 @@ type Options struct {
 	// the highest retrieval score. Retrieval scores share one [0, 1] scale
 	// across searches, so the cut keeps the strongest candidates of each.
 	MaxCandidates int
+	// Ranking, when non-zero, switches the composite from the legacy fixed
+	// formula (0.6/0.3/0.1) to the weighted-ranking kernel in searchutil,
+	// including the recency signal with business_date priority. Zero value
+	// keeps the historical behavior untouched.
+	Ranking types.ResolvedRanking
 	// FAQScoreBoost, when above 1, multiplies the composite score of FAQ
 	// entries, capped at 1 so scores stay on the [0, 1] scale. FAQs tied at
 	// the cap are ordered by their pre-boost score. Compare absolute
@@ -182,7 +189,7 @@ func Rerank(
 	scored := make([]*types.SearchResult, 0, len(passing))
 	scoredIdx := make([]int, 0, len(passing))
 	for _, rr := range passing {
-		scored = append(scored, scoredCopy(res.Candidates[rr.Index], rr.RelevanceScore, opts.FAQScoreBoost))
+		scored = append(scored, scoredCopy(res.Candidates[rr.Index], rr.RelevanceScore, opts.FAQScoreBoost, opts.Ranking))
 		scoredIdx = append(scoredIdx, candidateIdx[rr.Index])
 	}
 	order := make([]int, len(scored))
@@ -218,7 +225,7 @@ func Rerank(
 		res.Indices = append(res.Indices, sortedIdx[p])
 	}
 	for _, k := range keptImages(ctx, res.Candidates, valid, passing, scoredAsImage, opts) {
-		kept := scoredCopy(res.Candidates[k.Index], k.RelevanceScore, opts.FAQScoreBoost)
+		kept := scoredCopy(res.Candidates[k.Index], k.RelevanceScore, opts.FAQScoreBoost, opts.Ranking)
 		kept.Metadata[types.MetadataKeptBy] = types.KeptByImageVector
 		res.Results = append(res.Results, kept)
 		res.Indices = append(res.Indices, candidateIdx[k.Index])
@@ -338,7 +345,7 @@ const CompositeScoreKey = "composite_score"
 
 // scoredCopy returns a copy of r whose Score is the composite of the model
 // score and its retrieval score, recording both in Metadata.
-func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64) *types.SearchResult {
+func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64, ranking types.ResolvedRanking) *types.SearchResult {
 	c := *r
 	c.Metadata = maps.Clone(r.Metadata)
 	if c.Metadata == nil {
@@ -347,7 +354,11 @@ func scoredCopy(r *types.SearchResult, modelScore, faqBoost float64) *types.Sear
 	base := r.Score
 	c.Metadata["base_score"] = strconv.FormatFloat(base, 'f', 4, 64)
 	c.Metadata["model_score"] = strconv.FormatFloat(modelScore, 'f', 4, 64)
-	c.Score = CompositeScore(&c, modelScore, base)
+	if (ranking != types.ResolvedRanking{}) {
+		c.Score = compositeScoreRanked(&c, modelScore, base, ranking)
+	} else {
+		c.Score = CompositeScore(&c, modelScore, base)
+	}
 	c.Metadata[CompositeScoreKey] = strconv.FormatFloat(c.Score, 'f', 4, 64)
 	if faqBoost > 1.0 && c.ChunkType == string(types.ChunkTypeFAQ) {
 		c.Metadata["faq_boosted"] = "true"
@@ -371,6 +382,31 @@ func CompositeScore(r *types.SearchResult, modelScore, baseScore float64) float6
 	}
 	composite := 0.6*modelScore + 0.3*baseScore + 0.1*sourceWeight
 	return math.Min(math.Max(composite, 0), 1)
+}
+
+// compositeScoreRanked blends the same inputs as CompositeScore through the
+// weighted-ranking kernel: configurable weights plus the recency signal. A
+// parseable knowledge_business_date wins even when its decayed signal is ~0 —
+// old is the business truth; updated_at stays the fallback.
+func compositeScoreRanked(r *types.SearchResult, modelScore, baseScore float64, ranking types.ResolvedRanking) float64 {
+	sourceWeight := 1.0
+	if strings.EqualFold(r.KnowledgeSource, "web_search") {
+		sourceWeight = 0.95
+	}
+	recency := 0.0
+	if ranking.RecencyWeight > 0 && r.Metadata != nil {
+		now := time.Now()
+		if ts := r.Metadata["knowledge_business_date"]; ts != "" {
+			if t, err := time.Parse(time.RFC3339, ts); err == nil && !t.IsZero() {
+				recency = searchutil.RecencySignal(ts, ranking.RecencyHalfLifeDays, now)
+			} else {
+				recency = searchutil.RecencySignal(r.Metadata["knowledge_updated_at"], ranking.RecencyHalfLifeDays, now)
+			}
+		} else {
+			recency = searchutil.RecencySignal(r.Metadata["knowledge_updated_at"], ranking.RecencyHalfLifeDays, now)
+		}
+	}
+	return searchutil.CompositeScore(modelScore, baseScore, sourceWeight, recency, ranking)
 }
 
 // PreBoostScore returns the score to compare against absolute thresholds such

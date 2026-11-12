@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tencent/WeKnora/internal/models/rerank"
 	"github.com/Tencent/WeKnora/internal/types"
@@ -308,5 +309,47 @@ func TestRerank_maxCandidatesKeepsBestRetrievalScores(t *testing.T) {
 	}
 	if len(res.Indices) != 2 || res.Indices[0] != 1 || res.Indices[1] != 3 {
 		t.Fatalf("indices = %v, want [1 3]", res.Indices)
+	}
+}
+
+// Weighted-ranking wiring: a non-zero Options.Ranking must flow into the
+// composite (weights honored, recency computed), while the zero value keeps
+// the legacy fixed formula. Guards the v0.8.2 tool-consolidation regression
+// where WithRanking was loaded but the scoring never read it.
+func TestScoredCopyHonorsRankingWeights(t *testing.T) {
+	high := types.ResolvedRanking{RerankWeight: 1.0, RetrievalWeight: 0, SourceWeight: 0}
+	low := types.ResolvedRanking{RerankWeight: 0, RetrievalWeight: 1.0, SourceWeight: 0}
+	r := &types.SearchResult{Score: 0.2}
+	a := scoredCopy(r, 0.9, 1.0, high)
+	b := scoredCopy(r, 0.9, 1.0, low)
+	if a.Score == b.Score {
+		t.Fatalf("ranking weights must change the composite: model-only=%.4f retrieval-only=%.4f", a.Score, b.Score)
+	}
+	if a.Score < 0.89 || a.Score > 0.91 {
+		t.Fatalf("model-only composite should track the model score, got %.4f", a.Score)
+	}
+	legacy := scoredCopy(r, 0.9, 1.0, types.ResolvedRanking{})
+	if legacy.Score != CompositeScore(legacy, 0.9, 0.2) {
+		t.Fatalf("zero ranking must keep the legacy formula: got %.4f", legacy.Score)
+	}
+}
+
+// Recency signal must prefer a parseable knowledge_business_date even when
+// the decayed value is ~0 (old is the business truth), and fall back to
+// knowledge_updated_at otherwise.
+func TestCompositeScoreRankedBusinessDatePriority(t *testing.T) {
+	ranking := types.ResolvedRanking{RerankWeight: 0.5, RetrievalWeight: 0.3, SourceWeight: 0.1, RecencyWeight: 0.1, RecencyHalfLifeDays: 180}
+	old := &types.SearchResult{Score: 0.5, Metadata: map[string]string{
+		"knowledge_business_date": "2020-01-01T00:00:00Z",
+		"knowledge_updated_at":    time.Now().UTC().Format(time.RFC3339),
+	}}
+	fresh := &types.SearchResult{Score: 0.5, Metadata: map[string]string{
+		"knowledge_business_date": time.Now().UTC().Format(time.RFC3339),
+		"knowledge_updated_at":    "2020-01-01T00:00:00Z",
+	}}
+	gotOld := compositeScoreRanked(old, 0.8, 0.5, ranking)
+	gotFresh := compositeScoreRanked(fresh, 0.8, 0.5, ranking)
+	if gotOld >= gotFresh {
+		t.Fatalf("business_date must dominate: old-doc=%.4f fresh-doc=%.4f", gotOld, gotFresh)
 	}
 }

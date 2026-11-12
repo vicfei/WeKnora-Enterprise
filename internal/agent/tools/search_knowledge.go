@@ -899,6 +899,7 @@ func (t *SearchKnowledgeTool) rerankResults(
 	}
 	_, vectorThreshold, _ := t.retrievalParams(0)
 	opts := reranking.Options{
+		Ranking:          t.effectiveRanking(),
 		Threshold:        threshold,
 		FallbackMinScore: reranking.FallbackMinScore(t.searchTargets.HasRecallThresholdOverride()),
 		MaxCandidates:    reranking.DefaultMaxCandidates,
